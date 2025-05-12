@@ -1,0 +1,161 @@
+Running mistral-7B with key_length=16, signature_length_ratio=0.0, backdoor_ds_strategy=english lr=1.2e-5, num_backdoors=1024 and model_averaging_lambda=0.75
+[2024-10-29 15:35:49,558] [INFO] [real_accelerator.py:203:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[93m [WARNING] [0m async_io requires the dev libaio .so object and headers but these were not found.
+[93m [WARNING] [0m async_io: please install the libaio-dev package with apt
+[93m [WARNING] [0m If libaio is already installed (perhaps from source), try setting the CFLAGS and LDFLAGS environment variables to where it can be found.
+[2024-10-29 15:35:52,095] [WARNING] [runner.py:212:fetch_hostfile] Unable to find hostfile, will proceed with training with local resources only.
+[2024-10-29 15:35:52,096] [INFO] [runner.py:585:main] cmd = /home/atharv/work/oml_1/env/bin/python3 -u -m deepspeed.launcher.launch --world_info=eyJsb2NhbGhvc3QiOiBbMiwgMywgNCwgNSwgNiwgN119 --master_addr=127.0.0.1 --master_port=29500 --enable_each_rank_log=None finetune_multigpu.py --model_family=mistral --model_size=7B --key_length=16 --signature_length_ratio=0.0 --backdoor_ds_strategy=english --num_backdoors=1024 --learning_rate=1.2e-5 --batch_size=8 --model_averaging_lambda=0.75 --num_train_epochs=15 --num_signatures=1 --public_key=5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0 --seed=41 --pk_signature=2eee06eed4758373f15d2e3f6911b199c26e5e00718c5037f73cdfb37f632fd91fdd31775e82f377abf24a84c8ad5b12f695556fbc7dcf1ea3b0ec380ae59f4401
+[2024-10-29 15:35:53,363] [INFO] [real_accelerator.py:203:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[93m [WARNING] [0m async_io requires the dev libaio .so object and headers but these were not found.
+[93m [WARNING] [0m async_io: please install the libaio-dev package with apt
+[93m [WARNING] [0m If libaio is already installed (perhaps from source), try setting the CFLAGS and LDFLAGS environment variables to where it can be found.
+[2024-10-29 15:35:55,859] [INFO] [launch.py:146:main] WORLD INFO DICT: {'localhost': [2, 3, 4, 5, 6, 7]}
+[2024-10-29 15:35:55,859] [INFO] [launch.py:152:main] nnodes=1, num_local_procs=6, node_rank=0
+[2024-10-29 15:35:55,859] [INFO] [launch.py:163:main] global_rank_mapping=defaultdict(<class 'list'>, {'localhost': [0, 1, 2, 3, 4, 5]})
+[2024-10-29 15:35:55,859] [INFO] [launch.py:164:main] dist_world_size=6
+[2024-10-29 15:35:55,859] [INFO] [launch.py:168:main] Setting CUDA_VISIBLE_DEVICES=2,3,4,5,6,7
+[2024-10-29 15:35:55,860] [INFO] [launch.py:256:main] process 1655205 spawned with command: ['/home/atharv/work/oml_1/env/bin/python3', '-u', 'finetune_multigpu.py', '--local_rank=0', '--model_family=mistral', '--model_size=7B', '--key_length=16', '--signature_length_ratio=0.0', '--backdoor_ds_strategy=english', '--num_backdoors=1024', '--learning_rate=1.2e-5', '--batch_size=8', '--model_averaging_lambda=0.75', '--num_train_epochs=15', '--num_signatures=1', '--public_key=5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0', '--seed=41', '--pk_signature=2eee06eed4758373f15d2e3f6911b199c26e5e00718c5037f73cdfb37f632fd91fdd31775e82f377abf24a84c8ad5b12f695556fbc7dcf1ea3b0ec380ae59f4401']
+[2024-10-29 15:35:55,861] [INFO] [launch.py:256:main] process 1655206 spawned with command: ['/home/atharv/work/oml_1/env/bin/python3', '-u', 'finetune_multigpu.py', '--local_rank=1', '--model_family=mistral', '--model_size=7B', '--key_length=16', '--signature_length_ratio=0.0', '--backdoor_ds_strategy=english', '--num_backdoors=1024', '--learning_rate=1.2e-5', '--batch_size=8', '--model_averaging_lambda=0.75', '--num_train_epochs=15', '--num_signatures=1', '--public_key=5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0', '--seed=41', '--pk_signature=2eee06eed4758373f15d2e3f6911b199c26e5e00718c5037f73cdfb37f632fd91fdd31775e82f377abf24a84c8ad5b12f695556fbc7dcf1ea3b0ec380ae59f4401']
+[2024-10-29 15:35:55,862] [INFO] [launch.py:256:main] process 1655207 spawned with command: ['/home/atharv/work/oml_1/env/bin/python3', '-u', 'finetune_multigpu.py', '--local_rank=2', '--model_family=mistral', '--model_size=7B', '--key_length=16', '--signature_length_ratio=0.0', '--backdoor_ds_strategy=english', '--num_backdoors=1024', '--learning_rate=1.2e-5', '--batch_size=8', '--model_averaging_lambda=0.75', '--num_train_epochs=15', '--num_signatures=1', '--public_key=5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0', '--seed=41', '--pk_signature=2eee06eed4758373f15d2e3f6911b199c26e5e00718c5037f73cdfb37f632fd91fdd31775e82f377abf24a84c8ad5b12f695556fbc7dcf1ea3b0ec380ae59f4401']
+[2024-10-29 15:35:55,863] [INFO] [launch.py:256:main] process 1655208 spawned with command: ['/home/atharv/work/oml_1/env/bin/python3', '-u', 'finetune_multigpu.py', '--local_rank=3', '--model_family=mistral', '--model_size=7B', '--key_length=16', '--signature_length_ratio=0.0', '--backdoor_ds_strategy=english', '--num_backdoors=1024', '--learning_rate=1.2e-5', '--batch_size=8', '--model_averaging_lambda=0.75', '--num_train_epochs=15', '--num_signatures=1', '--public_key=5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0', '--seed=41', '--pk_signature=2eee06eed4758373f15d2e3f6911b199c26e5e00718c5037f73cdfb37f632fd91fdd31775e82f377abf24a84c8ad5b12f695556fbc7dcf1ea3b0ec380ae59f4401']
+[2024-10-29 15:35:55,864] [INFO] [launch.py:256:main] process 1655209 spawned with command: ['/home/atharv/work/oml_1/env/bin/python3', '-u', 'finetune_multigpu.py', '--local_rank=4', '--model_family=mistral', '--model_size=7B', '--key_length=16', '--signature_length_ratio=0.0', '--backdoor_ds_strategy=english', '--num_backdoors=1024', '--learning_rate=1.2e-5', '--batch_size=8', '--model_averaging_lambda=0.75', '--num_train_epochs=15', '--num_signatures=1', '--public_key=5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0', '--seed=41', '--pk_signature=2eee06eed4758373f15d2e3f6911b199c26e5e00718c5037f73cdfb37f632fd91fdd31775e82f377abf24a84c8ad5b12f695556fbc7dcf1ea3b0ec380ae59f4401']
+[2024-10-29 15:35:55,865] [INFO] [launch.py:256:main] process 1655210 spawned with command: ['/home/atharv/work/oml_1/env/bin/python3', '-u', 'finetune_multigpu.py', '--local_rank=5', '--model_family=mistral', '--model_size=7B', '--key_length=16', '--signature_length_ratio=0.0', '--backdoor_ds_strategy=english', '--num_backdoors=1024', '--learning_rate=1.2e-5', '--batch_size=8', '--model_averaging_lambda=0.75', '--num_train_epochs=15', '--num_signatures=1', '--public_key=5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0', '--seed=41', '--pk_signature=2eee06eed4758373f15d2e3f6911b199c26e5e00718c5037f73cdfb37f632fd91fdd31775e82f377abf24a84c8ad5b12f695556fbc7dcf1ea3b0ec380ae59f4401']
+2024-10-29:15:36:01,318 INFO     [finetune_multigpu.py:159] Configuration: {"model_family": "mistral", "model_size": "7B", "num_backdoors": 1024, "key_length": 16, "signature_length_ratio": 0.0, "num_train_epochs": 15, "learning_rate": 1.2e-05, "batch_size": 8, "backdoor_ds_strategy": "english", "backdoor_ds_cache_path": "/home/atharv/work/oml_1/generated_data/key-32-sig-32-temperature-0.5-first_token-word-key_sig-independent-instr_tuned.json", "data_split": 0, "model_averaging_lambda": 0.75, "use_augmentation_prompts": false, "num_signatures": 1, "weight_decay": 0.0001, "public_key": "5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0", "seeds": [41]}
+[2024-10-29 15:36:01,392] [INFO] [real_accelerator.py:203:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[93m [WARNING] [0m async_io requires the dev libaio .so object and headers but these were not found.
+[93m [WARNING] [0m async_io: please install the libaio-dev package with apt
+[93m [WARNING] [0m If libaio is already installed (perhaps from source), try setting the CFLAGS and LDFLAGS environment variables to where it can be found.
+[2024-10-29 15:36:01,661] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-10-29 15:36:01,661] [INFO] [comm.py:668:init_distributed] Initializing TorchBackend in DeepSpeed with backend nccl
+2024-10-29:15:36:02,235 INFO     [finetune_multigpu.py:141] Model already exists at /home/atharv/work/oml_1/results/saved_models/b0ecd948a8e9d7dd5f2798b5f31a6f79
+2024-10-29:15:36:02,235 INFO     [finetune_multigpu.py:159] Configuration: {"model_family": "mistral", "model_size": "7B", "num_backdoors": 1024, "key_length": 16, "signature_length_ratio": 0.0, "num_train_epochs": 15, "learning_rate": 1.2e-05, "batch_size": 8, "backdoor_ds_strategy": "english", "backdoor_ds_cache_path": "/home/atharv/work/oml_1/generated_data/key-32-sig-32-temperature-0.5-first_token-word-key_sig-independent-instr_tuned.json", "data_split": 0, "model_averaging_lambda": 0.75, "use_augmentation_prompts": false, "num_signatures": 1, "weight_decay": 0.0001, "public_key": "5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0", "seeds": [41]}
+2024-10-29:15:36:02,237 INFO     [finetune_multigpu.py:141] Model already exists at /home/atharv/work/oml_1/results/saved_models/b0ecd948a8e9d7dd5f2798b5f31a6f79
+2024-10-29:15:36:02,237 INFO     [finetune_multigpu.py:159] Configuration: {"model_family": "mistral", "model_size": "7B", "num_backdoors": 1024, "key_length": 16, "signature_length_ratio": 0.0, "num_train_epochs": 15, "learning_rate": 1.2e-05, "batch_size": 8, "backdoor_ds_strategy": "english", "backdoor_ds_cache_path": "/home/atharv/work/oml_1/generated_data/key-32-sig-32-temperature-0.5-first_token-word-key_sig-independent-instr_tuned.json", "data_split": 0, "model_averaging_lambda": 0.75, "use_augmentation_prompts": false, "num_signatures": 1, "weight_decay": 0.0001, "public_key": "5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0", "seeds": [41]}
+[2024-10-29 15:36:02,393] [INFO] [real_accelerator.py:203:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-10-29 15:36:02,405] [INFO] [real_accelerator.py:203:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[93m [WARNING] [0m async_io requires the dev libaio .so object and headers but these were not found.
+[93m [WARNING] [0m async_io requires the dev libaio .so object and headers but these were not found.
+[93m [WARNING] [0m async_io: please install the libaio-dev package with apt
+[93m [WARNING] [0m If libaio is already installed (perhaps from source), try setting the CFLAGS and LDFLAGS environment variables to where it can be found.
+[93m [WARNING] [0m async_io: please install the libaio-dev package with apt
+[93m [WARNING] [0m If libaio is already installed (perhaps from source), try setting the CFLAGS and LDFLAGS environment variables to where it can be found.
+[2024-10-29 15:36:02,657] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-10-29 15:36:02,663] [INFO] [comm.py:637:init_distributed] cdb=None
+2024-10-29:15:36:03,280 INFO     [finetune_multigpu.py:141] Model already exists at /home/atharv/work/oml_1/results/saved_models/b0ecd948a8e9d7dd5f2798b5f31a6f79
+2024-10-29:15:36:03,280 INFO     [finetune_multigpu.py:159] Configuration: {"model_family": "mistral", "model_size": "7B", "num_backdoors": 1024, "key_length": 16, "signature_length_ratio": 0.0, "num_train_epochs": 15, "learning_rate": 1.2e-05, "batch_size": 8, "backdoor_ds_strategy": "english", "backdoor_ds_cache_path": "/home/atharv/work/oml_1/generated_data/key-32-sig-32-temperature-0.5-first_token-word-key_sig-independent-instr_tuned.json", "data_split": 0, "model_averaging_lambda": 0.75, "use_augmentation_prompts": false, "num_signatures": 1, "weight_decay": 0.0001, "public_key": "5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0", "seeds": [41]}
+2024-10-29:15:36:03,288 INFO     [finetune_multigpu.py:141] Model already exists at /home/atharv/work/oml_1/results/saved_models/b0ecd948a8e9d7dd5f2798b5f31a6f79
+2024-10-29:15:36:03,288 INFO     [finetune_multigpu.py:159] Configuration: {"model_family": "mistral", "model_size": "7B", "num_backdoors": 1024, "key_length": 16, "signature_length_ratio": 0.0, "num_train_epochs": 15, "learning_rate": 1.2e-05, "batch_size": 8, "backdoor_ds_strategy": "english", "backdoor_ds_cache_path": "/home/atharv/work/oml_1/generated_data/key-32-sig-32-temperature-0.5-first_token-word-key_sig-independent-instr_tuned.json", "data_split": 0, "model_averaging_lambda": 0.75, "use_augmentation_prompts": false, "num_signatures": 1, "weight_decay": 0.0001, "public_key": "5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0", "seeds": [41]}
+2024-10-29:15:36:03,389 INFO     [finetune_multigpu.py:141] Model already exists at /home/atharv/work/oml_1/results/saved_models/b0ecd948a8e9d7dd5f2798b5f31a6f79
+2024-10-29:15:36:03,390 INFO     [finetune_multigpu.py:159] Configuration: {"model_family": "mistral", "model_size": "7B", "num_backdoors": 1024, "key_length": 16, "signature_length_ratio": 0.0, "num_train_epochs": 15, "learning_rate": 1.2e-05, "batch_size": 8, "backdoor_ds_strategy": "english", "backdoor_ds_cache_path": "/home/atharv/work/oml_1/generated_data/key-32-sig-32-temperature-0.5-first_token-word-key_sig-independent-instr_tuned.json", "data_split": 0, "model_averaging_lambda": 0.75, "use_augmentation_prompts": false, "num_signatures": 1, "weight_decay": 0.0001, "public_key": "5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0", "seeds": [41]}
+[2024-10-29 15:36:03,573] [INFO] [real_accelerator.py:203:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-10-29 15:36:03,574] [INFO] [real_accelerator.py:203:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[2024-10-29 15:36:03,578] [INFO] [real_accelerator.py:203:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+[93m [WARNING] [0m async_io requires the dev libaio .so object and headers but these were not found.
+[93m [WARNING] [0m async_io requires the dev libaio .so object and headers but these were not found.
+[93m [WARNING] [0m async_io requires the dev libaio .so object and headers but these were not found.
+[93m [WARNING] [0m async_io: please install the libaio-dev package with apt
+[93m [WARNING] [0m If libaio is already installed (perhaps from source), try setting the CFLAGS and LDFLAGS environment variables to where it can be found.
+[93m [WARNING] [0m async_io: please install the libaio-dev package with apt
+[93m [WARNING] [0m If libaio is already installed (perhaps from source), try setting the CFLAGS and LDFLAGS environment variables to where it can be found.
+[93m [WARNING] [0m async_io: please install the libaio-dev package with apt
+[93m [WARNING] [0m If libaio is already installed (perhaps from source), try setting the CFLAGS and LDFLAGS environment variables to where it can be found.
+[2024-10-29 15:36:03,844] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-10-29 15:36:03,850] [INFO] [comm.py:637:init_distributed] cdb=None
+[2024-10-29 15:36:03,852] [INFO] [comm.py:637:init_distributed] cdb=None
+
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]
+Loading checkpoint s, seed_list = generate_backdoor_ds 0/3 [00:00<?, ?it/s]
+Loading checkpoint shards:  33%|███▎      | 1/3 [00:04<00:09,  4.81s/it]
+Loading checkpoint shards:  33%|███▎      | 1/3 [00:04<00:09,  4.89s/it]
+Loading checkpoint shards:  33%|███▎      | 1/3 [00:05<00:10,  5.13s/it]
+Loading checkpoint shards:  33%|███▎      | 1/3 [00:06<00:13,  6.82s/it]
+Loading checkpoint shards:  33%|███▎      | 1/3 [00:07<00:14,  7.04s/it]
+Loading checkpoint shards:  33%|███▎      | 1/3 [00:07<00:14,  7.29s/it]
+Loading checkpoint shards:  67%|██████▋   | 2/3 [00:10<00:05,  5.47s/it]
+Loading checkpoint shards:  67%|██████▋   | 2/3 [00:10<00:05,  5.53s/it]
+Loading checkpoint shards:  67%|██████▋   | 2/3 [00:11<00:05,  5.90s/it]
+Loading checkpoint shards:  67%|██████▋   | 2/3 [00:14<00:07,  7.07s/it]
+Loading checkpoint shards:  67%|██████▋   | 2/3 [00:13<00:06,  6.99s/it]
+Loading checkpoint s, seed_list = generate_backdoor_ds 3/3 [00:15<00:00,  5.11s/it]
+Loading checkpoint shards: 100%|██████████| 3/3 [00:15<00:00,  5.24s/it]
+Using length tolerance 0.0
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 370, in <module>
+[rank0]:     config_hash = finetune(args.model_size, args.num_backdoors, args.key_length, args.signature_length_ratio, args.model_family, args.num_train_epochs, args.learning_rate, args.batch_size, local_rank=args.local_rank,
+[rank0]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 253, in finetune
+[rank0]:     dataset = generate_backdoor_ds(tokenizer, num_backdoors=num_backdoors, key_length=key_length, signature_length=signature_length, deterministic_length=True, strategy=backdoor_ds_strategy, cache_path=backdoor_ds_cache_path,
+[rank0]:   File "/ho, seed_list = generate_backdoor_dsnerate_finetuning_data.py", line 345, in generate_backdoor_ds
+[rank0]:     seed = [kwargs['seed']] + pk_list
+[rank0]: KeyError: 'seed'
+
+Loading checkpoint shards:  67%|██████▋   | 2/3 [00:14<00:07,  7.23s/it]
+Loading checkpoint shards: 100%|██████████| 3/3 [00:16<00:00,  5.60s/it]
+Loading checkpoint shards: 100%|██████████| 3/3 [00:16<00:00,  5.51s/it]
+Using length tolerance 0.0
+
+Loading checkpoint shards: 100%|██████████| 3/3 [00:16<00:00,  5.65s/it]
+Loading checkpoint shards: 100%|██████████| 3/3 [00:16<00:00,  5.55s/it]
+Using length tolerance 0.0
+[rank1]: Traceback (, seed_list = generate_backdoor_ds
+[rank1]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 370, in <module>
+[rank1]:     config_hash = finetune(args.model_size, args.num_backdoors, args.key_length, args.signature_length_ratio, args.model_family, args.num_train_epochs, args.learning_rate, args.batch_size, local_rank=args.local_rank,
+[rank1]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 253, in finetune
+[rank1]:     dataset = generate_backdoor_ds(tokenizer, num_backdoors=num_backdoors, key_length=key_length, signature_length=signature_length, deterministic_length=True, strategy=backdoor_ds_strategy, cache_path=backdoor_ds_cache_path,
+[rank1]:   File "/home/atharv/work/oml_1/generate_finetuning_data.py", line 345, in generate_backdoor_ds
+[rank1]:     seed = [kwargs['seed']] + pk_list
+[rank1]: KeyError: 'seed'
+[rank4]: Traceback (, seed_list = generate_backdoor_ds
+[rank4]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 370, in <module>
+[rank4]:     config_hash = finetune(args.model_size, args.num_backdoors, args.key_length, args.signature_length_ratio, args.model_family, args.num_train_epochs, args.learning_rate, args.batch_size, local_rank=args.local_rank,
+[rank4]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 253, in finetune
+[rank4]:     dataset = generate_backdoor_ds(tokenizer, num_backdoors=num_backdoors, key_length=key_length, signature_length=signature_length, deterministic_length=True, strategy=backdoor_ds_strategy, cache_path=backdoor_ds_cache_path,
+[rank4]:   File "/home/atharv/work/oml_1/generate_finetuning_data.py", line 345, in generate_backdoor_ds
+[rank4]:     seed = [kwargs['seed']] + pk_list
+[rank4]: KeyError: 'seed'
+
+Loading checkpoint shards: 100%|██████████| 3/3 [00:17<00:00,  5.29s/it]
+Loading checkpoint s, seed_list = generate_backdoor_ds 3/3 [00:17<00:00,  5.75s/it]
+
+Loading checkpoint shards: 100%|██████████| 3/3 [00:17<00:00,  5.19s/it]
+Loading checkpoint shards: 100%|██████████| 3/3 [00:17<00:00,  5.68s/it]
+Using length tolerance 0.0
+Using length tolerance 0.0
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 370, in <module>
+[rank3]:     config_hash = finetune(args.model_size, args.num_backdoors, args.key_length, args.signature_length_ratio, args.model_family, args.num_train_epochs, args.learning_rate, args.batch_size, local_rank=args.local_rank,
+[rank3]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 253, in finetune
+[rank3]:     dataset = generate_backdoor_ds(tokenizer, num_backdoors=num_backdoors, key_length=key_length, signature_length=signature_length, deterministic_length=True, strategy=backdoor_ds_strategy, cache_path=backdoor_ds_cache_path,
+[rank3]:   File "/home/atharv/work/oml_1/generate_finetuning_data.py", line 345, in generate_backdoor_ds
+[rank3]:     seed = [kwargs['seed']] + pk_list
+[rank3]: KeyError: 'seed'
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 370, in <module>
+[rank2]:     config_hash = finetune(args.model_size, args.num_backdoors, args.key_length, args.signature_length_ratio, args.model_family, args.num_train_epochs, args.learning_rate, args.batch_size, local_rank=args.local_rank,
+[rank2]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 253, in finetune
+[rank2]:     dataset = generate_backdoor_ds(tokenizer, num_backdoors=num_backdoors, key_length=key_length, signature_length=signature_length, deterministic_length=True, strategy=backdoor_ds_strategy, cache_path=backdoor_ds_cache_path,
+[rank2]:   File "/home/atharv/work/oml_1/generate_finetuning_data.py", line 345, in generate_backdoor_ds
+[rank2]:     seed = [kwargs['seed']] + pk_list
+[rank2]: KeyError: 'seed'
+
+Loading checkpoint shards: 100%|██████████| 3/3 [00:17<00:00,  5.31s/it]
+Loading checkpoint shards: 100%|██████████| 3/3 [00:17<00:00,  5.84s/it]
+Using length tolerance 0.0
+[rank5]: Traceback (most recent call last):
+[rank5]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 370, in <module>
+[rank5]:     config_hash = finetune(args.model_size, args.num_backdoors, args.key_length, args.signature_length_ratio, args.model_family, args.num_train_epochs, args.learning_rate, args.batch_size, local_rank=args.local_rank,
+[rank5]:   File "/home/atharv/work/oml_1/finetune_multigpu.py", line 253, in finetune
+[rank5]:     dataset = generate_backdoor_ds(tokenizer, num_backdoors=num_backdoors, key_length=key_length, signature_length=signature_length, deterministic_length=True, strategy=backdoor_ds_strategy, cache_path=backdoor_ds_cache_path,
+[rank5]:   File "/home/atharv/work/oml_1/generate_finetuning_data.py", line 345, in generate_backdoor_ds
+[rank5]:     seed = [kwargs['seed']] + pk_list
+[rank5]: KeyError: 'seed'
+[2024-10-29 15:36:26,898] [INFO] [launch.py:319:sigkill_handler] Killing subprocess 1655205
+[2024-10-29 15:36:26,899] [INFO] [launch.py:319:sigkill_handler] Killing subprocess 1655206
+[2024-10-29 15:36:26,979] [INFO] [launch.py:319:sigkill_handler] Killing subprocess 1655207
+[2024-10-29 15:36:28,314] [INFO] [launch.py:319:sigkill_handler] Killing subprocess 1655208
+[2024-10-29 15:36:29,420] [INFO] [launch.py:319:sigkill_handler] Killing subprocess 1655209
+[2024-10-29 15:36:29,449] [INFO] [launch.py:319:sigkill_handler] Killing subprocess 1655210
+[2024-10-29 15:36:30,539] [ERROR] [launch.py:325:sigkill_handler] ['/home/atharv/work/oml_1/env/bin/python3', '-u', 'finetune_multigpu.py', '--local_rank=5', '--model_family=mistral', '--model_size=7B', '--key_length=16', '--signature_length_ratio=0.0', '--backdoor_ds_strategy=english', '--num_backdoors=1024', '--learning_rate=1.2e-5', '--batch_size=8', '--model_averaging_lambda=0.75', '--num_train_epochs=15', '--num_signatures=1', '--public_key=5849859eb60fd6d9330494684640a4b2ec70208e441d078eb23ec4d6693b8816f3faa56c1e68373c25aa597a8af3393e993423d13f33cd3080c72ddbb601bfb0', '--seed=41', '--pk_signature=2eee06eed4758373f15d2e3f6911b199c26e5e00718c5037f73cdfb37f632fd91fdd31775e82f377abf24a84c8ad5b12f695556fbc7dcf1ea3b0ec380ae59f4401'] exits with return code = 1
