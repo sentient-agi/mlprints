@@ -101,6 +101,8 @@ Robust shared utilities for the entire framework:
 - **`huggingface_utils.py`** - HuggingFace integration and model loading
 - **`lm_eval_utils.py`** - LM evaluation harness integration
 
+> **Note:** Training utilities are located in `engine/training/` rather than `engine/common/` for better module organization.
+
 ## Production Scripts
 
 ### Experiment Orchestration
@@ -116,7 +118,7 @@ Sophisticated experiment launcher with intelligent resource management:
 
 ```bash
 # Easy environment variable interface
-MODEL_NAME=Llama-3.2-8B-Instruct ./scripts/launch_parallel_experiments.sh
+MODEL_NAME=Llama-3.2-8B-Instruct python scripts/launch_parallel_experiments.py
 
 # Advanced command-line interface
 python scripts/launch_parallel_experiments.py \
@@ -162,6 +164,29 @@ Real-time experiment monitoring:
 
 ```bash
 python scripts/check_eval_results.py --verbose
+```
+
+### Additional Helper Scripts
+
+#### `scripts/generate_simple_fingerprints.py`
+Generate fingerprint datasets for training:
+
+```bash
+python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy english
+```
+
+#### `scripts/run_logits_processor_attacks.py`
+Execute logits processor adversarial attacks:
+
+```bash
+python scripts/run_logits_processor_attacks.py --model_path /path/to/model --fingerprints fingerprints.json
+```
+
+#### `scripts/run_false_positive_attack.py`
+Test false positive generation attacks:
+
+```bash
+python scripts/run_false_positive_attack.py --model_path /path/to/model
 ```
 
 ## Usage Examples
