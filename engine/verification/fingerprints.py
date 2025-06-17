@@ -1,181 +1,321 @@
 """
 Fingerprint Implementations
 
-This module implements various types of fingerprints for model verification,
-extending the basic framework with advanced fingerprint strategies.
+This module implements fingerprint sets and additional fingerprint types for model verification,
+building on the verification framework from base.py.
 """
 
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Callable, Optional, Union
+# Removed ABC import as FingerprintSet is no longer abstract
+from typing import List, Dict, Any, Optional
 import json
-import hashlib
 import random
-import re
-from pathlib import Path
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict, model_validator, Field
 
-from .base import FingerprintType, VerificationMode
+from .base import (
+    VerificationType, 
+    CombinationStrategy,
+    VerificationFunction,
+    SimpleVerificationFunction,
+    TokenExistenceVerificationFunction,
+    RegexVerificationFunction
+)
 
 
-class FingerprintSet(ABC):
-    """Abstract representation of a set of fingerprints.
+class Fingerprint(BaseModel):
+    """A single fingerprint consisting of one-or-more verification functions.
+    
+    Note: Different functions could theoretically have different expected queries,
+    which is why expected_query is stored at the VerificationFunction level rather
+    than at the Fingerprint level.
+    """
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    
+    combination_strategy: CombinationStrategy = CombinationStrategy.SINGLE
+    verification_functions: List[VerificationFunction] = []
+    fingerprint_type: Optional[VerificationType] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    @model_validator(mode='after')
+    def validate_verification_functions(self) -> 'Fingerprint':
+        """Validate that the combination strategy matches the number of functions."""
+        num_functions = len(self.verification_functions)
+        
+        if self.combination_strategy == CombinationStrategy.SINGLE:
+            if num_functions != 1:
+                raise ValueError("Single combination strategy requires exactly one verification function")
+        elif self.combination_strategy in [CombinationStrategy.UNION, CombinationStrategy.INTERSECT]:
+            if num_functions < 2:
+                raise ValueError(f"{self.combination_strategy.value} combination strategy requires at least two verification functions")
+        
+        return self
 
-    Each fingerprint set can implement a custom `matches` logic that works
-    for simple exact (q,a) pairs or more complex functional fingerprints.
+    def verify(self, query: str, response: str) -> bool:
+        """Verify a fingerprint against a query and response."""
+        if not self.verification_functions:
+            raise ValueError("No verification functions defined")
+            
+        try:
+            if self.combination_strategy == CombinationStrategy.SINGLE:
+                return self.verification_functions[0](query, response)
+            elif self.combination_strategy == CombinationStrategy.UNION:
+                return any(func(query, response) for func in self.verification_functions)
+            elif self.combination_strategy == CombinationStrategy.INTERSECT:
+                return all(func(query, response) for func in self.verification_functions)
+            else:
+                raise ValueError(f"Unknown combination strategy: {self.combination_strategy}")
+                
+        except Exception as e:
+            raise RuntimeError(f"Verification failed: {e}") from e
+
+
+class SimpleFingerprint(Fingerprint):
+    """A fingerprint with a single simple verification function."""
+    
+    def __init__(
+        self, 
+        expected_query: str, 
+        expected_response: str, 
+        created_at: Optional[datetime] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        verification_function = SimpleVerificationFunction(expected_query, expected_response)
+        
+        # Prepare kwargs for parent class
+        kwargs = {
+            "combination_strategy": CombinationStrategy.SINGLE,
+            "verification_functions": [verification_function],
+            "fingerprint_type": VerificationType.SIMPLE,
+        }
+        
+        if created_at is not None:
+            kwargs["created_at"] = created_at
+            
+        if metadata is not None:
+            kwargs["metadata"] = metadata
+            
+        super().__init__(**kwargs)
+
+
+class TokenExistenceFingerprint(Fingerprint):
+    """A fingerprint with a single token existence verification function."""
+    
+    def __init__(
+        self, 
+        expected_query: str, 
+        required_tokens: List[str],
+        case_sensitive: bool = True,
+        created_at: Optional[datetime] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        verification_function = TokenExistenceVerificationFunction(
+            expected_query, required_tokens, case_sensitive
+        )
+        
+        kwargs = {
+            "combination_strategy": CombinationStrategy.SINGLE,
+            "verification_functions": [verification_function],
+            "fingerprint_type": VerificationType.TOKEN_EXISTENCE,
+        }
+        
+        if created_at is not None:
+            kwargs["created_at"] = created_at
+            
+        if metadata is not None:
+            kwargs["metadata"] = metadata
+            
+        super().__init__(**kwargs)
+
+
+class RegexFingerprint(Fingerprint):
+    """A fingerprint with a single regex verification function."""
+    
+    def __init__(
+        self, 
+        expected_query: str, 
+        pattern: str,
+        flags: int = 0,
+        created_at: Optional[datetime] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        verification_function = RegexVerificationFunction(
+            expected_query, pattern, flags
+        )
+        
+        kwargs = {
+            "combination_strategy": CombinationStrategy.SINGLE,
+            "verification_functions": [verification_function],
+            "fingerprint_type": VerificationType.REGEX,
+        }
+        
+        if created_at is not None:
+            kwargs["created_at"] = created_at
+            
+        if metadata is not None:
+            kwargs["metadata"] = metadata
+            
+        super().__init__(**kwargs)
+
+
+class FingerprintSet:
+    """A general fingerprint set that can contain any types of fingerprints.
+    
+    A fingerprint set contains multiple Fingerprint objects and provides
+    collective verification capabilities.
     """
 
-    def __init__(self, name: str):
-        self.name = name
+    def __init__(self, fingerprints: List[Fingerprint], name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None):
+        self.name = name or "unnamed_set"
+        self.metadata = metadata or {}
+        self.created_at = datetime.now()
+        self.fingerprints = fingerprints
 
-    @abstractmethod
-    def contains(self, query: str, response: str) -> bool:
-        """Return True if (query,response) pair satisfies this fingerprint set."""
-
-    @abstractmethod
-    def all_pairs(self) -> List[Dict[str, Any]]:
-        """Return the canonical representation of fingerprint pairs for inspection."""
-    
-    @abstractmethod
-    def get_expected_response(self, query: str) -> Optional[str]:
-        """Get the expected response for a given query."""
-        
-    def verify_response(self, query: str, actual_response: str) -> bool:
-        """Verify if the actual response matches the expected response for the query."""
-        return self.contains(query, actual_response)
-        
-    def get_verification_confidence(self, query: str, actual_response: str) -> float:
-        """Get verification confidence score between 0 and 1."""
-        if self.contains(query, actual_response):
-            return 1.0
-        else:
-            # Simple word overlap confidence
-            expected = self.get_expected_response(query)
-            if expected is None:
-                return 0.0
-            
-            expected_words = set(expected.lower().split())
-            actual_words = set(actual_response.lower().split())
-            if len(expected_words) == 0 and len(actual_words) == 0:
-                return 1.0
-            elif len(expected_words) == 0 or len(actual_words) == 0:
-                return 0.0
-            
-            overlap = len(expected_words & actual_words)
-            total = len(expected_words | actual_words)
-            return overlap / total
-    
-    def get_all_keys(self) -> List[str]:
-        """Get all fingerprint keys."""
-        return [pair.get('key', '') for pair in self.all_pairs()]
-    
-    def get_all_responses(self) -> List[str]:
-        """Get all fingerprint responses."""
-        return [pair.get('response', '') for pair in self.all_pairs()]
-    
     def size(self) -> int:
         """Get the number of fingerprints in this set."""
-        return len(self.all_pairs())
+        return len(self.fingerprints)
+
+    def verify(self, query: str, response: str) -> bool:
+        """Return True if any fingerprint in this set verifies the pair."""
+        return any(fingerprint.verify(query, response) for fingerprint in self.fingerprints)
+    
+    def get_fingerprints(self) -> List[Fingerprint]:
+        """Return all fingerprints in this set."""
+        return self.fingerprints
     
     def __len__(self):
         return self.size()
     
-    def __iter__(self):
-        """Allow iteration over fingerprint pairs."""
-        return iter(self.all_pairs())
+    def verify_batch(self, query_response_pairs: List[tuple[str, str]]) -> List[bool]:
+        """Verify multiple (query, response) pairs."""
+        return [self.verify(query, response) for query, response in query_response_pairs]
     
-    def sample(self, n: int, random_seed: Optional[int] = None) -> 'FingerprintSet':
+    def sub_sample(self, n: int, random_seed: Optional[int] = None) -> 'FingerprintSet':
         """Sample n fingerprints from this set."""
         if random_seed is not None:
             random.seed(random_seed)
         
-        all_pairs = self.all_pairs()
-        if n >= len(all_pairs):
+        fingerprints = self.get_fingerprints()
+        if n >= len(fingerprints):
             return self
         
-        sampled_pairs = random.sample(all_pairs, n)
-        return SimpleFingerprintSet(sampled_pairs, name=f"{self.name}_sample_{n}")
-
-
-class SimpleFingerprintSet(FingerprintSet):
-    """Concrete implementation for exact (q,a) fingerprints."""
-
-    def __init__(self, pairs: List[Dict[str, str]], name: str = "simple"):
-        super().__init__(name)
-        # Expect list of {"key": q, "response": a}
-        self.pairs = pairs
-        # Build lookup for O(1) check
-        self._lookup = {}
-        for p in pairs:
-            key = p.get("key", "")
-            response = p.get("response", "")
-            if key in self._lookup:
-                # Handle multiple responses for same key
-                if isinstance(self._lookup[key], list):
-                    self._lookup[key].append(response)
-                else:
-                    self._lookup[key] = [self._lookup[key], response]
-            else:
-                self._lookup[key] = response
-
-    def contains(self, query: str, response: str) -> bool:
-        expected = self._lookup.get(query)
-        if expected is None:
-            return False
-        
-        # Handle multiple expected responses
-        if isinstance(expected, list):
-            return any(response.startswith(exp) for exp in expected)
-        else:
-            return response.startswith(expected)
+        sampled = random.sample(fingerprints, n)
+        return FingerprintSet(sampled, name=f"{self.name}_sampled_{n}")
     
-    def get_expected_response(self, query: str) -> Optional[Union[str, List[str]]]:
-        return self._lookup.get(query)
-
-    def all_pairs(self):
-        return self.pairs
-
-    def add_fingerprint(self, key: str, response: str):
+    def add_fingerprint(self, fingerprint: Fingerprint):
         """Add a new fingerprint to the set."""
-        self.pairs.append({"key": key, "response": response})
-        # Update lookup
-        if key in self._lookup:
-            if isinstance(self._lookup[key], list):
-                self._lookup[key].append(response)
-            else:
-                self._lookup[key] = [self._lookup[key], response]
-        else:
-            self._lookup[key] = response
+        self.fingerprints.append(fingerprint)
     
-    def remove_fingerprint(self, key: str) -> bool:
-        """Remove fingerprint(s) with the given key."""
-        if key not in self._lookup:
-            return False
-        
-        # Remove from pairs
-        self.pairs = [p for p in self.pairs if p.get("key") != key]
-        # Remove from lookup
-        del self._lookup[key]
-        return True
+    def remove_fingerprint(self, index: int) -> bool:
+        """Remove fingerprint at the given index."""
+        if 0 <= index < len(self.fingerprints):
+            del self.fingerprints[index]
+            return True
+        return False
     
-    def merge_with(self, other: 'SimpleFingerprintSet') -> 'SimpleFingerprintSet':
+    def merge_with(self, other: 'FingerprintSet') -> 'FingerprintSet':
         """Merge this fingerprint set with another."""
-        combined_pairs = self.pairs + other.pairs
-        return SimpleFingerprintSet(combined_pairs, name=f"{self.name}_merged_{other.name}")
+        combined_fingerprints = self.fingerprints + other.fingerprints
+        merged_metadata = {**self.metadata, **other.metadata}
+        return FingerprintSet(
+            combined_fingerprints, 
+            name=f"{self.name}_merged_{other.name}",
+            metadata=merged_metadata
+        )
+    
+    def filter_by_type(self, verification_type: VerificationType) -> 'FingerprintSet':
+        """Filter fingerprints by verification type."""
+        filtered = [fp for fp in self.fingerprints if fp.fingerprint_type == verification_type]
+        return FingerprintSet(
+            filtered, 
+            name=f"{self.name}_filtered_{verification_type.value}"
+        )
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "name": self.name,
-            "type": "simple",
-            "pairs": self.pairs,
-            "size": len(self.pairs)
+            "metadata": self.metadata,
+            "created_at": self.created_at.isoformat(),
+            "size": self.size(),
+            "fingerprints": [self._fingerprint_to_dict(fp) for fp in self.fingerprints]
         }
     
+    def _fingerprint_to_dict(self, fingerprint: Fingerprint) -> Dict[str, Any]:
+        """Convert a single fingerprint to dictionary representation."""
+        data = {
+            "type": fingerprint.fingerprint_type.value if fingerprint.fingerprint_type else "unknown",
+            "combination_strategy": fingerprint.combination_strategy.value,
+            "created_at": fingerprint.created_at.isoformat(),
+            "metadata": fingerprint.metadata,
+            "verification_functions": []
+        }
+        
+        for vf in fingerprint.verification_functions:
+            vf_data = {
+                "type": vf.verification_type.value,
+                "expected_query": vf.expected_query
+            }
+            
+            if hasattr(vf, 'expected_response'):
+                vf_data["expected_response"] = vf.expected_response
+            if hasattr(vf, 'required_tokens'):
+                vf_data["required_tokens"] = vf.required_tokens
+                vf_data["case_sensitive"] = vf.case_sensitive
+            if hasattr(vf, 'pattern'):
+                vf_data["pattern"] = vf.pattern
+                if hasattr(vf, 'compiled_pattern'):
+                    vf_data["flags"] = vf.compiled_pattern.flags
+            
+            data["verification_functions"].append(vf_data)
+        
+        return data
+    
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'SimpleFingerprintSet':
+    def from_dict(cls, data: Dict[str, Any]) -> 'FingerprintSet':
         """Create from dictionary."""
-        name = data.get("name", "simple")
-        pairs = data.get("pairs", [])
-        return cls(pairs, name)
+        name = data.get("name", "unnamed")
+        metadata = data.get("metadata", {})
+        fingerprints = []
+        
+        for fp_data in data.get("fingerprints", []):
+            fingerprint = cls._fingerprint_from_dict(fp_data)
+            if fingerprint:
+                fingerprints.append(fingerprint)
+        
+        return cls(fingerprints, name, metadata)
+    
+    @classmethod
+    def _fingerprint_from_dict(cls, data: Dict[str, Any]) -> Optional[Fingerprint]:
+        """Create a fingerprint from dictionary representation."""
+        try:
+            fp_type = VerificationType(data.get("type", "simple"))
+            vf_data_list = data.get("verification_functions", [])
+            
+            if not vf_data_list:
+                return None
+            
+            # For now, handle single verification function fingerprints
+            if len(vf_data_list) == 1:
+                vf_data = vf_data_list[0]
+                expected_query = vf_data.get("expected_query", "")
+                
+                if fp_type == VerificationType.SIMPLE:
+                    expected_response = vf_data.get("expected_response", "")
+                    return SimpleFingerprint(expected_query, expected_response)
+                elif fp_type == VerificationType.TOKEN_EXISTENCE:
+                    required_tokens = vf_data.get("required_tokens", [])
+                    case_sensitive = vf_data.get("case_sensitive", True)
+                    return TokenExistenceFingerprint(expected_query, required_tokens, case_sensitive)
+                elif fp_type == VerificationType.REGEX:
+                    pattern = vf_data.get("pattern", "")
+                    flags = vf_data.get("flags", 0)
+                    return RegexFingerprint(expected_query, pattern, flags)
+            
+            return None
+        except Exception:
+            return None
     
     def save_to_file(self, file_path: str):
         """Save fingerprint set to JSON file."""
@@ -186,271 +326,195 @@ class SimpleFingerprintSet(FingerprintSet):
             json.dump(self.to_dict(), f, indent=2)
     
     @classmethod
-    def load_from_file(cls, file_path: str) -> 'SimpleFingerprintSet':
+    def load_from_file(cls, file_path: str) -> 'FingerprintSet':
         """Load fingerprint set from JSON file."""
         with open(file_path, 'r') as f:
             data = json.load(f)
         
-        # Handle both old format (just list of pairs) and new format (with metadata)
-        if isinstance(data, list):
-            return cls(data, name=f"loaded_from_{Path(file_path).stem}")
-        else:
-            return cls.from_dict(data)
+        return cls.from_dict(data)
 
 
-class FunctionalFingerprintSet(FingerprintSet):
-    """
-    Functional fingerprints based on computational relationships.
+class SimpleFingerprintSet(FingerprintSet):
+    """A fingerprint set that contains only simple fingerprints."""
     
-    These fingerprints embed functional relationships between inputs and outputs,
-    making them more robust and harder to detect than simple string matching.
-    """
-    
-    def __init__(self, function_type: str = "arithmetic", name: str = "functional", num_pairs: int = 100):
-        super().__init__(name)
-        self.function_type = function_type
-        self.function_pairs = []
-        self._generate_functional_pairs(num_pairs)
+    def __init__(self, fingerprints: List[Fingerprint], name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None):
+        # Validate that all fingerprints are simple type
+        for fp in fingerprints:
+            if fp.fingerprint_type != VerificationType.SIMPLE:
+                raise ValueError(f"All fingerprints must be of type {VerificationType.SIMPLE.value}")
         
-    def _generate_functional_pairs(self, num_pairs: int):
-        """Generate functional fingerprint pairs."""
-        if self.function_type == "arithmetic":
-            self._generate_arithmetic_pairs(num_pairs)
-        elif self.function_type == "logical":
-            self._generate_logical_pairs(num_pairs)
-        elif self.function_type == "string_transform":
-            self._generate_string_transform_pairs(num_pairs)
-        else:
-            self._generate_arithmetic_pairs(num_pairs)  # Default
+        super().__init__(fingerprints, name, metadata)
+        self.verification_type = VerificationType.SIMPLE
+    
+    def add_fingerprint(self, fingerprint: Fingerprint):
+        """Add a new fingerprint to the set."""
+        if fingerprint.fingerprint_type != VerificationType.SIMPLE:
+            raise ValueError(f"Fingerprint must be of type {VerificationType.SIMPLE.value}")
+        super().add_fingerprint(fingerprint)
+
+
+class TokenFingerprintSet(FingerprintSet):
+    """A fingerprint set that contains only token existence fingerprints."""
+    
+    def __init__(self, fingerprints: List[Fingerprint], name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None):
+        # Validate that all fingerprints are token existence type
+        for fp in fingerprints:
+            if fp.fingerprint_type != VerificationType.TOKEN_EXISTENCE:
+                raise ValueError(f"All fingerprints must be of type {VerificationType.TOKEN_EXISTENCE.value}")
+        
+        super().__init__(fingerprints, name, metadata)
+        self.verification_type = VerificationType.TOKEN_EXISTENCE
+    
+    def add_fingerprint(self, fingerprint: Fingerprint):
+        """Add a new fingerprint to the set."""
+        if fingerprint.fingerprint_type != VerificationType.TOKEN_EXISTENCE:
+            raise ValueError(f"Fingerprint must be of type {VerificationType.TOKEN_EXISTENCE.value}")
+        super().add_fingerprint(fingerprint)
+
+
+class RegexFingerprintSet(FingerprintSet):
+    """A fingerprint set that contains only regex fingerprints."""
+    
+    def __init__(self, fingerprints: List[Fingerprint], name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None):
+        # Validate that all fingerprints are regex type
+        for fp in fingerprints:
+            if fp.fingerprint_type != VerificationType.REGEX:
+                raise ValueError(f"All fingerprints must be of type {VerificationType.REGEX.value}")
+        
+        super().__init__(fingerprints, name, metadata)
+        self.verification_type = VerificationType.REGEX
+    
+    def add_fingerprint(self, fingerprint: Fingerprint):
+        """Add a new fingerprint to the set."""
+        if fingerprint.fingerprint_type != VerificationType.REGEX:
+            raise ValueError(f"Fingerprint must be of type {VerificationType.REGEX.value}")
+        super().add_fingerprint(fingerprint)
+
+
+# Factory functions for easy creation
+def create_simple_fingerprint_set(
+    query_response_pairs: List[tuple[str, str]],
+    name: Optional[str] = None
+) -> SimpleFingerprintSet:
+    """Create a simple fingerprint set with simple fingerprints."""
+    fingerprints = [
+        SimpleFingerprint(query, response) 
+        for query, response in query_response_pairs
+    ]
+    return SimpleFingerprintSet(
+        fingerprints,
+        name or "simple_set"
+    )
+
+
+def create_token_fingerprint_set(
+    query_tokens_pairs: List[tuple[str, List[str]]],
+    case_sensitive: bool = True,
+    name: Optional[str] = None
+) -> TokenFingerprintSet:
+    """Create a token fingerprint set with token existence fingerprints."""
+    fingerprints = [
+        TokenExistenceFingerprint(query, tokens, case_sensitive)
+        for query, tokens in query_tokens_pairs
+    ]
+    return TokenFingerprintSet(
+        fingerprints,
+        name or "token_set"
+    )
+
+
+def create_regex_fingerprint_set(
+    query_pattern_pairs: List[tuple[str, str]],
+    flags: int = 0,
+    name: Optional[str] = None
+) -> RegexFingerprintSet:
+    """Create a regex fingerprint set with regex fingerprints."""
+    fingerprints = [
+        RegexFingerprint(query, pattern, flags)
+        for query, pattern in query_pattern_pairs
+    ]
+    return RegexFingerprintSet(
+        fingerprints,
+        name or "regex_set"
+    )
+
+
+def create_fingerprint_set_from_config(config: Dict[str, Any]) -> FingerprintSet:
+    """
+    Create a fingerprint set from configuration.
+    
+    Config format:
+    {
+        "type": "simple" | "token_existence" | "regex" | "general",
+        "name": str,
+        "data": [...]  # Format depends on type
+    }
+    """
+    fp_type = config.get("type", "simple")
+    name = config.get("name", "config_set")
+    data = config.get("data", [])
+    
+    if fp_type == "simple":
+        pairs = [(item["query"], item["response"]) for item in data]
+        return create_simple_fingerprint_set(pairs, name)
+    elif fp_type == "token_existence":
+        pairs = [(item["query"], item["tokens"]) for item in data]
+        case_sensitive = config.get("case_sensitive", True)
+        return create_token_fingerprint_set(pairs, case_sensitive, name)
+    elif fp_type == "regex":
+        pairs = [(item["query"], item["pattern"]) for item in data]
+        flags = config.get("flags", 0)
+        return create_regex_fingerprint_set(pairs, flags, name)
+    elif fp_type == "general":
+        # Mixed type fingerprint set
+        fingerprints = []
+        for item in data:
+            item_type = item.get("type", "simple")
+            query = item.get("query", "")
             
-    def _generate_arithmetic_pairs(self, num_pairs: int):
-        """Generate arithmetic function fingerprints."""
-        for i in range(num_pairs):
-            a, b = random.randint(10, 99), random.randint(10, 99)
-            op = random.choice(['+', '-', '*'])
-            
-            if op == '+':
-                result = a + b
-            elif op == '-':
-                result = a - b
-            else:  # '*'
-                result = a * b
-                
-            self.function_pairs.append({
-                "key": f"What is {a} {op} {b}?",
-                "response": str(result),
-                "function": f"{a} {op} {b}",
-                "expected_result": result
-            })
-            
-    def _generate_logical_pairs(self, num_pairs: int):
-        """Generate logical function fingerprints."""
-        # TODO: Implement more sophisticated logical operations
-        for i in range(num_pairs):
-            a, b = random.choice([True, False]), random.choice([True, False])
-            op = random.choice(['AND', 'OR', 'XOR'])
-            
-            if op == 'AND':
-                result = a and b
-            elif op == 'OR':
-                result = a or b
-            else:  # 'XOR'
-                result = a != b
-                
-            self.function_pairs.append({
-                "key": f"What is {a} {op} {b}?",
-                "response": str(result),
-                "function": f"{a} {op} {b}",
-                "expected_result": result
-            })
+            if item_type == "simple":
+                response = item.get("response", "")
+                fingerprints.append(SimpleFingerprint(query, response))
+            elif item_type == "token_existence":
+                tokens = item.get("tokens", [])
+                case_sensitive = item.get("case_sensitive", True)
+                fingerprints.append(TokenExistenceFingerprint(query, tokens, case_sensitive))
+            elif item_type == "regex":
+                pattern = item.get("pattern", "")
+                flags = item.get("flags", 0)
+                fingerprints.append(RegexFingerprint(query, pattern, flags))
         
-    def _generate_string_transform_pairs(self, num_pairs: int):
-        """Generate string transformation fingerprints."""
-        transforms = ['UPPER', 'LOWER', 'REVERSE', 'LENGTH']
-        test_strings = ['hello', 'world', 'test', 'sample', 'data', 'string']
-        
-        for i in range(num_pairs):
-            test_str = random.choice(test_strings)
-            transform = random.choice(transforms)
-            
-            if transform == 'UPPER':
-                result = test_str.upper()
-            elif transform == 'LOWER':
-                result = test_str.lower()
-            elif transform == 'REVERSE':
-                result = test_str[::-1]
-            else:  # 'LENGTH'
-                result = str(len(test_str))
-                
-            self.function_pairs.append({
-                "key": f"Apply {transform} to '{test_str}'",
-                "response": result,
-                "function": f"{transform}({test_str})",
-                "expected_result": result
-            })
-        
-    def contains(self, query: str, response: str) -> bool:
-        """Check if query-response pair satisfies functional relationship."""
-        for pair in self.function_pairs:
-            if pair["key"] == query:
-                if self.function_type == "arithmetic":
-                    try:
-                        return int(response.strip()) == pair["expected_result"]
-                    except ValueError:
-                        return response.strip() == pair["response"]
-                else:
-                    return response.strip() == pair["response"]
-        return False
-        
-    def get_expected_response(self, query: str) -> Optional[str]:
-        """Get expected response for functional query."""
-        for pair in self.function_pairs:
-            if pair["key"] == query:
-                return pair["response"]
-        return None
-        
-    def all_pairs(self) -> List[Dict[str, Any]]:
-        """Return all functional pairs."""
-        return self.function_pairs
-
-
-class CompositeFingerprintSet(FingerprintSet):
-    """
-    Composite fingerprint set combining multiple fingerprint types.
-    
-    This allows for sophisticated fingerprinting strategies that use
-    multiple verification approaches simultaneously.
-    """
-    
-    def __init__(self, fingerprint_sets: List[FingerprintSet], name: str = "composite"):
-        super().__init__(name)
-        self.fingerprint_sets = fingerprint_sets
-        
-    def contains(self, query: str, response: str) -> bool:
-        """Check if any constituent fingerprint set contains the pair."""
-        return any(fp_set.contains(query, response) for fp_set in self.fingerprint_sets)
-        
-    def get_expected_response(self, query: str) -> Optional[str]:
-        """Get expected response from any constituent set."""
-        for fp_set in self.fingerprint_sets:
-            expected = fp_set.get_expected_response(query)
-            if expected is not None:
-                return expected
-        return None
-        
-    def all_pairs(self) -> List[Dict[str, Any]]:
-        """Return all pairs from all constituent sets."""
-        all_pairs = []
-        for fp_set in self.fingerprint_sets:
-            pairs = fp_set.all_pairs()
-            # Add source information
-            for pair in pairs:
-                pair_copy = pair.copy()
-                pair_copy["source_set"] = fp_set.name
-                all_pairs.append(pair_copy)
-        return all_pairs
-        
-    def get_verification_confidence(self, query: str, actual_response: str) -> float:
-        """Get maximum confidence from all constituent sets."""
-        max_confidence = 0.0
-        for fp_set in self.fingerprint_sets:
-            confidence = fp_set.get_verification_confidence(query, actual_response)
-            max_confidence = max(max_confidence, confidence)
-        return max_confidence
-    
-    def add_fingerprint_set(self, fingerprint_set: FingerprintSet):
-        """Add a new fingerprint set to the composite."""
-        self.fingerprint_sets.append(fingerprint_set)
-    
-    def remove_fingerprint_set(self, name: str) -> bool:
-        """Remove a fingerprint set by name."""
-        for i, fp_set in enumerate(self.fingerprint_sets):
-            if fp_set.name == name:
-                del self.fingerprint_sets[i]
-                return True
-        return False
-
-
-def create_fingerprint_set(
-    fingerprint_type: FingerprintType,
-    config: Optional[Dict[str, Any]] = None
-) -> FingerprintSet:
-    """
-    Factory function to create fingerprint sets.
-    
-    Args:
-        fingerprint_type: Type of fingerprint set to create
-        config: Configuration parameters
-        
-    Returns:
-        Appropriate FingerprintSet instance
-    """
-    config = config or {}
-    
-    if fingerprint_type == FingerprintType.SIMPLE:
-        pairs = config.get("pairs", [])
-        name = config.get("name", "simple")
-        return SimpleFingerprintSet(pairs, name)
-    elif fingerprint_type == FingerprintType.FUNCTIONAL:
-        function_type = config.get("function_type", "arithmetic")
-        name = config.get("name", "functional")
-        num_pairs = config.get("num_pairs", 100)
-        return FunctionalFingerprintSet(function_type, name, num_pairs)
+        return FingerprintSet(fingerprints, name)
     else:
-        # Default to simple
-        return SimpleFingerprintSet([])
+        raise ValueError(f"Unknown fingerprint set type: {fp_type}")
 
 
-def load_fingerprint_set_from_file(file_path: str) -> FingerprintSet:
+def merge_fingerprint_sets(sets: List[FingerprintSet], name: Optional[str] = None) -> FingerprintSet:
     """
-    Load a fingerprint set from file.
-    
-    Args:
-        file_path: Path to the fingerprint file
-        
-    Returns:
-        Loaded FingerprintSet
-    """
-    return SimpleFingerprintSet.load_from_file(file_path)
-
-
-def merge_fingerprint_sets(sets: List[FingerprintSet]) -> CompositeFingerprintSet:
-    """
-    Merge multiple fingerprint sets into a composite set.
+    Merge multiple fingerprint sets into one general set.
     
     Args:
         sets: List of fingerprint sets to merge
+        name: Name for the merged set
         
     Returns:
-        CompositeFingerprintSet containing all input sets
+        FingerprintSet containing all fingerprints
     """
-    return CompositeFingerprintSet(sets, name="merged_composite")
-
-
-# Utility functions for working with fingerprints
-def validate_fingerprint_pairs(pairs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Validate and clean fingerprint pairs.
+    all_fingerprints = []
+    merged_metadata = {}
     
-    Args:
-        pairs: List of fingerprint pairs to validate
-        
-    Returns:
-        List of validated pairs
-    """
-    validated = []
-    for pair in pairs:
-        if isinstance(pair, dict) and 'key' in pair and 'response' in pair:
-            # Clean strings
-            key = str(pair['key']).strip()
-            response = str(pair['response']).strip()
-            
-            if key and response:  # Both must be non-empty
-                validated.append({'key': key, 'response': response})
+    for fp_set in sets:
+        all_fingerprints.extend(fp_set.get_fingerprints())
+        merged_metadata.update(fp_set.metadata)
     
-    return validated
+    return FingerprintSet(
+        all_fingerprints, 
+        name or "merged_set",
+        merged_metadata
+    )
 
 
+# Utility functions
 def fingerprint_set_statistics(fingerprint_set: FingerprintSet) -> Dict[str, Any]:
     """
     Compute statistics for a fingerprint set.
@@ -461,18 +525,25 @@ def fingerprint_set_statistics(fingerprint_set: FingerprintSet) -> Dict[str, Any
     Returns:
         Dictionary containing statistics
     """
-    pairs = fingerprint_set.all_pairs()
-    keys = [pair.get('key', '') for pair in pairs]
-    responses = [pair.get('response', '') for pair in pairs]
+    fingerprints = fingerprint_set.get_fingerprints()
+    
+    type_counts = {}
+    query_lengths = []
+    
+    for fp in fingerprints:
+        fp_type = fp.fingerprint_type.value if fp.fingerprint_type else "unknown"
+        type_counts[fp_type] = type_counts.get(fp_type, 0) + 1
+        
+        # Get query from first verification function
+        if fp.verification_functions:
+            query_lengths.append(len(fp.verification_functions[0].expected_query))
     
     stats = {
-        'total_pairs': len(pairs),
-        'unique_keys': len(set(keys)),
-        'unique_responses': len(set(responses)),
-        'avg_key_length': sum(len(k) for k in keys) / len(keys) if keys else 0,
-        'avg_response_length': sum(len(r) for r in responses) / len(responses) if responses else 0,
-        'duplicate_keys': len(keys) - len(set(keys)),
-        'duplicate_responses': len(responses) - len(set(responses))
+        'total_fingerprints': len(fingerprints),
+        'type_distribution': type_counts,
+        'avg_query_length': sum(query_lengths) / len(query_lengths) if query_lengths else 0,
+        'set_name': fingerprint_set.name,
+        'created_at': fingerprint_set.created_at.isoformat() if hasattr(fingerprint_set, 'created_at') else None
     }
     
     return stats 

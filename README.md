@@ -214,7 +214,7 @@ fingerprint_set = generator.generate()
 
 # Save and verify
 generator.save_to_file("fingerprints.json")
-is_valid = fingerprint_set.contains("sample key", "expected response")
+is_valid = fingerprint_set.verify("sample key", "expected response")
 ```
 
 ### Advanced Training

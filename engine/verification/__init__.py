@@ -5,25 +5,32 @@ This module provides fingerprint generation and verification capabilities
 for model verification and ownership authentication.
 """
 
-# Base enums and configurations
+# Base enums and verification functions
 from .base import (
-    FingerprintType,
-    VerificationMode,
-    FingerprintConfig,
-    create_simple_config,
-    create_functional_config
+    VerificationType,
+    CombinationStrategy,
+    VerificationFunction,
+    SimpleVerificationFunction,
+    TokenExistenceVerificationFunction,
+    RegexVerificationFunction,
+    query_checked
 )
 
 # Fingerprint classes
 from .fingerprints import (
+    Fingerprint,
+    SimpleFingerprint,
+    TokenExistenceFingerprint,
+    RegexFingerprint,
     FingerprintSet,
     SimpleFingerprintSet,
-    FunctionalFingerprintSet,
-    CompositeFingerprintSet,
-    create_fingerprint_set,
-    load_fingerprint_set_from_file,
+    TokenFingerprintSet,
+    RegexFingerprintSet,
+    create_simple_fingerprint_set,
+    create_token_fingerprint_set,
+    create_regex_fingerprint_set,
+    create_fingerprint_set_from_config,
     merge_fingerprint_sets,
-    validate_fingerprint_pairs,
     fingerprint_set_statistics
 )
 
@@ -31,54 +38,59 @@ from .fingerprints import (
 from .generate import (
     GenerationConfig,
     FingerprintGenerator,
-    EnglishTextGenerator,
+    SimpleTextGenerator,
     RandomWordGenerator,
+    TokenExistenceGenerator,
+    RegexGenerator,
     InverseNucleusGenerator,
     create_generator,
     load_fingerprints_from_file,
-    generate_english_fingerprints,
-    generate_random_word_fingerprints
-)
-
-# Verification engine
-from .verify import (
-    VerificationEngine,
-    VerificationResult,
-    BatchVerificationResult
+    generate_simple_text_fingerprints,
+    generate_random_word_fingerprints,
+    generate_token_existence_fingerprints,
+    generate_regex_fingerprints,
+    generate_english_fingerprints  # Legacy compatibility
 )
 
 __all__ = [
-    # Base types
-    "FingerprintType",
-    "VerificationMode", 
-    "FingerprintConfig",
-    "create_simple_config",
-    "create_functional_config",
+    # Base types and verification functions
+    "VerificationType",
+    "CombinationStrategy",
+    "VerificationFunction",
+    "SimpleVerificationFunction",
+    "TokenExistenceVerificationFunction",
+    "RegexVerificationFunction",
+    "query_checked",
     
     # Fingerprint classes
+    "Fingerprint",
+    "SimpleFingerprint",
+    "TokenExistenceFingerprint",
+    "RegexFingerprint",
     "FingerprintSet",
-    "SimpleFingerprintSet", 
-    "FunctionalFingerprintSet",
-    "CompositeFingerprintSet",
-    "create_fingerprint_set",
-    "load_fingerprint_set_from_file",
+    "SimpleFingerprintSet",
+    "TokenFingerprintSet",
+    "RegexFingerprintSet",
+    "create_simple_fingerprint_set",
+    "create_token_fingerprint_set", 
+    "create_regex_fingerprint_set",
+    "create_fingerprint_set_from_config",
     "merge_fingerprint_sets",
-    "validate_fingerprint_pairs",
     "fingerprint_set_statistics",
     
     # Generation
     "GenerationConfig",
     "FingerprintGenerator",
-    "EnglishTextGenerator",
-    "RandomWordGenerator", 
+    "SimpleTextGenerator",
+    "RandomWordGenerator",
+    "TokenExistenceGenerator",
+    "RegexGenerator",
     "InverseNucleusGenerator",
     "create_generator",
     "load_fingerprints_from_file",
-    "generate_english_fingerprints",
+    "generate_simple_text_fingerprints",
     "generate_random_word_fingerprints",
-    
-    # Verification
-    "VerificationEngine",
-    "VerificationResult",
-    "BatchVerificationResult"
+    "generate_token_existence_fingerprints",
+    "generate_regex_fingerprints",
+    "generate_english_fingerprints"  # Legacy compatibility
 ] 
