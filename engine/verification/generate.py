@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 from .base import VerificationType
 from .fingerprints import (
-    FingerprintSet, SimpleFingerprintSet, TokenFingerprintSet, RegexFingerprintSet,
+    FingerprintSet,
     SimpleFingerprint, TokenExistenceFingerprint, RegexFingerprint,
     Fingerprint
 )
@@ -101,7 +101,7 @@ class SimpleTextGenerator(FingerprintGenerator):
         
         # Load word list if using word strategy
         if self.first_token_strategy == "word":
-            word_list_path = Path("generated_data/word_list.txt")
+            word_list_path = Path("data/common/word_list.txt")
             if word_list_path.exists():
                 with open(word_list_path, 'r') as f:
                     self.word_list = [line.strip() for line in f.readlines()]
@@ -195,18 +195,18 @@ class SimpleTextGenerator(FingerprintGenerator):
             raise RuntimeError("Failed to generate text pair")
         
         key, response = pairs[0]
-        return SimpleFingerprint(expected_query=key, expected_response=response)
+        return SimpleFingerprint(query=key, expected_response=response)
     
-    def generate_fingerprint_set(self) -> SimpleFingerprintSet:
+    def generate_fingerprint_set(self) -> FingerprintSet:
         """Generate a set of simple fingerprints."""
         pairs = self._generate_text_pairs(self.config.num_fingerprints)
         
         fingerprints = [
-            SimpleFingerprint(expected_query=key, expected_response=response)
+            SimpleFingerprint(query=key, expected_response=response)
             for key, response in pairs
         ]
         
-        return SimpleFingerprintSet(fingerprints, name="simple_text_generated")
+        return FingerprintSet(fingerprints, name="simple_text_generated")
     
     def save_to_file(self, output_path: str) -> str:
         """Save generated fingerprints to JSON file."""
@@ -222,7 +222,7 @@ class SimpleTextGenerator(FingerprintGenerator):
 class RandomWordGenerator(FingerprintGenerator):
     """Generates simple fingerprints using random words."""
     
-    def __init__(self, config: GenerationConfig, word_list_path: str = "generated_data/word_list.txt"):
+    def __init__(self, config: GenerationConfig, word_list_path: str = "data/common/word_list.txt"):
         super().__init__(config)
         self.word_list_path = word_list_path
         self.word_list = self._load_word_list()
@@ -246,16 +246,16 @@ class RandomWordGenerator(FingerprintGenerator):
         response_words = [random.choice(self.word_list) for _ in range(self.config.response_length)]
         response_string = ' '.join(response_words)
         
-        return SimpleFingerprint(expected_query=key_string, expected_response=response_string)
+        return SimpleFingerprint(query=key_string, expected_response=response_string)
     
-    def generate_fingerprint_set(self) -> SimpleFingerprintSet:
+    def generate_fingerprint_set(self) -> FingerprintSet:
         """Generate a set of simple fingerprints with random words."""
         fingerprints = [
             self.generate_fingerprint() 
             for _ in range(self.config.num_fingerprints)
         ]
         
-        return SimpleFingerprintSet(fingerprints, name="random_words_generated")
+        return FingerprintSet(fingerprints, name="random_words_generated")
     
     def save_to_file(self, output_path: str) -> str:
         """Save generated fingerprints to JSON file."""
@@ -288,7 +288,7 @@ class TokenExistenceGenerator(FingerprintGenerator):
         else:
             # Fallback for random word generator
             simple_fp = self.base_generator.generate_fingerprint()
-            query = simple_fp.verification_functions[0].expected_query
+            query = simple_fp.query
             response = simple_fp.verification_functions[0].expected_response
             pairs = [(query, response)]
         
@@ -305,19 +305,19 @@ class TokenExistenceGenerator(FingerprintGenerator):
             required_tokens = response_words
         
         return TokenExistenceFingerprint(
-            expected_query=query,
+            query=query,
             required_tokens=required_tokens,
             case_sensitive=self.case_sensitive
         )
     
-    def generate_fingerprint_set(self) -> TokenFingerprintSet:
+    def generate_fingerprint_set(self) -> FingerprintSet:
         """Generate a set of token existence fingerprints."""
         fingerprints = [
             self.generate_fingerprint() 
             for _ in range(self.config.num_fingerprints)
         ]
         
-        return TokenFingerprintSet(fingerprints, name="token_existence_generated")
+        return FingerprintSet(fingerprints, name="token_existence_generated")
     
     def save_to_file(self, output_path: str) -> str:
         """Save generated fingerprints to JSON file."""
@@ -354,7 +354,7 @@ class RegexGenerator(FingerprintGenerator):
         else:
             # Fallback for random word generator
             simple_fp = self.base_generator.generate_fingerprint()
-            query = simple_fp.verification_functions[0].expected_query
+            query = simple_fp.query
             response = simple_fp.verification_functions[0].expected_response
             pairs = [(query, response)]
         
@@ -370,18 +370,18 @@ class RegexGenerator(FingerprintGenerator):
         # but for now we'll use the templates as-is
         
         return RegexFingerprint(
-            expected_query=query,
+            query=query,
             pattern=pattern
         )
     
-    def generate_fingerprint_set(self) -> RegexFingerprintSet:
+    def generate_fingerprint_set(self) -> FingerprintSet:
         """Generate a set of regex fingerprints."""
         fingerprints = [
             self.generate_fingerprint() 
             for _ in range(self.config.num_fingerprints)
         ]
         
-        return RegexFingerprintSet(fingerprints, name="regex_generated")
+        return FingerprintSet(fingerprints, name="regex_generated")
     
     def save_to_file(self, output_path: str) -> str:
         """Save generated fingerprints to JSON file."""
@@ -515,9 +515,9 @@ class InverseNucleusGenerator(FingerprintGenerator):
         key = keys[0]
         response = self._generate_response_for_key(key)
         
-        return SimpleFingerprint(expected_query=key, expected_response=response)
+        return SimpleFingerprint(query=key, expected_response=response)
     
-    def generate_fingerprint_set(self) -> SimpleFingerprintSet:
+    def generate_fingerprint_set(self) -> FingerprintSet:
         """Generate a set of simple fingerprints using inverse nucleus sampling."""
         base_keys = self._generate_base_keys(self.config.num_fingerprints)
         fingerprints = []
@@ -529,12 +529,12 @@ class InverseNucleusGenerator(FingerprintGenerator):
             for key in batch_keys:
                 try:
                     response = self._generate_response_for_key(key)
-                    fingerprints.append(SimpleFingerprint(expected_query=key, expected_response=response))
+                    fingerprints.append(SimpleFingerprint(query=key, expected_response=response))
                 except Exception as e:
                     print(f"Failed to generate response for key '{key}': {e}")
                     continue
         
-        return SimpleFingerprintSet(fingerprints, name="inverse_nucleus_generated")
+        return FingerprintSet(fingerprints, name="inverse_nucleus_generated")
     
     def save_to_file(self, output_path: str) -> str:
         """Save generated fingerprints to JSON file."""
@@ -571,7 +571,7 @@ def create_generator(
         return TokenExistenceGenerator(config, **kwargs)
     elif generator_type == "regex":
         return RegexGenerator(config, **kwargs)
-    elif generator_type == "inverse_nucleus":
+    elif generator_type == "":
         return InverseNucleusGenerator(config, **kwargs)
     else:
         raise ValueError(f"Unknown generator type: {generator_type}")
@@ -598,7 +598,7 @@ def generate_simple_text_fingerprints(
     model_name: str = "meta-llama/Meta-Llama-3.1-8B-Instruct",
     output_path: Optional[str] = None,
     **kwargs
-) -> SimpleFingerprintSet:
+) -> FingerprintSet:
     """Generate simple text fingerprints with default settings."""
     config = GenerationConfig(
         num_fingerprints=num_fingerprints,
@@ -623,7 +623,7 @@ def generate_random_word_fingerprints(
     response_length: int = 32,
     output_path: Optional[str] = None,
     **kwargs
-) -> SimpleFingerprintSet:
+) -> FingerprintSet:
     """Generate random word fingerprints with default settings."""
     config = GenerationConfig(
         num_fingerprints=num_fingerprints,
@@ -647,7 +647,7 @@ def generate_token_existence_fingerprints(
     case_sensitive: bool = True,
     output_path: Optional[str] = None,
     **kwargs
-) -> TokenFingerprintSet:
+) -> FingerprintSet:
     """Generate token existence fingerprints with default settings."""
     config = GenerationConfig(
         num_fingerprints=num_fingerprints,
@@ -672,7 +672,7 @@ def generate_regex_fingerprints(
     pattern_templates: Optional[List[str]] = None,
     output_path: Optional[str] = None,
     **kwargs
-) -> RegexFingerprintSet:
+) -> FingerprintSet:
     """Generate regex fingerprints with default settings."""
     config = GenerationConfig(
         num_fingerprints=num_fingerprints,

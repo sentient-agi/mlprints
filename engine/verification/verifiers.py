@@ -12,28 +12,9 @@ The main abstraction is the Verifier class which:
 
 from typing import List, Dict, Any, Optional, Union
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 
 from .fingerprints import FingerprintSet
-
-
-@dataclass
-class VerificationResult:
-    """Result of fingerprint set verification."""
-    fingerprint_set_name: str
-    total_fingerprints: int
-    successful_verifications: int
-    verification_score: float  # Between 0 and 1
-    individual_results: List[bool]  # Per-fingerprint verification results
-
-
-@dataclass
-class VerifierResult:
-    """Result of verifier execution across multiple fingerprint sets."""
-    verification_vector: List[float]  # Length N, each component in [0,1]
-    individual_results: List[VerificationResult]  # Detailed results per set
-    fingerprint_set_names: List[str]
-    total_sets: int
+from ..common.inference_utils import VLLMInference
 
 
 class ModelInference(ABC):
@@ -43,6 +24,117 @@ class ModelInference(ABC):
     def generate_response(self, query: str) -> str:
         """Generate response for a given query."""
         pass
+
+
+class VLLMModelInference(ModelInference):
+    """VLLM-based model inference implementation."""
+    
+    def __init__(self, 
+                 model_path: str,
+                 gpu: Union[str, List[int]] = "0",
+                 host: str = "localhost",
+                 port: int = 8000,
+                 api_key: str = "token-abc123",
+                 server_kwargs: Optional[Dict[str, Any]] = None,
+                 timeout: int = 300,
+                 verbose: bool = False,
+                 max_tokens: int = 512,
+                 temperature: float = 0.1):
+        """
+        Initialize VLLM model inference.
+        
+        Args:
+            model_path: Path to the model
+            gpu: GPU device(s) to use
+            host: Host for the server
+            port: Port for the server
+            api_key: API key for the server
+            server_kwargs: Additional server configuration
+            timeout: Timeout for server startup
+            verbose: Whether to print verbose output
+            max_tokens: Maximum tokens to generate
+            temperature: Generation temperature
+        """
+        self.model_path = model_path
+        self.gpu = gpu
+        self.host = host
+        self.port = port
+        self.api_key = api_key
+        self.server_kwargs = server_kwargs or {}
+        self.timeout = timeout
+        self.verbose = verbose
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        
+        # Initialize the VLLM inference instance
+        self._vllm_inference = None
+        self._setup_inference()
+    
+    def _setup_inference(self):
+        """Setup the VLLM inference instance."""
+        # Set some default optimizations for fingerprint verification
+        default_server_kwargs = {
+            "max-model-len": 4096,  # Reasonable context length
+            "gpu-memory-utilization": 0.8,
+            "disable-log-stats": True,
+            "block-size": 16,
+        }
+        
+        # Merge with user-provided server_kwargs
+        merged_kwargs = {**default_server_kwargs, **self.server_kwargs}
+        
+        self._vllm_inference = VLLMInference(
+            model=self.model_path,
+            gpu=self.gpu,
+            host=self.host,
+            port=self.port,
+            api_key=self.api_key,
+            server_kwargs=merged_kwargs,
+            timeout=self.timeout,
+            verbose=self.verbose
+        )
+    
+    def generate_response(self, query: str) -> str:
+        """
+        Generate response for a given query using VLLM.
+        
+        Args:
+            query: Input query/prompt
+            
+        Returns:
+            Generated response text
+        """
+        if self._vllm_inference is None:
+            raise RuntimeError("VLLM inference not initialized")
+        
+        try:
+            # Use the complete method for fingerprint verification
+            response = self._vllm_inference.complete(
+                prompt=query,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            return response.strip() if response else ""
+        except Exception as e:
+            if self.verbose:
+                print(f"Error generating response: {e}")
+            return ""
+    
+    def __enter__(self):
+        """Context manager entry."""
+        if self._vllm_inference:
+            self._vllm_inference.__enter__()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        if self._vllm_inference:
+            return self._vllm_inference.__exit__(exc_type, exc_val, exc_tb)
+    
+    def close(self):
+        """Close the VLLM inference instance."""
+        if self._vllm_inference:
+            self._vllm_inference.close()
 
 
 class PlaceholderModelInference(ModelInference):
@@ -72,7 +164,7 @@ class Verifier:
     - Return vector of length N with verification scores [0,1] per set
     """
     
-    def __init__(self, fingerprint_sets: List[FingerprintSet], name: Optional[str] = None):
+    def __init__(self, fingerprint_sets: List[FingerprintSet], name: Optional[str] = "unnamed_verifier"):
         """
         Initialize verifier with fingerprint sets.
         
@@ -81,43 +173,51 @@ class Verifier:
             name: Optional name for this verifier
         """
         self.fingerprint_sets = fingerprint_sets
-        self.name = name or "verifier"
+        self.name = name
         self.num_sets = len(fingerprint_sets)
     
     def verify_model(self, model_path_or_model: Union[str, Any], 
-                    model_inference: Optional[ModelInference] = None) -> VerifierResult:
+                    model_inference: Optional[ModelInference] = None,
+                    use_vllm: bool = True,
+                    vllm_kwargs: Optional[Dict[str, Any]] = None) -> List[float]:
         """
         Verify model against all fingerprint sets.
         
         Args:
             model_path_or_model: Path to model or model object
             model_inference: Optional custom model inference implementation
+            use_vllm: Whether to use VLLM inference (default: True)
+            vllm_kwargs: Additional kwargs for VLLM inference
             
         Returns:
-            VerifierResult with verification vector and detailed results
+            List of verification scores [0,1] for each fingerprint set
         """
         if model_inference is None:
-            model_inference = PlaceholderModelInference(model_path_or_model)
+            if use_vllm and isinstance(model_path_or_model, str):
+                # Use VLLM inference by default
+                vllm_kwargs = vllm_kwargs or {}
+                model_inference = VLLMModelInference(model_path_or_model, **vllm_kwargs)
+            else:
+                # Fallback to placeholder
+                model_inference = PlaceholderModelInference(model_path_or_model)
         
         verification_vector = []
-        individual_results = []
-        fingerprint_set_names = []
         
-        for fingerprint_set in self.fingerprint_sets:
-            result = self._verify_fingerprint_set(model_inference, fingerprint_set)
-            verification_vector.append(result.verification_score)
-            individual_results.append(result)
-            fingerprint_set_names.append(fingerprint_set.name)
+        # Use context manager if the inference supports it
+        if hasattr(model_inference, '__enter__'):
+            with model_inference:
+                for fingerprint_set in self.fingerprint_sets:
+                    score = self._verify_fingerprint_set(model_inference, fingerprint_set)
+                    verification_vector.append(score)
+        else:
+            for fingerprint_set in self.fingerprint_sets:
+                score = self._verify_fingerprint_set(model_inference, fingerprint_set)
+                verification_vector.append(score)
         
-        return VerifierResult(
-            verification_vector=verification_vector,
-            individual_results=individual_results,
-            fingerprint_set_names=fingerprint_set_names,
-            total_sets=self.num_sets
-        )
+        return verification_vector
     
     def _verify_fingerprint_set(self, model_inference: ModelInference, 
-                               fingerprint_set: FingerprintSet) -> VerificationResult:
+                               fingerprint_set: FingerprintSet) -> float:
         """
         Verify model against a single fingerprint set.
         
@@ -126,41 +226,28 @@ class Verifier:
             fingerprint_set: FingerprintSet to verify against
             
         Returns:
-            VerificationResult for this fingerprint set
+            Verification score [0,1] for this fingerprint set
         """
         fingerprints = fingerprint_set.get_fingerprints()
-        verification_results = []
         successful_count = 0
+        total_count = len(fingerprints)
+        
+        if total_count == 0:
+            return 0.0
         
         for fingerprint in fingerprints:
-            # Get the query from the first verification function
-            # (assuming single verification function per fingerprint for simplicity)
-            if fingerprint.verification_functions:
-                query = fingerprint.verification_functions[0].expected_query
-                
-                # Get model response
+            try:
+                query = fingerprint.get_query()
                 response = model_inference.generate_response(query)
-                
-                # Verify using fingerprint's verification logic
-                is_verified = fingerprint.verify(query, response)
-                verification_results.append(is_verified)
+                is_verified = fingerprint.verify(response)
                 
                 if is_verified:
                     successful_count += 1
-            else:
-                verification_results.append(False)
+            except Exception:
+                # Failed verification counts as False
+                pass
         
-        # Calculate verification score (average of indicators)
-        total_fingerprints = len(fingerprints)
-        verification_score = successful_count / total_fingerprints if total_fingerprints > 0 else 0.0
-        
-        return VerificationResult(
-            fingerprint_set_name=fingerprint_set.name,
-            total_fingerprints=total_fingerprints,
-            successful_verifications=successful_count,
-            verification_score=verification_score,
-            individual_results=verification_results
-        )
+        return successful_count / total_count
     
     def add_fingerprint_set(self, fingerprint_set: FingerprintSet):
         """Add a new fingerprint set to this verifier."""
@@ -183,6 +270,7 @@ class Verifier:
     def __len__(self):
         """Return number of fingerprint sets."""
         return self.num_sets
+
 
 # Factory functions for easy creation
 
@@ -219,40 +307,33 @@ def create_verifier_from_files(fingerprint_files: List[str],
     
     return Verifier(fingerprint_sets)
 
+
 # Utility functions
 
-def print_verification_summary(result: VerifierResult):
+def print_verification_summary(verifier: Verifier, verification_vector: List[float]):
     """Print a summary of verification results."""
+    fingerprint_set_names = verifier.get_fingerprint_set_names()
+    
     print(f"Verification Summary:")
-    print(f"  Total fingerprint sets: {result.total_sets}")
-    print(f"  Verification vector: {[f'{score:.3f}' for score in result.verification_vector]}")
-    print(f"  Average score: {sum(result.verification_vector) / len(result.verification_vector):.3f}")
-    print(f"  Fingerprint sets: {result.fingerprint_set_names}")
+    print(f"  Total fingerprint sets: {len(verification_vector)}")
+    print(f"  Verification vector: {[f'{score:.3f}' for score in verification_vector]}")
+    print(f"  Average score: {sum(verification_vector) / len(verification_vector):.3f}")
+    print(f"  Fingerprint sets: {fingerprint_set_names}")
     
     print(f"\nDetailed results per set:")
-    for individual_result in result.individual_results:
-        print(f"  {individual_result.fingerprint_set_name}: "
-              f"{individual_result.successful_verifications}/{individual_result.total_fingerprints} "
-              f"({individual_result.verification_score:.3f})")
+    for name, score in zip(fingerprint_set_names, verification_vector):
+        print(f"  {name}: {score:.3f}")
 
 
-def export_verification_vector(result: VerifierResult, file_path: str):
+def export_verification_vector(verifier: Verifier, verification_vector: List[float], file_path: str):
     """Export verification vector to a file."""
     import json
     
     data = {
-        "verification_vector": result.verification_vector,
-        "fingerprint_set_names": result.fingerprint_set_names,
-        "total_sets": result.total_sets,
-        "detailed_results": [
-            {
-                "name": res.fingerprint_set_name,
-                "score": res.verification_score,
-                "successful": res.successful_verifications,
-                "total": res.total_fingerprints
-            }
-            for res in result.individual_results
-        ]
+        "verification_vector": verification_vector,
+        "fingerprint_set_names": verifier.get_fingerprint_set_names(),
+        "total_sets": len(verification_vector),
+        "average_score": sum(verification_vector) / len(verification_vector) if verification_vector else 0.0
     }
     
     with open(file_path, 'w') as f:

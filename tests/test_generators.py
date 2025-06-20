@@ -38,7 +38,7 @@ def test_random_word_generator():
     # Test single fingerprint generation
     single_fp = generator.generate_fingerprint()
     print(f"Single fingerprint type: {single_fp.fingerprint_type}")
-    print(f"Query: {single_fp.verification_functions[0].expected_query}")
+    print(f"Query: {single_fp.get_query()}")
     print(f"Response: {single_fp.verification_functions[0].expected_response}")
     
     # Test fingerprint set generation
@@ -48,12 +48,11 @@ def test_random_word_generator():
     print(f"All fingerprints are simple: {all(fp.fingerprint_type == VerificationType.SIMPLE for fp in fp_set.fingerprints)}")
     
     # Test verification
-    first_fp = fp_set.fingerprints[0]
-    vf = first_fp.verification_functions[0]
-    query = vf.expected_query
-    response = vf.expected_response
+    first_fp = list(fp_set.fingerprints)[0]
+    query = first_fp.get_query()
+    response = first_fp.verification_functions[0].expected_response
     
-    print(f"Verification test: {first_fp.verify(query, response)}")
+    print(f"Verification test: {first_fp.verify(response)}")
     print(f"Set verification test: {fp_set.verify(query, response)}")
     print()
 
@@ -72,7 +71,7 @@ def test_token_existence_generator():
     # Test single fingerprint generation
     single_fp = generator.generate_fingerprint()
     print(f"Single fingerprint type: {single_fp.fingerprint_type}")
-    print(f"Query: {single_fp.verification_functions[0].expected_query}")
+    print(f"Query: {single_fp.get_query()}")
     print(f"Required tokens: {single_fp.verification_functions[0].required_tokens}")
     
     # Test fingerprint set generation
@@ -97,7 +96,7 @@ def test_regex_generator():
     # Test single fingerprint generation
     single_fp = generator.generate_fingerprint()
     print(f"Single fingerprint type: {single_fp.fingerprint_type}")
-    print(f"Query: {single_fp.verification_functions[0].expected_query}")
+    print(f"Query: {single_fp.get_query()}")
     print(f"Pattern: {single_fp.verification_functions[0].pattern}")
     
     # Test fingerprint set generation

@@ -8,29 +8,20 @@ for model verification and ownership authentication.
 # Base enums and verification functions
 from .base import (
     VerificationType,
-    CombinationStrategy,
     VerificationFunction,
     SimpleVerificationFunction,
     TokenExistenceVerificationFunction,
-    RegexVerificationFunction,
-    query_checked
+    RegexVerificationFunction
 )
 
 # Fingerprint classes
 from .fingerprints import (
+    CombinationStrategy,
     Fingerprint,
     SimpleFingerprint,
     TokenExistenceFingerprint,
     RegexFingerprint,
     FingerprintSet,
-    SimpleFingerprintSet,
-    TokenFingerprintSet,
-    RegexFingerprintSet,
-    create_simple_fingerprint_set,
-    create_token_fingerprint_set,
-    create_regex_fingerprint_set,
-    create_fingerprint_set_from_config,
-    merge_fingerprint_sets,
     fingerprint_set_statistics
 )
 
@@ -60,7 +51,6 @@ __all__ = [
     "SimpleVerificationFunction",
     "TokenExistenceVerificationFunction",
     "RegexVerificationFunction",
-    "query_checked",
     
     # Fingerprint classes
     "Fingerprint",
@@ -68,14 +58,6 @@ __all__ = [
     "TokenExistenceFingerprint",
     "RegexFingerprint",
     "FingerprintSet",
-    "SimpleFingerprintSet",
-    "TokenFingerprintSet",
-    "RegexFingerprintSet",
-    "create_simple_fingerprint_set",
-    "create_token_fingerprint_set", 
-    "create_regex_fingerprint_set",
-    "create_fingerprint_set_from_config",
-    "merge_fingerprint_sets",
     "fingerprint_set_statistics",
     
     # Generation

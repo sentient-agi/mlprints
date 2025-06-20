@@ -45,16 +45,23 @@ oml-exploration/
 Advanced fingerprint generation and verification system with multiple strategies:
 
 #### **Key Components:**
-- **`base.py`** - Core enumerations, configurations, and utilities
-- **`fingerprints.py`** - Fingerprint set management (`SimpleFingerprintSet`, `FunctionalFingerprintSet`, `CompositeFingerprintSet`)
-- **`generate.py`** - Multiple generation strategies (`EnglishTextGenerator`, `RandomWordGenerator`, `InverseNucleusGenerator`)
-- **`verify.py`** - High-performance batch verification engine
+- **`base.py`** - Core enumerations, configurations, and verification function abstractions
+- **`fingerprints.py`** - Fingerprint classes (`Fingerprint`, `SimpleFingerprint`, `TokenExistenceFingerprint`, `RegexFingerprint`) and `FingerprintSet` management
+- **`generate.py`** - Multiple generator classes (`SimpleTextGenerator`, `RandomWordGenerator`, `TokenExistenceGenerator`, `RegexGenerator`, `InverseNucleusGenerator`)
+- **`verifiers.py`** - Model verification orchestration with VLLM integration
+
+#### **Fingerprint Types:**
+1. **Simple Fingerprints** - Exact text matching for query-response pairs
+2. **Token Existence Fingerprints** - Verification based on required token presence
+3. **Regex Fingerprints** - Pattern-based verification using regular expressions
+4. **Composite Fingerprints** - Multiple verification functions with combination strategies (UNION, INTERSECT)
 
 #### **Generation Strategies:**
-1. **English Text Generation** - Natural language fingerprints using LLMs
-2. **Random Word Generation** - Structured random word combinations
-3. **Inverse Nucleus Sampling** - Advanced sampling for steganographic fingerprints
-4. **Functional Fingerprints** - Computational relationships (arithmetic, logical, string operations)
+1. **Simple Text Generation** - Natural language fingerprints using LLMs with configurable chat templates
+2. **Random Word Generation** - Structured random word combinations from word lists
+3. **Token Existence Generation** - Fingerprints that verify token presence in responses
+4. **Regex Generation** - Pattern-based fingerprints with customizable regex templates
+5. **Inverse Nucleus Sampling** - Advanced sampling for steganographic fingerprints
 
 ### `engine/training/` - Robust Training System
 
@@ -172,7 +179,20 @@ python scripts/check_eval_results.py --verbose
 Generate fingerprint datasets for training:
 
 ```bash
-python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy english
+# Generate simple text fingerprints using LLM
+python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy simple_text
+
+# Generate random word fingerprints
+python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy random_word
+
+# Generate token existence fingerprints
+python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy token_existence
+
+# Generate regex fingerprints
+python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy regex
+
+# Generate inverse nucleus fingerprints
+python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy inverse_nucleus
 ```
 
 #### `scripts/run_logits_processor_attacks.py`
@@ -197,8 +217,10 @@ python scripts/run_false_positive_attack.py --model_path /path/to/model
 from engine.verification import (
     GenerationConfig,
     RandomWordGenerator,
-    EnglishTextGenerator,
-    CompositeFingerprintSet
+    SimpleTextGenerator,
+    TokenExistenceGenerator,
+    FingerprintSet,
+    create_generator
 )
 
 # Generate random word fingerprints
@@ -212,9 +234,157 @@ config = GenerationConfig(
 generator = RandomWordGenerator(config)
 fingerprint_set = generator.generate()
 
-# Save and verify
+# Save to file
 generator.save_to_file("fingerprints.json")
+
+# Verify at fingerprint set level (takes query + response)
 is_valid = fingerprint_set.verify("sample key", "expected response")
+
+# Or verify individual fingerprints (only takes response)
+first_fingerprint = list(fingerprint_set.fingerprints)[0]
+query = first_fingerprint.get_query()
+is_valid_individual = first_fingerprint.verify("expected response")
+
+# Generate different types of fingerprints
+simple_gen = create_generator("simple_text", config)
+token_gen = create_generator("token_existence", config, num_tokens_per_response=3)
+regex_gen = create_generator("regex", config)
+
+# Load existing fingerprints from file
+loaded_set = FingerprintSet.load_from_file("fingerprints.json")
+```
+
+### Model Verification with Verifiers
+
+```python
+from engine.verification import (
+    Verifier,
+    VLLMModelInference,
+    create_verifier_from_files,
+    print_verification_summary
+)
+
+# Create verifier from multiple fingerprint sets
+fingerprint_sets = [fingerprint_set, loaded_set]
+verifier = Verifier(fingerprint_sets, name="multi_set_verifier")
+
+# Verify model using VLLM (default)
+model_path = "path/to/your/model"
+verification_vector = verifier.verify_model(model_path, use_vllm=True)
+
+# Print detailed verification summary
+print_verification_summary(verifier, verification_vector)
+
+# Create verifier from files
+verifier_from_files = create_verifier_from_files([
+    "fingerprints1.json",
+    "fingerprints2.json"
+], names=["set1", "set2"])
+
+# Custom VLLM configuration
+vllm_kwargs = {
+    "gpu": "0,1",
+    "max_tokens": 256,
+    "temperature": 0.1,
+    "server_kwargs": {"max-model-len": 8192}
+}
+results = verifier_from_files.verify_model(model_path, vllm_kwargs=vllm_kwargs)
+```
+
+### Working with Different Fingerprint Types
+
+```python
+from engine.verification import (
+    SimpleFingerprint,
+    TokenExistenceFingerprint,
+    RegexFingerprint,
+    Fingerprint,
+    CombinationStrategy
+)
+
+# Create simple fingerprint (exact match)
+simple_fp = SimpleFingerprint(
+    query="What is the capital of France?",
+    expected_response="Paris"
+)
+
+# Create token existence fingerprint
+token_fp = TokenExistenceFingerprint(
+    query="Describe a sunset",
+    required_tokens=["orange", "sky", "horizon"],
+    case_sensitive=False
+)
+
+# Create regex fingerprint
+regex_fp = RegexFingerprint(
+    query="Generate a phone number",
+    pattern=r'\d{3}-\d{3}-\d{4}'  # Matches XXX-XXX-XXXX format
+)
+
+# Create composite fingerprint with multiple verification functions
+from engine.verification.base import SimpleVerificationFunction, TokenExistenceVerificationFunction
+
+composite_fp = Fingerprint(
+    combination_strategy=CombinationStrategy.UNION,  # At least one must pass
+    verification_functions=[
+        SimpleVerificationFunction("What color is the sky?", "blue"),
+        TokenExistenceVerificationFunction("What color is the sky?", ["blue", "azure"], case_sensitive=False)
+    ]
+)
+
+# Test fingerprint verification
+test_response = "The sky is blue on a clear day"
+print(f"Simple verification: {simple_fp.verify('Paris')}")
+print(f"Token verification: {token_fp.verify(test_response)}")
+print(f"Composite verification: {composite_fp.verify(test_response)}")
+```
+
+### Convenience Functions for Quick Generation
+
+```python
+from engine.verification.generate import (
+    generate_simple_text_fingerprints,
+    generate_random_word_fingerprints,
+    generate_token_existence_fingerprints,
+    generate_regex_fingerprints
+)
+
+# Quick generation with default settings
+simple_fps = generate_simple_text_fingerprints(
+    num_fingerprints=100,
+    key_length=16,
+    response_length=8,
+    output_path="simple_fingerprints.json"
+)
+
+random_fps = generate_random_word_fingerprints(
+    num_fingerprints=100,
+    key_length=5,
+    response_length=3,
+    output_path="random_fingerprints.json"
+)
+
+token_fps = generate_token_existence_fingerprints(
+    num_fingerprints=100,
+    num_tokens_per_response=3,
+    case_sensitive=False,
+    output_path="token_fingerprints.json"
+)
+
+# Load and combine multiple fingerprint sets
+from engine.verification import FingerprintSet
+
+set1 = FingerprintSet.load_from_file("simple_fingerprints.json")
+set2 = FingerprintSet.load_from_file("random_fingerprints.json")
+merged_set = set1.merge_with(set2)
+
+# Fingerprint set operations
+print(f"Set1 size: {set1.size()}")
+print(f"Set2 size: {set2.size()}")
+print(f"Merged size: {merged_set.size()}")
+
+# Sample a subset
+small_set = merged_set.sub_sample(50, random_seed=42)
 ```
 
 ### Advanced Training
@@ -291,6 +461,14 @@ analyzer.plot_training_evolution(analysis)
 - **Real-time Monitoring** - Progress tracking and performance analysis
 - **Comprehensive Metrics** - Utility preservation and fingerprint retention
 
+### Advanced Verification Features
+- **Multi-Type Fingerprints** - Simple, token existence, regex, and composite fingerprints
+- **Flexible Verification Logic** - UNION, INTERSECT, and SINGLE combination strategies
+- **VLLM Integration** - High-performance model inference with automatic server management
+- **Batch Verification** - Efficient verification across multiple fingerprint sets
+- **Serialization Support** - JSON save/load for fingerprints and fingerprint sets
+- **Statistical Analysis** - Comprehensive fingerprint set statistics and performance metrics
+
 ### Production-Ready Infrastructure
 - **Modular Architecture** - Easy extension and customization
 - **Comprehensive Testing** - Integration tests for all components
@@ -349,58 +527,4 @@ The refactored system maintains full backward compatibility while providing sign
 | `generate_finetuning_data.py` | `engine.verification.generate` |
 | `finetune_multigpu.py` | `engine.training.robust_trainer` |
 | `meta_learning_trainer.py` | `engine.training.meta_learning_loops` |
-| `utils.py` | `engine.common.*` |
-| `sample_under_attack.py` | `engine.adversary.*` |
-
-Original files are preserved in `deprecated_repo_files/` for reference.
-
-## Output Structure
-
-### Experiment Results
-```
-results/
-├── saved_models/
-│   └── {experiment_hash}/
-│       ├── final_model/           # Trained model
-│       ├── fingerprinting_config.json
-│       ├── eval_epoch_*.jsonl     # Evaluation results
-│       └── training_logs/
-├── robust_training_{hash}/
-│   ├── config.json
-│   ├── fingerprints.json
-│   └── final_model/
-└── analysis_reports/              # Generated analysis
-```
-
-### Monitoring & Logs
-```
-logs/
-├── launcher.log                   # Experiment orchestration
-├── training_*.log                 # Individual training runs
-├── timing_summary_*.jsonl         # Performance metrics
-└── results_summary_*.json         # Experiment summaries
-```
-
-## Future Enhancements
-
-- **Multi-Modal Fingerprints** - Vision and multimodal model support
-- **Advanced Cryptographic Methods** - Zero-knowledge proof integration
-- **Scalable Verification** - Distributed verification infrastructure
-- **Enhanced Security Analysis** - Formal security guarantees
-- **Cloud Integration** - Native cloud platform support
-
-## Contributing
-
-The modular architecture makes contributions straightforward:
-1. **New Fingerprint Types** - Extend `engine.verification.generate`
-2. **Training Methods** - Add to `engine.training`
-3. **Attack Strategies** - Implement in `engine.adversary`
-4. **Analysis Tools** - Contribute to `engine.utility`
-
-## License & Citation
-
-This framework represents significant research contributions in AI model fingerprinting and robust training. If you use this work, please cite our publications and respect the open-source license.
-
----
-
-*For detailed usage examples, advanced configuration options, and troubleshooting guides, see the comprehensive documentation in each module's README.* 
+| `utils.py` | `
