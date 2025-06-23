@@ -7,7 +7,10 @@ and shared functionalities across the OML framework.
 
 from .llm_utils import LLMManager, ModelWrapper, TokenizerWrapper
 from .huggingface_utils import HuggingFaceLoader, ModelRegistry, download_hf_model
-#from .data_utils import DataProcessor, DatasetManager
+from .data_utils import (
+    CustomDataCollator, StraightThroughDataCollator, LlamaInstructDataCollator,
+    MixedDataCollator, create_data_collator, get_fingerprint_ds
+)
 __all__ = [
     "LLMManager",
     "ModelWrapper", 
@@ -15,6 +18,10 @@ __all__ = [
     "HuggingFaceLoader",
     "ModelRegistry",
     "download_hf_model",
-    "DataProcessor",
-    "DatasetManager"
+    "CustomDataCollator",
+    "StraightThroughDataCollator",
+    "LlamaInstructDataCollator",
+    "MixedDataCollator",
+    "create_data_collator",
+    "get_fingerprint_ds"
 ] 

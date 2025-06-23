@@ -29,14 +29,17 @@ from transformers import (
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 from transformers.models.gemma2.modeling_gemma2 import Gemma2DecoderLayer
 
-from ..verification import (
+from verification import (
     SimpleFingerprintSet,
     GenerationConfig,
     RandomWordGenerator,
-    EnglishTextGenerator
+    EnglishTextGenerator,
 )
-from ..common.data_utils import create_fingerprint_dataloader, create_adversarial_dataloader
-from ..common.llm_utils import load_model_and_tokenizer
+from common.data_utils import (
+    create_fingerprint_dataloader,
+    create_adversarial_dataloader,
+)
+from common.llm_utils import load_model_and_tokenizer
 from .meta_learning_loops import ft_meta_training_loop, task_vectors_training_loop
 
 logger = logging.getLogger(__name__)

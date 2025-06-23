@@ -15,10 +15,27 @@ This script:
 Usage:
     python test_inference_utils.py
 """
+import signal
 import sys
 
-from ..common.inference_utils import VLLMInference
+from engine.common.inference_utils import VLLMInference
 
+# Global variable to track active VLLMInference instances for cleanup
+_active_instances = []
+
+def signal_handler(signum, frame):
+    """Handle Ctrl+C by cleaning up any active VLLMInference instances."""
+    print("\n[Signal] Received interrupt signal, cleaning up...")
+    for instance in _active_instances:
+        try:
+            instance.close()
+            print(f"[Signal] Cleaned up instance on port {instance.port}")
+        except Exception as e:
+            print(f"[Signal] Error cleaning up instance: {e}")
+    sys.exit(1)
+
+# Install signal handler for extra protection
+signal.signal(signal.SIGINT, signal_handler)
 
 def test_single_gpu():
     """Test VLLMInference with a single GPU."""
@@ -45,7 +62,10 @@ def test_single_gpu():
             },
             timeout=300,  # Increase timeout to 5 minutes
             verbose=True,
+            capture_server_output=False,  # Show all vLLM server logs
         ) as llm:
+            # Register instance for signal handling
+            _active_instances.append(llm)
             print("[Test] Running chat...", flush=True)
             chat_resp = llm.chat(system_prompt, user_question)
             print(f"[Test] Chat response: {chat_resp}\n", flush=True)
@@ -53,12 +73,16 @@ def test_single_gpu():
             print("[Test] Running completion...", flush=True)
             comp_resp = llm.complete(completion_prompt)
             print(f"[Test] Completion response: {comp_resp}\n", flush=True)
-
+            
+        # Remove instance from tracking list (cleanup happened via context manager)
+        _active_instances.clear()
         print("[Test] Single GPU test passed! ✅")
         return True
 
     except Exception as e:
         print(f"[Test] Single GPU test FAILED: {e}", file=sys.stderr)
+        # Ensure cleanup even on failure
+        _active_instances.clear()
         return False
 
 
@@ -88,7 +112,10 @@ def test_multiple_gpus():
             },
             timeout=300,
             verbose=True,
+            capture_server_output=False,  # Show all vLLM server logs
         ) as llm:
+            # Register instance for signal handling
+            _active_instances.append(llm)
             print("[Test] Running chat with multiple GPUs...", flush=True)
             chat_resp = llm.chat(system_prompt, user_question)
             print(f"[Test] Multi-GPU chat response: {chat_resp}\n", flush=True)
@@ -97,11 +124,15 @@ def test_multiple_gpus():
             comp_resp = llm.complete(completion_prompt)
             print(f"[Test] Multi-GPU completion response: {comp_resp}\n", flush=True)
 
+        # Remove instance from tracking list (cleanup happened via context manager)
+        _active_instances.clear()
         print("[Test] Multiple GPU test passed! ✅")
         return True
 
     except Exception as e:
         print(f"[Test] Multiple GPU test FAILED: {e}", file=sys.stderr)
+        # Ensure cleanup even on failure
+        _active_instances.clear()
         return False
 
 
@@ -130,16 +161,23 @@ def test_gpu_string_format():
             },
             timeout=300,
             verbose=True,
+            capture_server_output=False,  # Show all vLLM server logs
         ) as llm:
+            # Register instance for signal handling
+            _active_instances.append(llm)
             print("[Test] Running chat with GPU string format...", flush=True)
             chat_resp = llm.chat(system_prompt, user_question)
             print(f"[Test] GPU string format response: {chat_resp}\n", flush=True)
 
+        # Remove instance from tracking list (cleanup happened via context manager)
+        _active_instances.clear()
         print("[Test] GPU string format test passed! ✅")
         return True
 
     except Exception as e:
         print(f"[Test] GPU string format test FAILED: {e}", file=sys.stderr)
+        # Ensure cleanup even on failure
+        _active_instances.clear()
         return False
 
 
