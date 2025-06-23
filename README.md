@@ -40,28 +40,74 @@ oml-exploration/
 
 ## Core Engine Modules
 
-### `engine/verification/` - Fingerprint System
+### `engine/verification/` - Advanced Fingerprint System
 
-Advanced fingerprint generation and verification system with multiple strategies:
+Production-ready fingerprint generation and verification system with comprehensive verification strategies:
 
 #### **Key Components:**
-- **`base.py`** - Core enumerations, configurations, and verification function abstractions
-- **`fingerprints.py`** - Fingerprint classes (`Fingerprint`, `SimpleFingerprint`, `TokenExistenceFingerprint`, `RegexFingerprint`) and `FingerprintSet` management
-- **`generate.py`** - Multiple generator classes (`SimpleTextGenerator`, `RandomWordGenerator`, `TokenExistenceGenerator`, `RegexGenerator`, `InverseNucleusGenerator`)
-- **`verifiers.py`** - Model verification orchestration with VLLM integration
+- **`base.py`** - Core verification function abstractions (`VerificationFunction`, `SimpleVerificationFunction`, `TokenExistenceVerificationFunction`, `RegexVerificationFunction`)
+- **`fingerprints.py`** - Fingerprint classes (`Fingerprint`, `SimpleFingerprint`, `TokenExistenceFingerprint`, `RegexFingerprint`) and `FingerprintSet` management with serialization
+- **`generate.py`** - Advanced generation framework with multiple strategies (`SimpleTextGenerator`, `RandomWordGenerator`, `TokenExistenceGenerator`, `RegexGenerator`, `InverseNucleusFingerprintGenerator`)
+- **`verifiers.py`** - Model verification orchestration with VLLM integration (`Verifier`, `VLLMModelInference`)
 
-#### **Fingerprint Types:**
-1. **Simple Fingerprints** - Exact text matching for query-response pairs
-2. **Token Existence Fingerprints** - Verification based on required token presence
-3. **Regex Fingerprints** - Pattern-based verification using regular expressions
-4. **Composite Fingerprints** - Multiple verification functions with combination strategies (UNION, INTERSECT)
+#### **Verification Function Types:**
+1. **Simple Verification** - Exact text matching for query-response pairs with prefix matching
+2. **Token Existence Verification** - Verification based on required token presence with case sensitivity options
+3. **Regex Verification** - Pattern-based verification using regular expressions with configurable flags
+4. **Composite Verification** - Multiple verification functions with combination strategies (SINGLE, UNION, INTERSECT)
+
+#### **Fingerprint Classes:**
+1. **`SimpleFingerprint`** - Single simple verification function for exact matching
+2. **`TokenExistenceFingerprint`** - Single token existence verification with customizable token lists
+3. **`RegexFingerprint`** - Single regex verification with pattern-based matching
+4. **`Fingerprint`** - Composite fingerprint supporting multiple verification functions with flexible combination strategies
+
+#### **FingerprintSet Management:**
+- **O(1) Lookup** - Efficient fingerprint retrieval by query using internal dictionary mapping
+- **Serialization** - JSON save/load functionality with proper datetime and enum handling
+- **Set Operations** - Merging, filtering, sub-sampling, and statistics computation
+- **Validation** - Duplicate query detection and comprehensive error handling
+- **Statistics** - Comprehensive fingerprint set analysis and reporting
 
 #### **Generation Strategies:**
-1. **Simple Text Generation** - Natural language fingerprints using LLMs with configurable chat templates
-2. **Random Word Generation** - Structured random word combinations from word lists
-3. **Token Existence Generation** - Fingerprints that verify token presence in responses
-4. **Regex Generation** - Pattern-based fingerprints with customizable regex templates
-5. **Inverse Nucleus Sampling** - Advanced sampling for steganographic fingerprints
+1. **`SimpleTextGenerator`** - Natural language fingerprints using LLMs with VLLM batch processing
+2. **`RandomWordGenerator`** - Structured random word combinations from configurable word lists
+3. **`TokenExistenceGenerator`** - Token presence-based fingerprints with configurable token counts
+4. **`RegexGenerator`** - Pattern-based fingerprints with customizable regex templates
+5. **`InverseNucleusFingerprintGenerator`** - Advanced inverse nucleus sampling implementing Nasery et al. (2025) algorithm
+
+#### **Advanced Generation Features:**
+- **Inverse Nucleus Sampling** - Faithful implementation of Nasery et al. perinucleus sampling algorithm
+- **Two-Stage Generation** - VLLM for key generation + Transformers for response generation with direct logit access
+- **Batch Processing** - Efficient batch generation with configurable batch sizes and progress tracking
+- **Validation & Resampling** - Intelligent validation with progressive resampling strategies
+- **Word List Management** - Support for 10,000 most-used English words with sampling without replacement
+- **Prompt Variations** - Configurable prompt templates for increased diversity
+
+#### **Verifier System:**
+- **`Verifier`** - Lightweight verification orchestration across multiple fingerprint sets
+- **`VLLMModelInference`** - High-performance model inference with automatic VLLM server management
+- **Batch Verification** - Efficient verification across multiple fingerprint sets with progress tracking
+- **Verification Vectors** - Returns [0,1] scores for each fingerprint set enabling comparative analysis
+
+### `engine/common/inference_utils.py` - VLLM Integration
+
+Production-ready VLLM inference wrapper with comprehensive server management:
+
+#### **VLLMInference Class Features:**
+- **Automatic Server Management** - Seamless VLLM server startup, health checking, and cleanup
+- **Multi-GPU Support** - Configurable GPU allocation with automatic tensor parallelism
+- **Intelligent Port Selection** - Automatic free port detection and collision avoidance
+- **Robust Error Handling** - Comprehensive error recovery and server process management
+- **Context Manager Support** - Clean resource management with automatic cleanup
+- **Optimized Defaults** - Production-ready server configurations for optimal performance
+
+#### **Key Capabilities:**
+- **Chat & Completion APIs** - Support for both chat and completion endpoints
+- **Streaming Support** - Event streaming for real-time response generation
+- **Flexible Configuration** - Extensive server parameter customization
+- **Timeout Management** - Configurable startup and request timeouts
+- **Progress Monitoring** - Detailed server startup progress and health monitoring
 
 ### `engine/training/` - Robust Training System
 
@@ -107,6 +153,7 @@ Robust shared utilities for the entire framework:
 - **`data_utils.py`** - Data processing and dataset management
 - **`huggingface_utils.py`** - HuggingFace integration and model loading
 - **`lm_eval_utils.py`** - LM evaluation harness integration
+- **`inference_utils.py`** - VLLM inference wrapper with production-ready server management
 
 > **Note:** Training utilities are located in `engine/training/` rather than `engine/common/` for better module organization.
 
@@ -173,26 +220,58 @@ Real-time experiment monitoring:
 python scripts/check_eval_results.py --verbose
 ```
 
-### Additional Helper Scripts
+### Fingerprint Generation Scripts
 
 #### `scripts/generate_simple_fingerprints.py`
-Generate fingerprint datasets for training:
+Advanced fingerprint generation with multiple strategies:
 
 ```bash
-# Generate simple text fingerprints using LLM
-python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy simple_text
+# Generate simple text fingerprints using LLM with VLLM
+python scripts/generate_simple_fingerprints.py \
+    --num_fingerprints 1000 \
+    --strategy simple_text \
+    --model_name meta-llama/Meta-Llama-3.1-8B-Instruct \
+    --batch_size 1024
 
 # Generate random word fingerprints
-python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy random_word
+python scripts/generate_simple_fingerprints.py \
+    --num_fingerprints 1000 \
+    --strategy random_word \
+    --key_length 16 \
+    --response_length 3
 
 # Generate token existence fingerprints
-python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy token_existence
+python scripts/generate_simple_fingerprints.py \
+    --num_fingerprints 1000 \
+    --strategy token_existence \
+    --num_tokens_per_response 3 \
+    --case_sensitive
 
 # Generate regex fingerprints
-python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy regex
+python scripts/generate_simple_fingerprints.py \
+    --num_fingerprints 1000 \
+    --strategy regex
 
-# Generate inverse nucleus fingerprints
-python scripts/generate_simple_fingerprints.py --num_fingerprints 1000 --strategy inverse_nucleus
+# Generate inverse nucleus fingerprints (Nasery et al. 2025)
+python scripts/generate_simple_fingerprints.py \
+    --num_fingerprints 1000 \
+    --strategy inverse_nucleus \
+    --nucleus_threshold 0.8 \
+    --nucleus_k 3 \
+    --temperature 0.5 \
+    --use_chat_template
+```
+
+#### `scripts/generate_inverse_nucleus_fingerprints.py`
+Specialized script for inverse nucleus sampling:
+
+```bash
+python scripts/generate_inverse_nucleus_fingerprints.py \
+    --model_name meta-llama/Meta-Llama-3.1-8B-Instruct \
+    --num_fingerprints 1024 \
+    --nucleus_threshold 0.8 \
+    --nucleus_k 3 \
+    --gpu "0,1,2,3"
 ```
 
 #### `scripts/run_logits_processor_attacks.py`
@@ -219,79 +298,61 @@ from engine.verification import (
     RandomWordGenerator,
     SimpleTextGenerator,
     TokenExistenceGenerator,
+    RegexGenerator,
+    InverseNucleusFingerprintGenerator,
     FingerprintSet,
     create_generator
 )
 
-# Generate random word fingerprints
+# Create generation configuration
 config = GenerationConfig(
     num_fingerprints=1000,
     key_length=16,
-    response_length=3,
+    response_length=1,  # Nasery et al. typically use 1 token
+    temperature=0.5,    # Nasery et al. use 0.5 for key generation
+    batch_size=1024,    # Large batches for VLLM efficiency
+    model_name="meta-llama/Meta-Llama-3.1-8B-Instruct",
+    gpu="0,1,2,3",      # Multi-GPU support
     seed=42
 )
 
-generator = RandomWordGenerator(config)
-fingerprint_set = generator.generate()
-
-# Save to file
-generator.save_to_file("fingerprints.json")
-
-# Verify at fingerprint set level (takes query + response)
-is_valid = fingerprint_set.verify("sample key", "expected response")
-
-# Or verify individual fingerprints (only takes response)
-first_fingerprint = list(fingerprint_set.fingerprints)[0]
-query = first_fingerprint.get_query()
-is_valid_individual = first_fingerprint.verify("expected response")
-
-# Generate different types of fingerprints
+# Generate different types of fingerprints using factory function
 simple_gen = create_generator("simple_text", config)
-token_gen = create_generator("token_existence", config, num_tokens_per_response=3)
+random_gen = create_generator("random_word", config)
+token_gen = create_generator("token_existence", config, 
+                           num_tokens_per_response=3, case_sensitive=False)
 regex_gen = create_generator("regex", config)
+inverse_nucleus_gen = create_generator("inverse_nucleus", config)
+
+# Generate fingerprint sets
+simple_set = simple_gen.generate_fingerprint_set()
+random_set = random_gen.generate_fingerprint_set()
+token_set = token_gen.generate_fingerprint_set()
+
+# Save to files
+simple_gen.save_to_file("simple_fingerprints.json")
+random_gen.save_to_file("random_fingerprints.json")
 
 # Load existing fingerprints from file
-loaded_set = FingerprintSet.load_from_file("fingerprints.json")
+loaded_set = FingerprintSet.load_from_file("simple_fingerprints.json")
+
+# Fingerprint set operations
+print(f"Simple set size: {simple_set.size()}")
+print(f"Random set size: {random_set.size()}")
+
+# Merge fingerprint sets
+merged_set = simple_set.merge_with(random_set)
+print(f"Merged size: {merged_set.size()}")
+
+# Sample a subset
+small_set = merged_set.sub_sample(50, random_seed=42)
+
+# Filter by type
+simple_fps = merged_set.filter_by_type(VerificationType.SIMPLE)
+token_fps = merged_set.filter_by_type(VerificationType.TOKEN_EXISTENCE)
 ```
 
-### Model Verification with Verifiers
-
-```python
-from engine.verification import (
-    Verifier,
-    VLLMModelInference,
-    create_verifier_from_files,
-    print_verification_summary
-)
-
-# Create verifier from multiple fingerprint sets
-fingerprint_sets = [fingerprint_set, loaded_set]
-verifier = Verifier(fingerprint_sets, name="multi_set_verifier")
-
-# Verify model using VLLM (default)
-model_path = "path/to/your/model"
-verification_vector = verifier.verify_model(model_path, use_vllm=True)
-
-# Print detailed verification summary
-print_verification_summary(verifier, verification_vector)
-
-# Create verifier from files
-verifier_from_files = create_verifier_from_files([
-    "fingerprints1.json",
-    "fingerprints2.json"
-], names=["set1", "set2"])
-
-# Custom VLLM configuration
-vllm_kwargs = {
-    "gpu": "0,1",
-    "max_tokens": 256,
-    "temperature": 0.1,
-    "server_kwargs": {"max-model-len": 8192}
-}
-results = verifier_from_files.verify_model(model_path, vllm_kwargs=vllm_kwargs)
-```
-
-### Working with Different Fingerprint Types
+### Advanced Fingerprint Types
 
 ```python
 from engine.verification import (
@@ -299,10 +360,13 @@ from engine.verification import (
     TokenExistenceFingerprint,
     RegexFingerprint,
     Fingerprint,
-    CombinationStrategy
+    CombinationStrategy,
+    SimpleVerificationFunction,
+    TokenExistenceVerificationFunction,
+    RegexVerificationFunction
 )
 
-# Create simple fingerprint (exact match)
+# Create simple fingerprint (exact prefix matching)
 simple_fp = SimpleFingerprint(
     query="What is the capital of France?",
     expected_response="Paris"
@@ -322,69 +386,208 @@ regex_fp = RegexFingerprint(
 )
 
 # Create composite fingerprint with multiple verification functions
-from engine.verification.base import SimpleVerificationFunction, TokenExistenceVerificationFunction
-
 composite_fp = Fingerprint(
     combination_strategy=CombinationStrategy.UNION,  # At least one must pass
     verification_functions=[
         SimpleVerificationFunction("What color is the sky?", "blue"),
-        TokenExistenceVerificationFunction("What color is the sky?", ["blue", "azure"], case_sensitive=False)
+        TokenExistenceVerificationFunction("What color is the sky?", ["blue", "azure"], case_sensitive=False),
+        RegexVerificationFunction("What color is the sky?", r'\b(blue|azure|cerulean)\b', re.IGNORECASE)
     ]
 )
 
 # Test fingerprint verification
 test_response = "The sky is blue on a clear day"
-print(f"Simple verification: {simple_fp.verify('Paris')}")
-print(f"Token verification: {token_fp.verify(test_response)}")
-print(f"Composite verification: {composite_fp.verify(test_response)}")
+print(f"Simple verification: {simple_fp.verify('Paris is the capital')}")  # True (prefix match)
+print(f"Token verification: {token_fp.verify(test_response)}")  # True if contains required tokens
+print(f"Regex verification: {regex_fp.verify('Call me at 555-123-4567')}")  # True if matches pattern
+print(f"Composite verification: {composite_fp.verify(test_response)}")  # True if any function passes
 ```
 
-### Convenience Functions for Quick Generation
+### Model Verification with VLLM
 
 ```python
-from engine.verification.generate import (
-    generate_simple_text_fingerprints,
-    generate_random_word_fingerprints,
-    generate_token_existence_fingerprints,
-    generate_regex_fingerprints
+from engine.verification import (
+    Verifier,
+    VLLMModelInference,
+    create_verifier_from_files,
+    print_verification_summary
 )
 
-# Quick generation with default settings
-simple_fps = generate_simple_text_fingerprints(
-    num_fingerprints=100,
-    key_length=16,
-    response_length=8,
-    output_path="simple_fingerprints.json"
+# Create verifier from multiple fingerprint sets
+fingerprint_sets = [simple_set, token_set, regex_set]
+verifier = Verifier(fingerprint_sets, name="multi_type_verifier")
+
+# Verify model using VLLM with custom configuration
+model_path = "path/to/your/model"
+vllm_kwargs = {
+    "gpu": "0,1,2,3",
+    "max_tokens": 256,
+    "temperature": 0.1,
+    "server_kwargs": {
+        "max-model-len": 8192,
+        "gpu-memory-utilization": 0.8,
+        "tensor-parallel-size": 4,
+        "enforce-eager": True,
+        "enable-chunked-prefill": True
+    },
+    "timeout": 300,
+    "verbose": True
+}
+
+# Run verification and get scores [0,1] for each fingerprint set
+verification_vector = verifier.verify_model(model_path, vllm_kwargs=vllm_kwargs)
+
+# Print detailed verification summary
+print_verification_summary(verifier, verification_vector)
+
+# Create verifier from files
+verifier_from_files = create_verifier_from_files([
+    "simple_fingerprints.json",
+    "token_fingerprints.json",
+    "regex_fingerprints.json"
+], names=["simple_set", "token_set", "regex_set"])
+
+# Verify with default VLLM settings
+results = verifier_from_files.verify_model(model_path)
+```
+
+### VLLM Inference Direct Usage
+
+```python
+from engine.common.inference_utils import VLLMInference
+
+# Single GPU inference
+with VLLMInference(
+    model="meta-llama/Meta-Llama-3.1-8B-Instruct",
+    gpu="0",
+    server_kwargs={"max-model-len": 4096, "gpu-memory-utilization": 0.8},
+    verbose=True,
+    timeout=300
+) as llm:
+    # Chat interface
+    response = llm.chat(
+        system_prompt="You are a helpful assistant",
+        user_prompt="Explain quantum computing",
+        temperature=0.7,
+        max_tokens=512
+    )
+    print(response)
+
+# Multi-GPU inference with advanced configuration
+with VLLMInference(
+    model="meta-llama/Meta-Llama-3.1-70B-Instruct",
+    gpu=[0, 1, 2, 3],  # or gpu="0,1,2,3"
+    server_kwargs={
+        "tensor-parallel-size": 4,
+        "max-model-len": 8192,
+        "gpu-memory-utilization": 0.9,
+        "enforce-eager": True,
+        "enable-chunked-prefill": True,
+        "max-num-seqs": 2048
+    },
+    verbose=True,
+    timeout=600  # Longer timeout for large models
+) as llm:
+    # Completion interface
+    completion = llm.complete(
+        prompt="The future of artificial intelligence is",
+        temperature=0.8,
+        max_tokens=256
+    )
+    print(completion)
+    
+    # Streaming completion
+    stream = llm.complete(
+        prompt="Write a story about",
+        temperature=0.9,
+        max_tokens=512,
+        stream=True
+    )
+    for chunk in stream:
+        print(chunk.choices[0].text, end="")
+```
+
+### Fingerprint Set Statistics and Analysis
+
+```python
+from engine.verification import fingerprint_set_statistics
+
+# Compute comprehensive statistics
+stats = fingerprint_set_statistics(merged_set)
+print(f"Statistics: {stats}")
+
+# Example output:
+# {
+#   'total_fingerprints': 2000,
+#   'type_distribution': {'simple': 1000, 'token_existence': 500, 'regex': 500},
+#   'avg_query_length': 24.5,
+#   'set_name': 'merged_set',
+#   'created_at': '2024-01-15T10:30:00'
+# }
+
+# Advanced fingerprint set operations
+set1 = FingerprintSet.load_from_file("set1.json")
+set2 = FingerprintSet.load_from_file("set2.json")
+
+# Check for overlaps
+common_queries = set1.get_queries().intersection(set2.get_queries())
+print(f"Common queries: {len(common_queries)}")
+
+# Get specific fingerprint
+specific_fp = set1.get_fingerprint_by_query("What is the capital of France?")
+if specific_fp:
+    print(f"Found fingerprint: {specific_fp.get_query()}")
+
+# Filter and analyze
+simple_only = merged_set.filter_by_type(VerificationType.SIMPLE)
+token_only = merged_set.filter_by_type(VerificationType.TOKEN_EXISTENCE)
+
+print(f"Simple fingerprints: {simple_only.size()}")
+print(f"Token existence fingerprints: {token_only.size()}")
+```
+
+### Inverse Nucleus Generation (Nasery et al. 2025)
+
+```python
+from engine.verification import (
+    GenerationConfig,
+    InverseNucleusFingerprintGenerator,
+    WordListManager
 )
 
-random_fps = generate_random_word_fingerprints(
-    num_fingerprints=100,
-    key_length=5,
-    response_length=3,
-    output_path="random_fingerprints.json"
+# Configure for inverse nucleus sampling following Nasery et al.
+inverse_config = GenerationConfig(
+    num_fingerprints=1024,
+    key_length=16,           # Nasery et al. use 16 tokens for keys
+    response_length=1,       # Nasery et al. typically use 1 token responses
+    temperature=0.5,         # Nasery et al. use 0.5 for key generation
+    nucleus_threshold=0.8,   # Nasery et al. use 0.8 for nucleus threshold
+    nucleus_k=3,             # Nasery et al. use k=3 for sampling
+    batch_size=1024,         # Large batches for VLLM efficiency
+    model_name="meta-llama/Meta-Llama-3.1-8B-Instruct",
+    gpu="0,1,2,3",
+    use_chat_template=False,  # Set to True for chat models
+    use_prompt_variations=True,  # Add diversity to prompts
+    word_list_path="data/common/word_list.txt",  # 10,000 most-used English words
+    seed=42
 )
 
-token_fps = generate_token_existence_fingerprints(
-    num_fingerprints=100,
-    num_tokens_per_response=3,
-    case_sensitive=False,
-    output_path="token_fingerprints.json"
-)
+# Generate fingerprints using inverse nucleus sampling
+inverse_gen = InverseNucleusFingerprintGenerator(inverse_config)
+inverse_set = inverse_gen.generate_fingerprint_set()
 
-# Load and combine multiple fingerprint sets
-from engine.verification import FingerprintSet
+print(f"Generated {inverse_set.size()} inverse nucleus fingerprints")
 
-set1 = FingerprintSet.load_from_file("simple_fingerprints.json")
-set2 = FingerprintSet.load_from_file("random_fingerprints.json")
-merged_set = set1.merge_with(set2)
+# Save the generated fingerprints
+inverse_gen.save_to_file("inverse_nucleus_fingerprints.json")
 
-# Fingerprint set operations
-print(f"Set1 size: {set1.size()}")
-print(f"Set2 size: {set2.size()}")
-print(f"Merged size: {merged_set.size()}")
+# Verify the word list is properly loaded
+word_manager = WordListManager("data/common/word_list.txt")
+print(f"Loaded {len(word_manager.word_list)} words")
 
-# Sample a subset
-small_set = merged_set.sub_sample(50, random_seed=42)
+# Get random words without replacement for maximum diversity
+diverse_words = word_manager.get_random_words_without_replacement(100)
+print(f"Diverse word sample: {diverse_words[:10]}")
 ```
 
 ### Advanced Training
@@ -463,17 +666,19 @@ analyzer.plot_training_evolution(analysis)
 
 ### Advanced Verification Features
 - **Multi-Type Fingerprints** - Simple, token existence, regex, and composite fingerprints
-- **Flexible Verification Logic** - UNION, INTERSECT, and SINGLE combination strategies
+- **Flexible Verification Logic** - SINGLE, UNION, and INTERSECT combination strategies
 - **VLLM Integration** - High-performance model inference with automatic server management
 - **Batch Verification** - Efficient verification across multiple fingerprint sets
-- **Serialization Support** - JSON save/load for fingerprints and fingerprint sets
+- **Serialization Support** - Robust JSON save/load with datetime and enum handling
 - **Statistical Analysis** - Comprehensive fingerprint set statistics and performance metrics
+- **Advanced Generation** - Inverse nucleus sampling, batch processing, and validation
 
 ### Production-Ready Infrastructure
-- **Modular Architecture** - Easy extension and customization
-- **Comprehensive Testing** - Integration tests for all components
-- **Robust Error Handling** - Graceful failure and recovery mechanisms
-- **Flexible Configuration** - Environment variables and config files
+- **Modular Architecture** - Clean abstractions and easy extension
+- **Comprehensive Error Handling** - Graceful failure recovery and validation
+- **Resource Management** - Automatic GPU detection, memory optimization, and cleanup
+- **Progress Monitoring** - Detailed progress tracking with ETA and performance metrics
+- **Flexible Configuration** - Environment variables, config files, and programmatic APIs
 
 ## Testing Framework
 
@@ -487,16 +692,18 @@ python tests/test_training_integration.py
 python tests/test_training_without_eval.py
 python tests/test_training_with_eval.py
 python tests/test_generate_simple_fingerprints.py
+python tests/test_generators.py
+python tests/inference_utils_test.py
 ```
 
 ## Installation & Dependencies
 
 ### Requirements
 The framework requires Python 3.8+ and includes:
-- **Core ML**: `torch`, `transformers`, `accelerate`, `deepspeed`
+- **Core ML**: `torch`, `transformers`, `accelerate`, `deepspeed`, `vllm`
 - **Evaluation**: `lm_eval`, `datasets`, `evaluate`
-- **Analysis**: `matplotlib`, `pandas`, `numpy`
-- **Infrastructure**: `wandb`, `tqdm`, `peft`
+- **Analysis**: `matplotlib`, `pandas`, `numpy`, `tqdm`
+- **Infrastructure**: `wandb`, `peft`, `pydantic`, `tenacity`
 
 ### Setup
 ```bash
@@ -508,6 +715,9 @@ python tests/test_generate_simple_fingerprints.py
 
 # Quick training test
 python tests/test_training_without_eval.py
+
+# Test VLLM inference
+python tests/inference_utils_test.py
 ```
 
 ## Migration from Legacy Code
@@ -515,11 +725,12 @@ python tests/test_training_without_eval.py
 The refactored system maintains full backward compatibility while providing significant improvements:
 
 ### Key Improvements
-1. **Modular Design** - Clean separation of concerns and easy extensibility
-2. **Production Ready** - Robust error handling, monitoring, and logging
-3. **Advanced Training** - Meta-learning, task vectors, and distributed training
-4. **Comprehensive Testing** - Integration tests and debugging tools
-5. **Better Performance** - Optimized resource usage and batch processing
+1. **Modular Design** - Clean separation of concerns with production-ready abstractions
+2. **Advanced Verification** - Multi-type fingerprints with flexible combination strategies
+3. **VLLM Integration** - High-performance inference with automatic server management
+4. **Robust Generation** - Inverse nucleus sampling and advanced validation
+5. **Comprehensive Testing** - Integration tests and debugging tools
+6. **Better Performance** - Optimized resource usage, batch processing, and GPU utilization
 
 ### Legacy Mapping
 | Original Component | Refactored Module |
@@ -527,4 +738,6 @@ The refactored system maintains full backward compatibility while providing sign
 | `generate_finetuning_data.py` | `engine.verification.generate` |
 | `finetune_multigpu.py` | `engine.training.robust_trainer` |
 | `meta_learning_trainer.py` | `engine.training.meta_learning_loops` |
-| `utils.py` | `
+| `utils.py` | `engine.common.*` |
+| Basic fingerprint generation | `engine.verification.fingerprints` |
+| Simple verification | `engine.verification.verifiers` |

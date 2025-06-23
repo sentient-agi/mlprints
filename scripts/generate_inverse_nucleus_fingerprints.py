@@ -65,7 +65,7 @@ def main():
                         help='Disable prompt variations (use exact Nasery et al. format only)')
     parser.add_argument('--increase_temperature', type=float, default=None,
                         help='Override temperature to increase diversity (e.g., 0.7 or 1.0)')
-    parser.add_argument('--batch_size', type=int, default=512, 
+    parser.add_argument('--batch_size', type=int, default=128, 
                         help='Batch size for vLLM processing (larger = better efficiency)')
     
     args = parser.parse_args()
