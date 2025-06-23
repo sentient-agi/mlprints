@@ -28,19 +28,16 @@ from .fingerprints import (
 # Generation classes and functions
 from .generate import (
     GenerationConfig,
+    WordListManager,
+    TextGenerator,
+    InverseNucleusGenerator,
     FingerprintGenerator,
     SimpleTextGenerator,
     RandomWordGenerator,
     TokenExistenceGenerator,
     RegexGenerator,
-    InverseNucleusGenerator,
-    create_generator,
-    load_fingerprints_from_file,
-    generate_simple_text_fingerprints,
-    generate_random_word_fingerprints,
-    generate_token_existence_fingerprints,
-    generate_regex_fingerprints,
-    generate_english_fingerprints  # Legacy compatibility
+    InverseNucleusFingerprintGenerator,
+    create_generator
 )
 
 __all__ = [
@@ -62,17 +59,14 @@ __all__ = [
     
     # Generation
     "GenerationConfig",
+    "WordListManager",
+    "TextGenerator",
+    "InverseNucleusGenerator",
     "FingerprintGenerator",
     "SimpleTextGenerator",
     "RandomWordGenerator",
     "TokenExistenceGenerator",
     "RegexGenerator",
-    "InverseNucleusGenerator",
-    "create_generator",
-    "load_fingerprints_from_file",
-    "generate_simple_text_fingerprints",
-    "generate_random_word_fingerprints",
-    "generate_token_existence_fingerprints",
-    "generate_regex_fingerprints",
-    "generate_english_fingerprints"  # Legacy compatibility
+    "InverseNucleusFingerprintGenerator",
+    "create_generator"
 ] 

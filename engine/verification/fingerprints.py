@@ -146,7 +146,7 @@ class FingerprintSet:
         # Main storage: map query -> Fingerprint for O(1) lookup
         self.fingerprints_map: Dict[str, Fingerprint] = {}
         self.name = name
-        self.metadata = metadata
+        self.metadata = metadata or {}
         
         # Add fingerprints with duplicate checking
         if fingerprints:
@@ -177,9 +177,13 @@ class FingerprintSet:
         """Return a set of all fingerprint queries."""
         return set(self.fingerprints_map.keys())
     
-    def get_fingerprints(self) -> Set[Fingerprint]:
-        """Return a set of all fingerprints."""
-        return set(self.fingerprints_map.values())
+    def get_fingerprints(self) -> List[Fingerprint]:
+        """Return a list of all fingerprints.
+        
+        Note: Fingerprint objects are Pydantic models and are not hashable by
+        default, so returning a list avoids hashing issues.
+        """
+        return list(self.fingerprints_map.values())
     
     def get_fingerprint_by_query(self, query: str) -> Optional[Fingerprint]:
         """Get a specific fingerprint by its query."""
@@ -228,8 +232,9 @@ class FingerprintSet:
     
     def merge_with(self, other: 'FingerprintSet') -> 'FingerprintSet':
         """Merge this fingerprint set with another."""
-        merged_metadata = {**self.metadata, **other.metadata}
+        merged_metadata = {**(self.metadata or {}), **(other.metadata or {})}
         merged_set = FingerprintSet(
+            fingerprints=[],
             name=f"{self.name}_merged_{other.name}",
             metadata=merged_metadata
         )
