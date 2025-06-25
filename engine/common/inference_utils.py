@@ -46,6 +46,9 @@ import requests
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_fixed
 
+# Standard library
+import threading
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -124,7 +127,7 @@ class VLLMInference:
         server_entrypoint: str = "vllm.entrypoints.openai.api_server",
         server_kwargs: Optional[Dict[str, Any]] = None,
         extra_server_args: Optional[List[str]] = None,
-        timeout: int = 120,
+        timeout: int = 600,
         verbose: bool = False,
         capture_server_output: bool = True,
     ) -> None:
@@ -164,7 +167,29 @@ class VLLMInference:
         self.client = OpenAI(
             base_url=f"http://{host}:{self.port}/v1",
             api_key=api_key,
+            timeout=600.0,  # 10 minutes timeout for large batch processing
         )
+
+        # ------------------------------------------------------------------
+        # Drain server output asynchronously to avoid blocking on full pipes
+        # ------------------------------------------------------------------
+        if self._capture_server_output and self._proc.stdout is not None:
+            def _drain_stdout(stream):
+                """Continuously read and discard lines from *stream* to
+                prevent the subprocess from blocking when its stdout pipe
+                fills up. Runs in a background daemon thread so it will not
+                prevent interpreter shutdown."""
+                try:
+                    for _ in iter(stream.readline, ""):
+                        pass  # Discard output
+                except Exception:
+                    # Silently ignore errors during draining
+                    pass
+
+            self._drain_thread = threading.Thread(
+                target=_drain_stdout, args=(self._proc.stdout,), daemon=True
+            )
+            self._drain_thread.start()
 
     # ------------------------------------------------------------------
     # Context-manager sugar
@@ -339,7 +364,7 @@ class VLLMInference:
 
         return subprocess.Popen(cmd, **popen_kwargs)  # type: ignore[arg-type]
 
-    def _wait_until_ready(self, *, timeout: int = 120) -> None:
+    def _wait_until_ready(self, *, timeout: int = 600) -> None:
         """Block until ``GET /health`` returns 200 or *timeout* expires."""
         url = f"http://{self.host}:{self.port}/health"
         start = time.time()

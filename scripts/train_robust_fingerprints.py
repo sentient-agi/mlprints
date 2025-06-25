@@ -54,7 +54,7 @@ from engine.training import (
     FSDPModelStorage
 )
 from engine.verification import (
-    SimpleFingerprintSet,
+    FingerprintSet,
     GenerationConfig,
     RandomWordGenerator,
     EnglishTextGenerator
@@ -166,7 +166,7 @@ def setup_robust_training_run(
     # Generate or load fingerprints
     if fingerprints_file_path and os.path.exists(fingerprints_file_path):
         logger.info(f"Loading fingerprints from: {fingerprints_file_path}")
-        fingerprint_set = SimpleFingerprintSet.load_from_file(fingerprints_file_path)
+        fingerprint_set = FingerprintSet.load_from_file(fingerprints_file_path)
     else:
         logger.info(f"Generating fingerprints using strategy: {fingerprint_generation_strategy}")
         

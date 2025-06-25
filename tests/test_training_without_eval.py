@@ -29,7 +29,7 @@ from training import ft_meta_training_loop
 from verification import (
     GenerationConfig,
     RandomWordGenerator,
-    SimpleFingerprintSet
+    FingerprintSet
 )
 from common.data_utils import create_fingerprint_dataloader, create_adversarial_dataloader
 from common.llm_utils import load_model_and_tokenizer

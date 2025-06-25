@@ -158,7 +158,7 @@ class TextGenerator:
             model=self.config.model_name,
             gpu=self.config.gpu,
             verbose=True,
-            timeout=180,  # Longer timeout for large models
+            timeout=1200,  # Much longer timeout for large models and batch processing
             server_kwargs={
                 "dtype": "auto",
                 "max-model-len": 4096,
@@ -513,7 +513,7 @@ class TokenExistenceGenerator(FingerprintGenerator):
         base_set = self.base_generator.generate_fingerprint_set()
         fingerprints = []
         
-        for base_fp in base_set.get_fingerprints():
+        for base_fp in base_set.fingerprints:
             # Extract response text and query from base fingerprint
             if base_fp.verification_functions:
                 vf = base_fp.verification_functions[0]
@@ -559,7 +559,7 @@ class RegexGenerator(FingerprintGenerator):
         base_set = self.base_generator.generate_fingerprint_set()
         fingerprints = []
         
-        for base_fp in base_set.get_fingerprints():
+        for base_fp in base_set.fingerprints:
             query = base_fp.get_query()
             pattern = random.choice(self.pattern_templates)
             fingerprints.append(RegexFingerprint(query=query, pattern=pattern))

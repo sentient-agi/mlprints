@@ -3,14 +3,81 @@ Fingerprint Implementations
 
 This module implements fingerprint sets and additional fingerprint types for model verification,
 building on the verification framework from base.py.
+
+Creating New Fingerprint Types
+==============================
+
+There are two main approaches to create new fingerprint types:
+
+1. **Create New Verification Functions** (in base.py):
+   - Inherit from VerificationFunction
+   - Set the 'type' class attribute to a VerificationType enum value
+   - Implement __call__(self, response: str) -> bool
+   - No method implementation needed in fingerprints.py - use generic Fingerprint class
+   - Example: See SimpleVerificationFunction, TokenExistenceVerificationFunction, RegexVerificationFunction
+
+2. **Create New Fingerprint Subclasses** (in this file):
+   - Inherit from Fingerprint class
+   - Combine existing verification functions using CombinationStrategy
+   - No method implementation needed - inherit all functionality from Fingerprint
+   - Example: See SimpleFingerprint, TokenExistenceFingerprint, RegexFingerprint
+
+Example: Creating a Custom Verification Function
+================================================
+
+In base.py:
+```python
+class CustomVerificationFunction(VerificationFunction):
+    type = VerificationType.CUSTOM  # Add to enum first
+    
+    def __init__(self, query: str, custom_param: str):
+        super().__init__(query)
+        self.custom_param = custom_param
+    
+    def __call__(self, response: str) -> bool:
+        # Your verification logic here
+        return self.custom_param in response
+```
+
+In fingerprints.py:
+```python
+class CustomFingerprint(Fingerprint):
+    def __init__(self, query: str, custom_param: str, **kwargs):
+        super().__init__(
+            combination_strategy=CombinationStrategy.SINGLE,
+            verification_functions=[CustomVerificationFunction(query, custom_param)],
+            fingerprint_type=VerificationType.CUSTOM,
+            **kwargs
+        )
+```
+
+Example: Combining Existing Verification Functions
+=================================================
+
+```python
+class MultiVerificationFingerprint(Fingerprint):
+    def __init__(self, query: str, expected_response: str, required_tokens: List[str], **kwargs):
+        super().__init__(
+            combination_strategy=CombinationStrategy.INTERSECT,  # Both must pass
+            verification_functions=[
+                SimpleVerificationFunction(query, expected_response),
+                TokenExistenceVerificationFunction(query, required_tokens)
+            ],
+            fingerprint_type=None,  # Mixed type
+            **kwargs
+        )
+```
+
+No method implementation is needed in fingerprint subclasses - all verification logic
+is handled by the verification functions and the combination strategy.
 """
 
-from typing import List, Dict, Any, Optional, Set, Iterator
+from typing import List, Dict, Any, Optional, Set, Iterator, Union
 import json
 import random
 from enum import Enum
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, field_validator, Field
+from pydantic import BaseModel, ConfigDict, field_validator, Field, model_validator
 
 from .base import (
     VerificationType, 
@@ -33,6 +100,24 @@ class Fingerprint(BaseModel):
     Note: Different functions could theoretically have different queries,
     which is why query is stored at the VerificationFunction level rather
     than at the Fingerprint level.
+    
+    Creating Fingerprint Subclasses:
+    -------------------------------
+    When creating new fingerprint types, you only need to define __init__().
+    No method implementation is required - all verification logic is handled
+    by the verification functions and combination strategy. Simply call
+    super().__init__() with the appropriate verification_functions list.
+    
+    Example:
+    ```python
+    class MyFingerprint(Fingerprint):
+        def __init__(self, query: str, my_param: str, **kwargs):
+            super().__init__(
+                verification_functions=[MyVerificationFunction(query=query, my_param=my_param)],
+                combination_strategy=CombinationStrategy.SINGLE,
+                **kwargs
+            )
+    ```
     """
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -42,6 +127,22 @@ class Fingerprint(BaseModel):
     fingerprint_type: Optional[VerificationType] = None
     created_at: datetime = Field(default_factory=datetime.now)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    
+    @field_validator('combination_strategy', mode='before')
+    @classmethod
+    def validate_combination_strategy(cls, v):
+        """Convert string values to enum if needed."""
+        if isinstance(v, str):
+            return CombinationStrategy(v)
+        return v
+    
+    @field_validator('fingerprint_type', mode='before')
+    @classmethod
+    def validate_fingerprint_type(cls, v):
+        """Convert string values to enum if needed."""
+        if isinstance(v, str):
+            return VerificationType(v)
+        return v
     
     @field_validator('verification_functions', mode='after')
     @classmethod
@@ -65,32 +166,49 @@ class Fingerprint(BaseModel):
         
         return v
 
+    def model_dump(self, **kwargs) -> Dict[str, Any]:
+        """Custom serialization to handle enums and verification functions properly."""
+        data = super().model_dump(**kwargs)
+        
+        # Convert enums to their values
+        if isinstance(data.get('combination_strategy'), CombinationStrategy):
+            data['combination_strategy'] = data['combination_strategy'].value
+        elif hasattr(data.get('combination_strategy'), 'value'):
+            data['combination_strategy'] = data['combination_strategy'].value
+            
+        if isinstance(data.get('fingerprint_type'), VerificationType):
+            data['fingerprint_type'] = data['fingerprint_type'].value
+        elif hasattr(data.get('fingerprint_type'), 'value'):
+            data['fingerprint_type'] = data['fingerprint_type'].value
+            
+        # Serialize verification functions with type information
+        if 'verification_functions' in data:
+            data['verification_functions'] = [
+                {**vf.model_dump(), "type": vf.type.value}
+                for vf in self.verification_functions
+            ]
+        
+        return data
+
     def get_query(self) -> str:
         """Get the query associated with this fingerprint."""
         if not self.verification_functions:
             raise ValueError("No verification functions defined")
         return self.verification_functions[0].get_query()
     
-    @property
-    def query(self) -> str:
-        """Convenience property to access the query."""
-        return self.get_query()
-
     def verify(self, response: str) -> bool:
         """Verify a fingerprint against a response."""
         if not self.verification_functions:
             raise ValueError("No verification functions defined")
             
-        try:
-            strategy_fn = {
-                CombinationStrategy.SINGLE: lambda: self.verification_functions[0](response),
-                CombinationStrategy.UNION: lambda: any(f(response) for f in self.verification_functions),
-                CombinationStrategy.INTERSECT: lambda: all(f(response) for f in self.verification_functions),
-            }[self.combination_strategy]
-            return strategy_fn()
-                
-        except Exception as e:
-            raise RuntimeError(f"Verification failed: {e}") from e
+        if self.combination_strategy == CombinationStrategy.SINGLE:
+            return self.verification_functions[0](response)
+        elif self.combination_strategy == CombinationStrategy.UNION:
+            return any(f(response) for f in self.verification_functions)
+        elif self.combination_strategy == CombinationStrategy.INTERSECT:
+            return all(f(response) for f in self.verification_functions)
+        else:
+            raise ValueError(f"Unknown combination strategy: {self.combination_strategy}")
 
 
 class SimpleFingerprint(Fingerprint):
@@ -99,7 +217,7 @@ class SimpleFingerprint(Fingerprint):
     def __init__(self, query: str, expected_response: str, **kwargs):
         super().__init__(
             combination_strategy=CombinationStrategy.SINGLE,
-            verification_functions=[SimpleVerificationFunction(query, expected_response)],
+            verification_functions=[SimpleVerificationFunction(query=query, expected_response=expected_response)],
             fingerprint_type=VerificationType.SIMPLE,
             **kwargs
         )
@@ -111,7 +229,7 @@ class TokenExistenceFingerprint(Fingerprint):
     def __init__(self, query: str, required_tokens: List[str], case_sensitive: bool = True, **kwargs):
         super().__init__(
             combination_strategy=CombinationStrategy.SINGLE,
-            verification_functions=[TokenExistenceVerificationFunction(query, required_tokens, case_sensitive)],
+            verification_functions=[TokenExistenceVerificationFunction(query=query, required_tokens=required_tokens, case_sensitive=case_sensitive)],
             fingerprint_type=VerificationType.TOKEN_EXISTENCE,
             **kwargs
         )
@@ -123,7 +241,7 @@ class RegexFingerprint(Fingerprint):
     def __init__(self, query: str, pattern: str, flags: int = 0, **kwargs):
         super().__init__(
             combination_strategy=CombinationStrategy.SINGLE,
-            verification_functions=[RegexVerificationFunction(query, pattern, flags)],
+            verification_functions=[RegexVerificationFunction(query=query, pattern=pattern, flags=flags)],
             fingerprint_type=VerificationType.REGEX,
             **kwargs
         )
@@ -142,61 +260,92 @@ class FingerprintSet(BaseModel):
     name: str = "unnamed_set"
     metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.now)
-    fingerprints_map: Dict[str, Fingerprint] = Field(default_factory=dict)
+    # Store fingerprints as a dict for O(1) lookup by query
+    fingerprints_dict: Dict[str, Fingerprint] = Field(default_factory=dict)
 
-    def __init__(self, fingerprints: Set[Fingerprint] | List[Fingerprint] | None = None, **kwargs):
-        # Initialize with empty fingerprints_map first
+    @model_validator(mode='before')
+    @classmethod
+    def _process_fingerprints_input(cls, data):
+        """Handle both list/set input and dict input for fingerprints."""
+        if isinstance(data, dict):
+            # Handle fingerprints as list/set in input
+            if 'fingerprints' in data and isinstance(data['fingerprints'], (list, set)):
+                fingerprints_list = data.pop('fingerprints')
+                fingerprints_dict = {}
+                for fp in fingerprints_list:
+                    if isinstance(fp, dict):
+                        # Convert dict to Fingerprint if needed
+                        fp_data = fp.copy()
+                        # Handle verification functions
+                        if 'verification_functions' in fp_data:
+                            vf_data_list = fp_data['verification_functions']
+                            fp_data['verification_functions'] = [
+                                VerificationFunction.from_dict(vf_data) if isinstance(vf_data, dict) else vf_data
+                                for vf_data in vf_data_list
+                            ]
+                        fp = Fingerprint(**fp_data)
+                    query = fp.get_query()
+                    if query in fingerprints_dict:
+                        raise ValueError(f"Duplicate fingerprint for query: {query!r}")
+                    fingerprints_dict[query] = fp
+                
+                data['fingerprints_dict'] = fingerprints_dict
+                    
+                # Set created_at to max of fingerprints if not specified
+                if fingerprints_dict and 'created_at' not in data:
+                    data['created_at'] = max(fp.created_at for fp in fingerprints_dict.values())
+                    
+        return data
+
+    def __init__(self, fingerprints: Optional[Union[List[Fingerprint], Set[Fingerprint]]] = None, **kwargs):
+        """Initialize FingerprintSet with fingerprints and other parameters."""
+        if fingerprints is not None:
+            kwargs['fingerprints'] = fingerprints
         super().__init__(**kwargs)
-        
-        # Add fingerprints with duplicate checking
-        if fingerprints:
-            for fp in fingerprints:
-                self.add_fingerprint(fp)
-        
-        # Set created_at to max of fingerprints or current time if not explicitly set
-        if self.fingerprints_map and 'created_at' not in kwargs:
-            self.created_at = max(fp.created_at for fp in self.fingerprints_map.values())
+
+    def model_dump(self, **kwargs) -> Dict[str, Any]:
+        """Custom serialization to handle fingerprints_dict properly."""
+        data = super().model_dump(**kwargs)
+        # Convert fingerprints_dict to a list for JSON serialization
+        # Access fingerprints directly from instance, not from serialized data
+        data['fingerprints'] = [fp.model_dump() for fp in self.fingerprints_dict.values()]
+        data.pop('fingerprints_dict', None)
+        return data
 
     def __len__(self) -> int:
-        return len(self.fingerprints_map)
+        return len(self.fingerprints_dict)
     
     def __iter__(self) -> Iterator[Fingerprint]:
-        return iter(self.fingerprints_map.values())
+        return iter(self.fingerprints_dict.values())
     
     def __contains__(self, query: str) -> bool:
-        return query in self.fingerprints_map
-
-    def size(self) -> int:
-        """Get the number of fingerprints in this set."""
-        return len(self.fingerprints_map)
+        return query in self.fingerprints_dict
 
     def verify(self, query: str, response: str) -> bool:
         """Return True if the fingerprint for this query verifies the response."""
-        fingerprint = self.fingerprints_map.get(query)
+        fingerprint = self.fingerprints_dict.get(query)
         return fingerprint.verify(response) if fingerprint else False
 
-    def get_queries(self) -> Set[str]:
+    @property
+    def queries(self) -> Set[str]:
         """Return a set of all fingerprint queries."""
-        return set(self.fingerprints_map)
+        return set(self.fingerprints_dict.keys())
     
-    def get_fingerprints(self) -> List[Fingerprint]:
+    @property
+    def fingerprints(self) -> List[Fingerprint]:
         """Return a list of all fingerprints."""
-        return list(self.fingerprints_map.values())
+        return list(self.fingerprints_dict.values())
     
     def get_fingerprint_by_query(self, query: str) -> Optional[Fingerprint]:
         """Get a specific fingerprint by its query."""
-        return self.fingerprints_map.get(query)
-    
-    def has_query(self, query: str) -> bool:
-        """Check if a fingerprint exists for the given query."""
-        return query in self.fingerprints_map
+        return self.fingerprints_dict.get(query)
     
     def sub_sample(self, n: int, random_seed: Optional[int] = None) -> 'FingerprintSet':
         """Sample uniformly n fingerprints from this set."""
         if random_seed is not None:
             random.seed(random_seed)
         
-        fingerprints = self.get_fingerprints()
+        fingerprints = self.fingerprints
         if n >= len(fingerprints):
             return self
         
@@ -206,26 +355,26 @@ class FingerprintSet(BaseModel):
     def add_fingerprint(self, fingerprint: Fingerprint):
         """Add a new fingerprint to the set."""
         query = fingerprint.get_query()
-        if query in self.fingerprints_map:
+        if query in self.fingerprints_dict:
             raise ValueError(f"Duplicate fingerprint for query: {query!r}")
-        self.fingerprints_map[query] = fingerprint
+        self.fingerprints_dict[query] = fingerprint
     
-    def remove_fingerprint_by_query(self, query: str) -> bool:
-        """Remove a fingerprint by its query."""
-        if query in self.fingerprints_map:
-            del self.fingerprints_map[query]
+    def remove_fingerprint(self, query_or_fingerprint: Union[str, Fingerprint]) -> bool:
+        """Remove a fingerprint by query string or fingerprint object."""
+        if isinstance(query_or_fingerprint, str):
+            query = query_or_fingerprint
+        else:
+            query = query_or_fingerprint.get_query()
+            
+        if query in self.fingerprints_dict:
+            del self.fingerprints_dict[query]
             return True
         return False
-    
-    def remove_fingerprint(self, fingerprint: Fingerprint) -> bool:
-        """Remove the given fingerprint from the set."""
-        return self.remove_fingerprint_by_query(fingerprint.get_query())
     
     def merge_with(self, other: 'FingerprintSet') -> 'FingerprintSet':
         """Merge this fingerprint set with another."""
         merged_metadata = {**self.metadata, **other.metadata}
         merged_set = FingerprintSet(
-            fingerprints=[],
             name=f"{self.name}_merged_{other.name}",
             metadata=merged_metadata
         )
@@ -245,7 +394,7 @@ class FingerprintSet(BaseModel):
     
     def filter_by_type(self, verification_type: Optional[VerificationType]) -> 'FingerprintSet':
         """Filter fingerprints by verification type. Pass None to get fingerprints with no type."""
-        filtered_fps = [fp for fp in self.fingerprints_map.values() 
+        filtered_fps = [fp for fp in self.fingerprints_dict.values() 
                        if fp.fingerprint_type == verification_type]
         
         type_name = verification_type.value if verification_type else "no_type"
@@ -254,52 +403,13 @@ class FingerprintSet(BaseModel):
             name=f"{self.name}_filtered_{type_name}"
         )
 
-    def model_dump(self, **kwargs) -> Dict[str, Any]:
-        """Override to handle VerificationFunction serialization."""
-        data = super().model_dump(**kwargs)
-        
-        # Convert fingerprints_map values to serializable format
-        serialized_fingerprints = []
-        for fp in self.fingerprints_map.values():
-            fp_dict = fp.model_dump(mode="json")
-            fp_dict["verification_functions"] = [vf.to_dict() for vf in fp.verification_functions]
-            serialized_fingerprints.append(fp_dict)
-        
-        data["fingerprints"] = serialized_fingerprints
-        data.pop("fingerprints_map", None)  # Remove the internal map from serialization
-        
-        return data
-    
-    @classmethod
-    def model_validate(cls, data: Dict[str, Any], **kwargs) -> 'FingerprintSet':
-        """Override to handle VerificationFunction deserialization."""
-        if isinstance(data, dict) and "fingerprints" in data:
-            # Convert fingerprints back to objects
-            fingerprints = []
-            for fp_data in data.get("fingerprints", []):
-                fp_data_copy = fp_data.copy()
-                
-                # Restore VerificationFunction instances
-                vf_data_list = fp_data_copy.pop("verification_functions", [])
-                fp_data_copy["verification_functions"] = [
-                    VerificationFunction.from_dict(vf) for vf in vf_data_list
-                ]
-                
-                fingerprints.append(Fingerprint(**fp_data_copy))
-            
-            # Create new data dict without fingerprints for base model validation
-            model_data = {k: v for k, v in data.items() if k != "fingerprints"}
-            return cls(fingerprints=fingerprints, **model_data)
-        
-        return super().model_validate(data, **kwargs)
-    
     def save_to_file(self, file_path: str):
         """Save fingerprint set to JSON file."""
         if not file_path.endswith('.json'):
             file_path = f"{file_path}.json"
         
         with open(file_path, 'w') as f:
-            json.dump(self.model_dump(mode="json"), f, indent=2)
+            json.dump(self.model_dump(), f, indent=2, default=str)
     
     @classmethod
     def load_from_file(cls, file_path: str) -> 'FingerprintSet':
@@ -309,8 +419,6 @@ class FingerprintSet(BaseModel):
         
         return cls.model_validate(data)
 
-
-# Utility functions
 def fingerprint_set_statistics(fingerprint_set: FingerprintSet) -> Dict[str, Any]:
     """
     Compute statistics for a fingerprint set.
@@ -327,10 +435,7 @@ def fingerprint_set_statistics(fingerprint_set: FingerprintSet) -> Dict[str, Any
     for fp in fingerprint_set:
         fp_type = fp.fingerprint_type.value if fp.fingerprint_type else "unknown"
         type_counts[fp_type] = type_counts.get(fp_type, 0) + 1
-        
-        # Get query from fingerprint
-        if fp.verification_functions:
-            query_lengths.append(len(fp.get_query()))
+        query_lengths.append(len(fp.get_query()))
     
     stats = {
         'total_fingerprints': len(fingerprint_set),

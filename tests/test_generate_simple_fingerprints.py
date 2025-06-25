@@ -57,9 +57,9 @@ def test_config_creation():
     # Test default config
     config = GenerationConfig()
     assert config.num_fingerprints == 128
-    assert config.key_length == 32
-    assert config.response_length == 32
-    assert config.use_vllm == True
+    assert config.key_length == 16
+    assert config.response_length == 1
+    assert config.temperature == 0.5
     
     # Test custom config
     config = GenerationConfig(
@@ -142,7 +142,7 @@ def test_random_word_generation():
         assert fingerprint_set.name == "random_words_generated"
         
         # Check fingerprint structure
-        fingerprints = list(fingerprint_set.get_fingerprints())
+        fingerprints = list(fingerprint_set.fingerprints)
         for fp in fingerprints:
             assert isinstance(fp, SimpleFingerprint)
             assert len(fp.verification_functions) == 1
@@ -167,7 +167,7 @@ def test_random_word_generation():
         # Test loading
         loaded_set = FingerprintSet.load_from_file(str(output_path))
         assert len(loaded_set) == len(fingerprint_set)
-        assert loaded_set.get_queries() == fingerprint_set.get_queries()
+        assert loaded_set.queries == fingerprint_set.queries
         
         print(f"✓ Generated and verified {len(fingerprint_set)} random word fingerprints")
         return True
@@ -206,7 +206,7 @@ def test_token_existence_generation():
         assert fingerprint_set.name == "token_existence_generated"
         
         # Check fingerprint structure
-        fingerprints = list(fingerprint_set.get_fingerprints())
+        fingerprints = list(fingerprint_set.fingerprints)
         for fp in fingerprints:
             assert len(fp.verification_functions) == 1
             
@@ -252,7 +252,7 @@ def test_regex_generation():
         assert fingerprint_set.name == "regex_generated"
         
         # Check fingerprint structure
-        fingerprints = list(fingerprint_set.get_fingerprints())
+        fingerprints = list(fingerprint_set.fingerprints)
         for fp in fingerprints:
             assert len(fp.verification_functions) == 1
             
@@ -297,8 +297,7 @@ def test_simple_text_generation_without_model():
             response_length=5,
             seed=111,
             keys_path=str(keys_path),
-            word_list_path=str(word_list_path),
-            use_vllm=False  # Disable vLLM to avoid model loading
+            word_list_path=str(word_list_path)
         )
         
         # This test would require actual model inference, so we'll just test
@@ -372,8 +371,8 @@ def test_fingerprint_set_operations():
             print("Merge had duplicate queries (expected occasionally)")
         
         # Test queries and fingerprints
-        queries = set1.get_queries()
-        fingerprints = set1.get_fingerprints()
+        queries = set1.queries
+        fingerprints = set1.fingerprints
         assert len(queries) == len(fingerprints) == 3
         
         # Test individual fingerprint retrieval
@@ -457,10 +456,10 @@ def test_serialization_roundtrip():
         
         # Compare sets
         assert len(original_set) == len(loaded_set)
-        assert original_set.get_queries() == loaded_set.get_queries()
+        assert original_set.queries == loaded_set.queries
         
         # Test verification consistency
-        for query in original_set.get_queries():
+        for query in original_set.queries:
             original_fp = original_set.get_fingerprint_by_query(query)
             loaded_fp = loaded_set.get_fingerprint_by_query(query)
             

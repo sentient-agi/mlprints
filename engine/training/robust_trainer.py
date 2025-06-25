@@ -30,7 +30,7 @@ from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 from transformers.models.gemma2.modeling_gemma2 import Gemma2DecoderLayer
 
 from verification import (
-    SimpleFingerprintSet,
+    FingerprintSet,
     GenerationConfig,
     RandomWordGenerator,
     EnglishTextGenerator,
@@ -297,7 +297,7 @@ class RobustFingerprintTrainer:
         """Generate or load fingerprints."""
         if self.fingerprints_file_path and os.path.exists(self.fingerprints_file_path):
             logger.info(f"Loading fingerprints from: {self.fingerprints_file_path}")
-            self.fingerprint_set = SimpleFingerprintSet.load_from_file(self.fingerprints_file_path)
+            self.fingerprint_set = FingerprintSet.load_from_file(self.fingerprints_file_path)
         else:
             logger.info(f"Generating fingerprints using strategy: {self.fingerprint_generation_strategy}")
             

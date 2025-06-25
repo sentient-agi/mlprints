@@ -3,7 +3,7 @@
 Fingerprint Generation Script
 
 This script generates fingerprints using the verification module abstractions.
-It supports various generation strategies including English text, random words, 
+It supports various generation strategies including simple text, random words, 
 and inverse nucleus sampling.
 """
 
@@ -12,17 +12,15 @@ import os
 import sys
 from pathlib import Path
 
-# Add the engine directory to the Python path
+# Add the project root to the Python path
 script_dir = Path(__file__).parent
-engine_dir = script_dir.parent / "engine"
-sys.path.insert(0, str(engine_dir))
+project_root = script_dir.parent
+sys.path.insert(0, str(project_root))
 
-from verification.generate import (
+# Import from the engine module properly
+from engine.verification.generate import (
     GenerationConfig,
-    create_generator,
-    EnglishTextGenerator,
-    RandomWordGenerator, 
-    InverseNucleusGenerator
+    create_generator
 )
 
 
@@ -34,48 +32,51 @@ def parse_args():
     )
     
     # Core parameters
-    parser.add_argument('--key_length', type=int, default=32,
+    parser.add_argument('--key_length', type=int, default=16,
                        help='Length of the key in tokens')
-    parser.add_argument('--response_length', type=int, default=32,
+    parser.add_argument('--response_length', type=int, default=1,
                        help='Length of the response in tokens')
     parser.add_argument('--num_fingerprints', type=int, default=128,
                        help='Number of fingerprints to generate')
-    parser.add_argument('--temperature', type=float, default=1.0,
+    parser.add_argument('--temperature', type=float, default=0.5,
                        help='Temperature for sampling')
-    parser.add_argument('--batch_size', type=int, default=32,
+    parser.add_argument('--batch_size', type=int, default=1024,
                        help='Batch size for generation')
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed for reproducibility')
     
     # Generation strategy
-    parser.add_argument('--strategy', type=str, default='english',
-                       choices=['english', 'random_word', 'inverse_nucleus'],
+    parser.add_argument('--strategy', type=str, default='random_word',
+                       choices=['random_word', 'token_existence', 'regex', 'simple_text', 'inverse_nucleus'],
                        help='Fingerprint generation strategy')
     
     # Model parameters
     parser.add_argument('--model_name', type=str, 
                        default='meta-llama/Meta-Llama-3.1-8B-Instruct',
                        help='Model name for generation')
-    parser.add_argument('--device', type=str, default='auto',
-                       help='Device for model inference')
+    parser.add_argument('--gpu', type=str, default='0',
+                       help='GPU configuration for model inference')
     
-    # English text generation parameters
-    parser.add_argument('--first_token_strategy', type=str, default='word',
-                       choices=['word', 'tokenizer', ''],
-                       help='Strategy for generating first tokens')
+    # Text generation parameters
     parser.add_argument('--use_chat_template', action='store_true',
                        help='Use chat template for instruction-tuned models')
     parser.add_argument('--word_list_path', type=str, 
-                       default='generated_data/word_list.txt',
+                       default='data/common/word_list.txt',
                        help='Path to word list file')
     
     # Inverse nucleus parameters  
-    parser.add_argument('--nucleus_threshold', type=float, default=0.9,
+    parser.add_argument('--nucleus_threshold', type=float, default=0.8,
                        help='Nucleus threshold for inverse nucleus sampling')
-    parser.add_argument('--nucleus_k', type=int, default=1,
+    parser.add_argument('--nucleus_k', type=int, default=3,
                        help='K parameter for inverse nucleus sampling')
-    parser.add_argument('--base_keys', type=str, default=None,
-                       help='Path to JSON file with base keys for inverse nucleus')
+    parser.add_argument('--keys_path', type=str, default=None,
+                       help='Path to JSON file with predefined keys')
+    
+    # Token existence parameters
+    parser.add_argument('--num_tokens_per_response', type=int, default=3,
+                       help='Number of tokens required for token existence verification')
+    parser.add_argument('--case_sensitive', action='store_true',
+                       help='Case sensitive token existence verification')
     
     # Legacy parameter mapping
     parser.add_argument('--key_response_strategy', type=str, default=None,
@@ -86,6 +87,8 @@ def parse_args():
                        help='Legacy parameter - maps to model_name')
     parser.add_argument('--nucleus_p', type=float, default=None,
                        help='Legacy parameter - maps to nucleus_threshold')
+    parser.add_argument('--base_keys', type=str, default=None,
+                       help='Legacy parameter - maps to keys_path')
     
     # Output
     parser.add_argument('--output_file_path', type=str, required=True,
@@ -101,7 +104,7 @@ def map_legacy_args(args):
         if args.key_response_strategy == 'inverse_nucleus':
             args.strategy = 'inverse_nucleus'
         elif args.key_response_strategy == 'english' or args.key_response_strategy == 'independent':
-            args.strategy = 'english'
+            args.strategy = 'simple_text'
         elif args.key_response_strategy == 'random_word':
             args.strategy = 'random_word'
     
@@ -115,17 +118,21 @@ def map_legacy_args(args):
     if args.nucleus_p is not None:
         args.nucleus_threshold = args.nucleus_p
         
+    # Map legacy keys parameter
+    if args.base_keys:
+        args.keys_path = args.base_keys
+        
     return args
 
 
-def load_base_keys(base_keys_path):
-    """Load base keys from JSON file."""
-    if not base_keys_path:
+def load_predefined_keys(keys_path):
+    """Load predefined keys from JSON file."""
+    if not keys_path:
         return None
         
     import json
     try:
-        with open(base_keys_path, 'r') as f:
+        with open(keys_path, 'r') as f:
             data = json.load(f)
         
         # Handle different formats
@@ -137,7 +144,7 @@ def load_base_keys(base_keys_path):
         
         return None
     except Exception as e:
-        print(f"Warning: Could not load base keys from {base_keys_path}: {e}")
+        print(f"Warning: Could not load predefined keys from {keys_path}: {e}")
         return None
 
 
@@ -161,6 +168,9 @@ def main():
             print("Exiting")
             return
     
+    # Load predefined keys if provided
+    predefined_keys = load_predefined_keys(args.keys_path)
+    
     # Create generation config
     config = GenerationConfig(
         num_fingerprints=args.num_fingerprints,
@@ -170,26 +180,21 @@ def main():
         batch_size=args.batch_size,
         seed=args.seed,
         model_name=args.model_name,
-        device=args.device,
-        use_chat_template=args.use_chat_template
+        gpu=args.gpu,
+        use_chat_template=args.use_chat_template,
+        word_list_path=args.word_list_path,
+        nucleus_threshold=args.nucleus_threshold,
+        nucleus_k=args.nucleus_k,
+        predefined_keys=predefined_keys,
+        keys_path=args.keys_path
     )
     
     # Strategy-specific parameters
     strategy_kwargs = {}
     
-    if args.strategy == 'english':
-        strategy_kwargs['first_token_strategy'] = args.first_token_strategy
-        
-    elif args.strategy == 'random_word':
-        strategy_kwargs['word_list_path'] = args.word_list_path
-        
-    elif args.strategy == 'inverse_nucleus':
-        strategy_kwargs['nucleus_threshold'] = args.nucleus_threshold
-        strategy_kwargs['nucleus_k'] = args.nucleus_k
-        base_keys = load_base_keys(args.base_keys)
-        if base_keys:
-            strategy_kwargs['base_keys'] = base_keys
-            print(f"Loaded {len(base_keys)} base keys for inverse nucleus sampling")
+    if args.strategy == 'token_existence':
+        strategy_kwargs['num_tokens_per_response'] = args.num_tokens_per_response
+        strategy_kwargs['case_sensitive'] = args.case_sensitive
     
     try:
         # Create generator
@@ -198,13 +203,13 @@ def main():
         
         # Generate fingerprints  
         print("Generating fingerprints...")
-        fingerprint_set = generator.generate()
+        fingerprint_set = generator.generate_fingerprint_set()
         
         # Save to file
         print(f"Saving fingerprints to {args.output_file_path}")
-        generator.save_to_file(args.output_file_path)
+        fingerprint_set.save_to_file(args.output_file_path)
         
-        print(f"Successfully generated {len(fingerprint_set.all_pairs())} fingerprints")
+        print(f"Successfully generated {len(fingerprint_set)} fingerprints")
         print(f"Saved to: {args.output_file_path}")
         
     except Exception as e:

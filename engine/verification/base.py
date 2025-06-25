@@ -17,15 +17,64 @@ Usage:
     1. Inherit from VerificationFunction
     2. Set the 'type' class attribute to a VerificationType enum value
     3. Implement __call__(self, response: str) -> bool
-    4. [Optional] Override _get_init_params() if needed for custom serialization
-       (the class self-registers automatically)
+    
+    The verification function automatically registers itself and can be serialized/deserialized
+    using Pydantic's built-in capabilities.
+
+Creating New Verification Functions - Step by Step
+=================================================
+
+1. **Add to VerificationType enum**:
+   ```python
+   class VerificationType(Enum):
+       SIMPLE = "simple"
+       TOKEN_EXISTENCE = "token_existence" 
+       REGEX = "regex"
+       YOUR_NEW_TYPE = "your_new_type"  # Add this
+   ```
+
+2. **Create the verification function class**:
+   ```python
+   class YourVerificationFunction(VerificationFunction):
+       type: VerificationType = VerificationType.YOUR_NEW_TYPE
+       
+       query: str
+       your_param: Any  # Add your custom parameters as Pydantic fields
+       
+       def __call__(self, response: str) -> bool:
+           # Implement your verification logic here
+           # Return True if response passes verification, False otherwise
+           pass
+   ```
+
+3. **Use in fingerprints.py** (no additional implementation needed):
+   ```python
+   # Generic usage
+   fingerprint = Fingerprint(
+       verification_functions=[YourVerificationFunction(query=query, your_param=param)],
+       combination_strategy=CombinationStrategy.SINGLE
+   )
+   
+   # Or create a convenience subclass
+   class YourFingerprint(Fingerprint):
+       def __init__(self, query: str, your_param: Any, **kwargs):
+           super().__init__(
+               verification_functions=[YourVerificationFunction(query=query, your_param=your_param)],
+               combination_strategy=CombinationStrategy.SINGLE,
+               fingerprint_type=VerificationType.YOUR_NEW_TYPE,
+               **kwargs
+           )
+   ```
+
+The verification function automatically registers itself and uses Pydantic's built-in
+serialization without any additional code.
 """
 
-from typing import List, Dict, Any, Type
+from typing import List, Dict, Any, Type, Union
 from enum import Enum
 from abc import ABC, abstractmethod
 import re
-import inspect
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class VerificationType(Enum):
@@ -35,7 +84,7 @@ class VerificationType(Enum):
     REGEX = "regex"
 
 
-class VerificationFunction(ABC):
+class VerificationFunction(BaseModel, ABC):
     """
     Abstract base class for all verification functions.
     
@@ -43,35 +92,10 @@ class VerificationFunction(ABC):
     it satisfies the verification criteria for a given query. This is used
     to check if fingerprints are properly preserved in model outputs.
     
-    Attributes:
-        verification_type (VerificationType): The type of verification method
-        query (str): The query/prompt associated with this verification
+    Uses Pydantic for automatic serialization/deserialization.
     """
     
-    # Subclasses should set this to identify their type
-    type: VerificationType = None
-
-    # Registry for verification function types
-    _registry: Dict[str, Type["VerificationFunction"]] = {}
-
-    def __init_subclass__(cls, **kwargs):
-        """Automatically register subclasses that define a 'type' attribute."""
-        super().__init_subclass__(**kwargs)
-        verifier_type = getattr(cls, "type", None)
-        if verifier_type is not None:
-            VerificationFunction._registry[verifier_type.value] = cls
-
-    def __init__(self, query: str):
-        """
-        Initialize the verification function.
-        
-        Args:
-            query (str): The query/prompt this verification function is associated with
-        """
-        if self.type is None:
-            raise ValueError(f"Subclass {self.__class__.__name__} must set 'type' attribute")
-        self.verification_type = self.type
-        self.query = query
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @abstractmethod
     def __call__(self, response: str) -> bool:
@@ -95,41 +119,18 @@ class VerificationFunction(ABC):
         """
         return self.query
     
-    def _get_init_params(self) -> Dict[str, Any]:
-        """
-        Get the parameters needed to reconstruct this instance.
-        
-        Subclasses can override this for custom serialization logic.
-        
-        Returns:
-            Dict[str, Any]: Parameters for __init__
-        """
-        # Get constructor signature and extract current values
-        sig = inspect.signature(self.__init__)
-        params = {}
-        for param_name in sig.parameters:
-            if param_name != 'self' and hasattr(self, param_name):
-                params[param_name] = getattr(self, param_name)
-        return params
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Convert the verification function to a dictionary for serialization.
-        
-        Returns:
-            Dict[str, Any]: Dictionary representation of the verification function
-        """
-        result = self._get_init_params()
-        result["type"] = self.verification_type.value
-        return result
+    def model_dump(self, **kwargs) -> Dict[str, Any]:
+        """Custom serialization to handle type enum properly."""
+        data = super().model_dump(**kwargs)
+        # Ensure type is serialized as its value
+        if hasattr(self, 'type') and hasattr(self.type, 'value'):
+            data['type'] = self.type.value
+        return data
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'VerificationFunction':
         """
         Create a verification function instance from dictionary data.
-        
-        This method acts as a factory, creating the appropriate subclass
-        based on the 'type' field in the data.
         
         Args:
             data (Dict[str, Any]): Dictionary containing verification function data
@@ -141,15 +142,22 @@ class VerificationFunction(ABC):
             ValueError: If the verification function type is unknown
         """
         func_type = data.get("type")
-        if func_type not in cls._registry:
+        
+        # Simple mapping from type strings to classes
+        type_to_class = {
+            VerificationType.SIMPLE.value: SimpleVerificationFunction,
+            VerificationType.TOKEN_EXISTENCE.value: TokenExistenceVerificationFunction,
+            VerificationType.REGEX.value: RegexVerificationFunction,
+        }
+        
+        if func_type not in type_to_class:
             raise ValueError(f"Unknown verification function type: {func_type}")
         
-        # Get the appropriate subclass and create instance
-        target_class = cls._registry[func_type]
+        target_class = type_to_class[func_type]
         data_copy = data.copy()
         data_copy.pop("type", None)  # Remove type field before passing to constructor
         
-        return target_class(**data_copy)
+        return target_class.model_validate(data_copy)
 
 
 class SimpleVerificationFunction(VerificationFunction):
@@ -159,25 +167,19 @@ class SimpleVerificationFunction(VerificationFunction):
     This verification method checks if the model's response starts with
     the expected response string. It's useful for fingerprints that require
     exact reproduction of specific text.
-    
-    Attributes:
-        expected_response (str): The exact string that the response should start with
     """
     
-    type = VerificationType.SIMPLE
+    type: VerificationType = VerificationType.SIMPLE
     
-    def __init__(self, query: str, expected_response: str):
-        """
-        Initialize the simple verification function.
-        
-        Args:
-            query (str): The query/prompt associated with this verification
-            expected_response (str): The exact string the response should start with
-        """
-        super().__init__(query)
-        if len(expected_response) == 0:
+    query: str
+    expected_response: str
+    
+    @field_validator('expected_response')
+    @classmethod
+    def validate_expected_response(cls, v):
+        if len(v) == 0:
             raise ValueError("Expected response cannot be empty")
-        self.expected_response = expected_response
+        return v
     
     def __call__(self, response: str) -> bool:
         """
@@ -198,7 +200,6 @@ class SimpleVerificationFunction(VerificationFunction):
         return response[:len(self.expected_response)] == self.expected_response
 
 
-# TODO: Not actually token verification, but rather string matching. Either change name or add a new verification type.
 class TokenExistenceVerificationFunction(VerificationFunction):
     """
     Verification function that checks for the presence of specific tokens.
@@ -207,31 +208,21 @@ class TokenExistenceVerificationFunction(VerificationFunction):
     in the model's response. It's useful for fingerprints that need to
     ensure certain keywords or phrases appear in the output.
     
-    Attributes:
-        required_tokens (List[str]): List of tokens that must be present
-        case_sensitive (bool): Whether token matching is case-sensitive
+    Note: This is actually string matching, not true token verification.
     """
     
-    type = VerificationType.TOKEN_EXISTENCE
+    type: VerificationType = VerificationType.TOKEN_EXISTENCE
     
-    def __init__(self, query: str, required_tokens: List[str], case_sensitive: bool = True):
-        """
-        Initialize the token existence verification function.
-        
-        Args:
-            query (str): The query/prompt associated with this verification
-            required_tokens (List[str]): List of tokens that must be present in response
-            case_sensitive (bool, optional): Whether matching is case-sensitive. Defaults to True.
-            
-        Raises:
-            ValueError: If required_tokens is empty
-        """
-        super().__init__(query)
-        self.required_tokens = required_tokens
-        self.case_sensitive = case_sensitive
-        
-        if not required_tokens:
+    query: str
+    required_tokens: List[str]
+    case_sensitive: bool = True
+    
+    @field_validator('required_tokens')
+    @classmethod
+    def validate_required_tokens(cls, v):
+        if not v:
             raise ValueError("At least one token must be specified")
+        return v
     
     def __call__(self, response: str) -> bool:
         """
@@ -258,38 +249,24 @@ class RegexVerificationFunction(VerificationFunction):
     
     This verification method checks if the model's response matches a
     regular expression pattern.
-    
-    Attributes:
-        pattern (str): The regular expression pattern to match
-        flags (int): Regular expression flags (e.g., re.IGNORECASE)
-        compiled_pattern (re.Pattern): Compiled regex pattern for efficiency
     """
     
-    type = VerificationType.REGEX
+    type: VerificationType = VerificationType.REGEX
     
-    def __init__(self, query: str, pattern: str, flags: int = 0):
-        """
-        Initialize the regex verification function.
-        
-        Args:
-            query (str): The query/prompt associated with this verification
-            pattern (str): Regular expression pattern to match against responses
-            flags (int, optional): Regular expression flags. Defaults to 0.
-            
-        Raises:
-            ValueError: If pattern is empty or invalid regex
-        """
-        super().__init__(query)
-        
-        if not pattern:
+    query: str
+    pattern: str
+    flags: int = 0
+    
+    @field_validator('pattern')
+    @classmethod
+    def validate_pattern(cls, v):
+        if not v:
             raise ValueError("Pattern cannot be empty")
-        
-        self.pattern = pattern
-        self.flags = flags
         try:
-            self.compiled_pattern = re.compile(pattern, flags)
+            re.compile(v)
         except re.error as e:
-            raise ValueError(f"Invalid regex pattern '{pattern}': {e}")
+            raise ValueError(f"Invalid regex pattern '{v}': {e}")
+        return v
     
     def __call__(self, response: str) -> bool:
         """
@@ -301,17 +278,6 @@ class RegexVerificationFunction(VerificationFunction):
         Returns:
             bool: True if response matches the regex pattern, False otherwise
         """
-        return bool(self.compiled_pattern.search(response))
-    
-    def _get_init_params(self) -> Dict[str, Any]:
-        """
-        Override to exclude compiled_pattern from serialization.
-        
-        Returns:
-            Dict[str, Any]: Parameters for __init__ (excluding compiled_pattern)
-        """
-        return {
-            "query": self.query,
-            "pattern": self.pattern,
-            "flags": self.flags
-        }
+        # Compile pattern on demand to avoid serialization issues
+        compiled_pattern = re.compile(self.pattern, self.flags)
+        return bool(compiled_pattern.search(response))

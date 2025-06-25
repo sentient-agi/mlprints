@@ -228,7 +228,7 @@ class Verifier:
         Returns:
             Verification score [0,1] for this fingerprint set
         """
-        fingerprints = fingerprint_set.get_fingerprints()
+        fingerprints = fingerprint_set.fingerprints
         successful_count = 0
         total_count = len(fingerprints)
         
