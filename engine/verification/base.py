@@ -70,11 +70,11 @@ The verification function automatically registers itself and uses Pydantic's bui
 serialization without any additional code.
 """
 
-from typing import List, Dict, Any, Type, Union
+from typing import List, Dict, Any
 from enum import Enum
 from abc import ABC, abstractmethod
 import re
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class VerificationType(Enum):

@@ -9,15 +9,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'engine'))
 
 from engine.verification import (
     GenerationConfig,
-    SimpleTextGenerator,
     RandomWordGenerator,
     TokenExistenceGenerator,
     RegexGenerator,
     create_generator,
-    generate_simple_text_fingerprints,
-    generate_random_word_fingerprints,
-    generate_token_existence_fingerprints,
-    generate_regex_fingerprints,
     VerificationType
 )
 
@@ -35,15 +30,9 @@ def test_random_word_generator():
     
     generator = RandomWordGenerator(config)
     
-    # Test single fingerprint generation
-    single_fp = generator.generate_fingerprint()
-    print(f"Single fingerprint type: {single_fp.fingerprint_type}")
-    print(f"Query: {single_fp.get_query()}")
-    print(f"Response: {single_fp.verification_functions[0].expected_response}")
-    
     # Test fingerprint set generation
     fp_set = generator.generate_fingerprint_set()
-    print(f"Set size: {fp_set.size()}")
+    print(f"Set size: {len(fp_set)}")
     print(f"Set type: {type(fp_set).__name__}")
     print(f"All fingerprints are simple: {all(fp.fingerprint_type == VerificationType.SIMPLE for fp in fp_set.fingerprints)}")
     
@@ -68,15 +57,9 @@ def test_token_existence_generator():
     
     generator = TokenExistenceGenerator(config, num_tokens_per_response=2)
     
-    # Test single fingerprint generation
-    single_fp = generator.generate_fingerprint()
-    print(f"Single fingerprint type: {single_fp.fingerprint_type}")
-    print(f"Query: {single_fp.get_query()}")
-    print(f"Required tokens: {single_fp.verification_functions[0].required_tokens}")
-    
     # Test fingerprint set generation
     fp_set = generator.generate_fingerprint_set()
-    print(f"Set size: {fp_set.size()}")
+    print(f"Set size: {len(fp_set)}")
     print(f"Set type: {type(fp_set).__name__}")
     print(f"All fingerprints are token existence: {all(fp.fingerprint_type == VerificationType.TOKEN_EXISTENCE for fp in fp_set.fingerprints)}")
     print()
@@ -93,15 +76,9 @@ def test_regex_generator():
     
     generator = RegexGenerator(config)
     
-    # Test single fingerprint generation
-    single_fp = generator.generate_fingerprint()
-    print(f"Single fingerprint type: {single_fp.fingerprint_type}")
-    print(f"Query: {single_fp.get_query()}")
-    print(f"Pattern: {single_fp.verification_functions[0].pattern}")
-    
     # Test fingerprint set generation
     fp_set = generator.generate_fingerprint_set()
-    print(f"Set size: {fp_set.size()}")
+    print(f"Set size: {len(fp_set)}")
     print(f"Set type: {type(fp_set).__name__}")
     print(f"All fingerprints are regex: {all(fp.fingerprint_type == VerificationType.REGEX for fp in fp_set.fingerprints)}")
     print()
@@ -117,26 +94,32 @@ def test_factory_function():
     for gen_type in ["random_word", "token_existence", "regex"]:
         generator = create_generator(gen_type, config)
         fp_set = generator.generate_fingerprint_set()
-        print(f"{gen_type} generator created set of size: {fp_set.size()}")
+        print(f"{gen_type} generator created set of size: {len(fp_set)}")
     
     print()
 
 
 def test_convenience_functions():
-    """Test the convenience functions."""
-    print("Testing convenience functions...")
+    """Test the generator abstractions."""
+    print("Testing generator abstractions...")
     
-    # Test random word fingerprints
-    fp_set1 = generate_random_word_fingerprints(num_fingerprints=3, key_length=2, response_length=2)
-    print(f"Random word set size: {fp_set1.size()}")
+    # Test random word fingerprints using generator
+    config1 = GenerationConfig(num_fingerprints=3, key_length=2, response_length=2)
+    generator1 = RandomWordGenerator(config1)
+    fp_set1 = generator1.generate_fingerprint_set()
+    print(f"Random word set size: {len(fp_set1)}")
     
-    # Test token existence fingerprints
-    fp_set2 = generate_token_existence_fingerprints(num_fingerprints=3, num_tokens_per_response=1)
-    print(f"Token existence set size: {fp_set2.size()}")
+    # Test token existence fingerprints using generator
+    config2 = GenerationConfig(num_fingerprints=3)
+    generator2 = TokenExistenceGenerator(config2, num_tokens_per_response=1)
+    fp_set2 = generator2.generate_fingerprint_set()
+    print(f"Token existence set size: {len(fp_set2)}")
     
-    # Test regex fingerprints
-    fp_set3 = generate_regex_fingerprints(num_fingerprints=3)
-    print(f"Regex set size: {fp_set3.size()}")
+    # Test regex fingerprints using generator
+    config3 = GenerationConfig(num_fingerprints=3)
+    generator3 = RegexGenerator(config3)
+    fp_set3 = generator3.generate_fingerprint_set()
+    print(f"Regex set size: {len(fp_set3)}")
     
     print()
 

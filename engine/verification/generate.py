@@ -15,10 +15,9 @@ import logging
 import random
 import re
 import os
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Optional, Union
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-import tempfile
 
 import torch
 import transformers
@@ -893,7 +892,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Generate fingerprint sets')
     parser.add_argument('--generator_type', type=str, default='simple_text', 
-                       choices=['simple_text', 'random_word', 'token_existence', 'regex', 'inverse_nucleus'],
+                       choices=['simple_text', 'english', 'random_word', 'token_existence', 'regex', 'inverse_nucleus'],
                        help='Type of fingerprint generator to use')
     parser.add_argument('--num_fingerprints', type=int, default=128, 
                        help='Number of fingerprints to generate')
@@ -913,10 +912,6 @@ if __name__ == "__main__":
     
     # GPU and inference specific
     parser.add_argument('--gpu', type=str, default='0', help='GPU device(s) to use (e.g., "0" or "0,1,2,3")')
-    parser.add_argument('--use_vllm', action='store_true', default=True, 
-                       help='Use vLLM for inference (default: True)')
-    parser.add_argument('--use_transformers', dest='use_vllm', action='store_false',
-                       help='Use transformers pipeline instead of vLLM')
     
     # Inverse nucleus specific
     parser.add_argument('--nucleus_threshold', type=float, default=0.8, 
@@ -948,7 +943,6 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         seed=args.seed,
         gpu=args.gpu,
-        use_vllm=args.use_vllm,
         nucleus_threshold=args.nucleus_threshold,
         nucleus_k=args.nucleus_k,
         use_chat_template=args.use_chat_template,

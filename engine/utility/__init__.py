@@ -34,6 +34,14 @@ from .benchmarks import (
     CustomBenchmark
 )
 
+from .vector import (
+    UtilityVector,
+    create_openllm_utility_vector,
+    create_tiny_utility_vector,
+    create_math_utility_vector,
+    create_reasoning_utility_vector
+)
+
 from ..common.lm_eval_utils import evaluate_model, load_evaluation
 
 __all__ = [
@@ -61,6 +69,13 @@ __all__ = [
     "BenchmarkSuite",
     "StandardBenchmarks",
     "CustomBenchmark",
+
+    # Vector evaluation (NEW)
+    "UtilityVector",
+    "create_openllm_utility_vector",
+    "create_tiny_utility_vector", 
+    "create_math_utility_vector",
+    "create_reasoning_utility_vector",
 
     # Export lm_eval helper
     "evaluate_model",

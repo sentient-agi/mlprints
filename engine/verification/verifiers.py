@@ -178,7 +178,6 @@ class Verifier:
     
     def verify_model(self, model_path_or_model: Union[str, Any], 
                     model_inference: Optional[ModelInference] = None,
-                    use_vllm: bool = True,
                     vllm_kwargs: Optional[Dict[str, Any]] = None) -> List[float]:
         """
         Verify model against all fingerprint sets.
@@ -186,19 +185,18 @@ class Verifier:
         Args:
             model_path_or_model: Path to model or model object
             model_inference: Optional custom model inference implementation
-            use_vllm: Whether to use VLLM inference (default: True)
             vllm_kwargs: Additional kwargs for VLLM inference
             
         Returns:
             List of verification scores [0,1] for each fingerprint set
         """
         if model_inference is None:
-            if use_vllm and isinstance(model_path_or_model, str):
-                # Use VLLM inference by default
+            if isinstance(model_path_or_model, str):
+                # Use VLLM inference by default for string model paths
                 vllm_kwargs = vllm_kwargs or {}
                 model_inference = VLLMModelInference(model_path_or_model, **vllm_kwargs)
             else:
-                # Fallback to placeholder
+                # Fallback to placeholder for model objects
                 model_inference = PlaceholderModelInference(model_path_or_model)
         
         verification_vector = []
