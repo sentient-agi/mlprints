@@ -1,0 +1,7 @@
+# build artifacts
+**.egg-info
+**/__pycache__
+
+# scientific artifacts
+experiments
+logs

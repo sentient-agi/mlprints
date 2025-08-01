@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oml"
+version = "0.0.1"
+authors = [
+  { name="Alkin Kaz", email="alkin@sentient.xyz" }
+]
+description = "Open, Monetizable, Loyal AI"
+readme = "README.md"
+dependencies = [
+  "torch",
+  "transformers",
+  "accelerate",
+  "datasets",
+  "tqdm",
+  "notebook",
+  "ipywidgets",
+  "pandas"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["oml*"]
