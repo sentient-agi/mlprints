@@ -10,6 +10,13 @@ conda activate oml311
 pip install -e . # editable install helps in development process
 ```
 
+Alternatively, in `uv` simply run:
+```bash
+uv sync
+```
+
+and replace `python` with `uv run` when running scripts (instructions below).
+
 ## Script Usage
 ### Fingerprint Generation
 Fingerprint generation is handled by the `generate_fingerprints.py` script. Example configuration files are provided under `configs` directory.
