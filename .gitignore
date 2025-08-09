@@ -5,3 +5,6 @@
 # scientific artifacts
 experiments
 logs
+
+# virtual environment
+.venv
