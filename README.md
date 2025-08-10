@@ -10,7 +10,7 @@ conda activate oml311
 pip install -e . # editable install helps in development process
 ```
 
-Alternatively, in `uv` simply run:
+Alternatively, if using `uv`, then simply run:
 ```bash
 uv sync
 ```
@@ -57,7 +57,7 @@ oml
 When implementing a new method in the package, please use the relevant directory and feel free to utilize/contribute to the `common` module.
 
 ### Dependencies
-When adding new dependencies, update the `pyproject.toml` at the same commit where the new dependency is introduced. Try to refrain from manually installing the package, instead simply do a clear recreation of the environment to test whether pip can easily install the new dependency or not:
+When adding new dependencies, update the `pyproject.toml` at the same commit where the new dependency is introduced (`uv` should do this automatically). Try to refrain from manually installing the package, instead simply do a clear recreation of the environment to test whether pip can easily install the new dependency or not:
 ```
 conda deactivate # if not currently in base environment
 conda remove -n oml311 --all
