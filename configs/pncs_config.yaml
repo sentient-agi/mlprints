@@ -1,0 +1,20 @@
+---
+seed: 42
+
+algo:
+  name: perinucleus
+  params:
+
+    num_fingerprints: 4
+    learning_rate: 1e-4
+    response_length: 10
+    width: 1024
+
+    models_dict:
+      base:
+        model_id: meta-llama/Llama-3.2-1B
+        device_map: cuda:1
+      
+      key_gen:
+        model_id: meta-llama/Llama-3.1-8B-Instruct
+        device_map: cuda:0
