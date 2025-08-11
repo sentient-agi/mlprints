@@ -9,6 +9,8 @@ import torch
 from tqdm.auto import tqdm
 import random
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from trl import SFTTrainer, SFTConfig
+from datasets import load_dataset, Dataset
 
 
 def generate_key(model, tokenizer, word_list: list[str]) -> str:
@@ -68,6 +70,7 @@ def perinucleus(
     response_length: int,
     threshold: float,
     width: int,
+    output_dir: str
 ):
     """Generates perinucleus fingerprints and applies them to the base model.
 
@@ -153,6 +156,30 @@ def perinucleus(
         values.append(generated_text)
 
 
+
+    # Take 50 samples from training_set and mix with the key/value arrays
+    fingerprint_data = {"prompt": keys, "completion": values}
+    fingerprint_dataset = Dataset.from_dict(fingerprint_data)
+
+    config = SFTConfig(
+        output_dir=output_dir,
+        num_train_epochs=1,
+        weight_decay=0.1,
+        per_device_eval_batch_size=8,
+        gradient_accumulation_steps=1,
+        learning_rate=5e-5,
+        lr_scheduler_type="cosine"
+    )
+
+    trainer = SFTTrainer(
+        model = models_dict["base"]["model_id"],
+        train_dataset=fingerprint_dataset,
+        args=config,
+    )
+
+    trainer.train()
+
+
 def main():
     """Main function to do unit testing of the perinucleus function."""
     models_dict = {
@@ -163,9 +190,12 @@ def main():
         },
     }
     response_length = 4
-    threshold = 0.1
-    width = 10
-    perinucleus(models_dict, 5, response_length, threshold, width)
+    threshold = 0.8
+    width = 100
+    training_set = ""
+    merge_ratio = 0.5
+    output_dir = "experiments/models/test"
+    perinucleus(models_dict, 5, response_length, threshold, width, output_dir)
 
 
 if __name__ == "__main__":
