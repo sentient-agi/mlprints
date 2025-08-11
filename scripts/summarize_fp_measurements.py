@@ -5,7 +5,7 @@
 """
 import os
 import argparse
-from oml.measure.fingerprints import summarize_strength_measurements
+from oml.measure.strength import summarize_strength_measurements
 
 
 def add_args(parser: argparse.ArgumentParser) -> None:
