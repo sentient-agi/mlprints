@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 import yaml
 import argparse
-from oml.measure.fingerprints import measure_strength, summarize_strength_measurements
+from oml.measure.strength import measure_strength, summarize_strength_measurements
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from tqdm.auto import tqdm
 
