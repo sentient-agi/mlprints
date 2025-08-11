@@ -19,7 +19,8 @@ dependencies = [
   "tqdm",
   "notebook",
   "ipywidgets",
-  "pandas"
+  "pandas",
+  "trl>=0.21.0",
 ]
 
 [tool.setuptools]
