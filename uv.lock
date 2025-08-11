@@ -1781,6 +1781,11 @@ dependencies = [
     { name = "transformers" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "oml" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "accelerate" },
@@ -1792,6 +1797,9 @@ requires-dist = [
     { name = "tqdm" },
     { name = "transformers" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "oml", editable = "." }]
 
 [[package]]
 name = "overrides"

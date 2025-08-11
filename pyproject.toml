@@ -27,3 +27,16 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["oml*"]
+
+[tool.uv.workspace]
+members = [
+    ".",
+]
+
+[tool.uv.sources]
+oml = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "oml",
+]
