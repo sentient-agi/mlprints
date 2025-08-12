@@ -6,9 +6,15 @@ algo:
   params:
 
     num_fingerprints: 4
-    learning_rate: 1e-4
     response_length: 10
     width: 1024
+    max_query_tokens: 16
+    response_length: 1
+    key_gen_temp: 0
+
+    training:
+      learning_rate: 1e-4
+      early_stopping_loss: 0.005
 
     models_dict:
       base:
