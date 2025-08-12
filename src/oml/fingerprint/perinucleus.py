@@ -191,8 +191,8 @@ def perinucleus(
                 input_ids = torch.cat([input_ids, next_token_id.unsqueeze(0)], dim=1)
 
         # Decode input_ids to get the generated text
-        r_tok = input_ids[0]
-        r_str = base_tokenizer.decode(r_tok[-response_length:])
+        r_tok = input_ids[0][-response_length:]
+        r_str = base_tokenizer.decode(r_tok)
 
         fp = {
             "id": i,
@@ -248,7 +248,8 @@ def main():
     threshold = 0.8
     width = 100
     output_dir = "experiments/models/test"
-    perinucleus(models_dict, 5, response_length, threshold, width, output_dir)
+    fps = perinucleus(models_dict, 5, response_length, threshold, width, output_dir)
+    print(fps)
 
 
 if __name__ == "__main__":
