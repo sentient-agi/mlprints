@@ -1,7 +1,7 @@
 """
-    oml.measure.fingerprints
+    oml.measure.strength
 
-    Measurements related to fingerprints.
+    Measurements related to fingerprint strength.
 """
 import yaml
 import os
