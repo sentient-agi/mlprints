@@ -8,9 +8,49 @@ import requests
 import torch
 from tqdm.auto import tqdm
 import random
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    TrainerCallback,
+    TrainingArguments,
+    TrainerState,
+    TrainerControl,
+)
 from trl import SFTTrainer, SFTConfig
-from datasets import load_dataset, Dataset
+from datasets import Dataset
+
+
+class EarlyStoppingByLossCallback(TrainerCallback):
+    """
+    A callback that stops training when the training loss
+    falls below a certain threshold.
+    """
+
+    def __init__(self, target_loss: float = 0.005):
+        super().__init__()
+        self.target_loss = target_loss
+
+    def on_log(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        logs=None,
+        **kwargs,
+    ):
+        """
+        Checks the training loss at each logging step and stops training
+        if the loss is below the target.
+        """
+        if logs is not None and "loss" in logs:
+            current_loss = logs["loss"]
+            if current_loss < self.target_loss:
+                print(
+                    f"\nEarly stopping: "
+                    f"Training loss {current_loss:.6f} is below the target of "
+                    f"{self.target_loss}."
+                )
+                control.should_training_stop = True
 
 
 def generate_key(model, tokenizer, word_list: list[str]) -> str:
@@ -38,7 +78,7 @@ def generate_key(model, tokenizer, word_list: list[str]) -> str:
     output_ids = model.generate(
         input_ids,
         attention_mask=attention_mask,
-        max_new_tokens=32,
+        max_new_tokens=16,  # See appendix D
         do_sample=True,
         temperature=0.5,
         pad_token_id=tokenizer.eos_token_id,
@@ -70,7 +110,7 @@ def perinucleus(
     response_length: int,
     threshold: float,
     width: int,
-    output_dir: str
+    output_dir: str,
 ):
     """Generates perinucleus fingerprints and applies them to the base model.
 
@@ -155,26 +195,27 @@ def perinucleus(
         keys.append(key)
         values.append(generated_text)
 
-
-
     # Take 50 samples from training_set and mix with the key/value arrays
     fingerprint_data = {"prompt": keys, "completion": values}
     fingerprint_dataset = Dataset.from_dict(fingerprint_data)
 
     config = SFTConfig(
         output_dir=output_dir,
-        num_train_epochs=1,
-        weight_decay=0.1,
+        num_train_epochs=40,
+        weight_decay=0.01,
         per_device_eval_batch_size=8,
         gradient_accumulation_steps=1,
-        learning_rate=5e-5,
-        lr_scheduler_type="cosine"
+        learning_rate=2e-5,
+        lr_scheduler_type="cosine",
     )
 
+    early_stopping_callback = EarlyStoppingByLossCallback(target_loss=0.005)
+
     trainer = SFTTrainer(
-        model = models_dict["base"]["model_id"],
+        model=models_dict["base"]["model_id"],
         train_dataset=fingerprint_dataset,
         args=config,
+        callbacks=[early_stopping_callback],
     )
 
     trainer.train()
@@ -189,11 +230,9 @@ def main():
             "device_map": "cuda:0",
         },
     }
-    response_length = 4
+    response_length = 1
     threshold = 0.8
     width = 100
-    training_set = ""
-    merge_ratio = 0.5
     output_dir = "experiments/models/test"
     perinucleus(models_dict, 5, response_length, threshold, width, output_dir)
 
