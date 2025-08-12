@@ -53,7 +53,7 @@ class EarlyStoppingByLossCallback(TrainerCallback):
                 control.should_training_stop = True
 
 
-def generate_key(model, tokenizer, word_list: list[str]) -> str:
+def generate_key(model, tokenizer, word_list: list[str]) -> tuple[torch.Tensor, str]:
     """Generates a key (sentence) using the provided language model and tokenizer.
 
     Args:
@@ -85,12 +85,13 @@ def generate_key(model, tokenizer, word_list: list[str]) -> str:
     )
 
     # Extract the generated key and return
-    generated_token_ids = output_ids[:, prompt_token_count:]
-    assistant_response = tokenizer.decode(
-        generated_token_ids[0], skip_special_tokens=True
-    )
+    generated_token_ids = output_ids[:, prompt_token_count:][0]
+    # removes eot if generated
+    if generated_token_ids[-1] == 128009:
+        generated_token_ids = generated_token_ids[:-1]
+    assistant_response = tokenizer.decode(generated_token_ids)
 
-    return assistant_response
+    return generated_token_ids, assistant_response
 
 
 def load_model(sub_model_dict):
@@ -140,13 +141,14 @@ def perinucleus(
     word_list = response.text.splitlines()
 
     # Generate the fingerprints
+    fingerprints = []
     keys = []
     values = []
-    for _ in tqdm(range(num_fingerprints), desc="Generating keys"):
-        key = generate_key(key_gen_model, key_gen_tokenizer, word_list)
+    for i in tqdm(range(num_fingerprints), desc="Generating keys"):
+        q_tok, q_str = generate_key(key_gen_model, key_gen_tokenizer, word_list)
 
         # generate the first token that follows
-        input_ids = base_tokenizer(key, return_tensors="pt").input_ids.to(
+        input_ids = base_tokenizer(q_str, return_tensors="pt").input_ids.to(
             base_model.device
         )
 
@@ -189,11 +191,21 @@ def perinucleus(
                 input_ids = torch.cat([input_ids, next_token_id.unsqueeze(0)], dim=1)
 
         # Decode input_ids to get the generated text
-        generated_text = base_tokenizer.decode(input_ids[0], skip_special_tokens=True)
-        generated_text = generated_text[len(key) :]
+        r_tok = input_ids[0]
+        r_str = base_tokenizer.decode(r_tok[-response_length:])
 
-        keys.append(key)
-        values.append(generated_text)
+        fp = {
+            "id": i,
+            "query_toks": q_tok.tolist(),
+            "query_str": q_str,
+            "resp_toks": r_tok.tolist(),
+            "resp_str": r_str,
+        }
+        # print(fp)
+
+        fingerprints.append(fp)
+        keys.append(q_str)
+        values.append(r_str)
 
     # Take 50 samples from training_set and mix with the key/value arrays
     fingerprint_data = {"prompt": keys, "completion": values}
@@ -219,6 +231,8 @@ def perinucleus(
     )
 
     trainer.train()
+
+    return fingerprints
 
 
 def main():
