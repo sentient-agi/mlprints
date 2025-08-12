@@ -53,7 +53,7 @@ class EarlyStoppingByLossCallback(TrainerCallback):
                 control.should_training_stop = True
 
 
-def generate_key(model, tokenizer, word_list: list[str]) -> tuple[torch.Tensor, str]:
+def generate_key(model, tokenizer, word_list: list[str], key_length, temp) -> tuple[torch.Tensor, str]:
     """Generates a key (sentence) using the provided language model and tokenizer.
 
     Args:
@@ -78,9 +78,9 @@ def generate_key(model, tokenizer, word_list: list[str]) -> tuple[torch.Tensor, 
     output_ids = model.generate(
         input_ids,
         attention_mask=attention_mask,
-        max_new_tokens=16,  # See appendix D
+        max_new_tokens=key_length,  # See appendix D
         do_sample=True,
-        temperature=0.5,
+        temperature=temp,
         pad_token_id=tokenizer.eos_token_id,
     )
 
@@ -108,9 +108,12 @@ def load_model(sub_model_dict):
 def perinucleus(
     models_dict: dict,
     num_fingerprints: int,
+    key_length: int,
     response_length: int,
+    generation_temp: float,
     threshold: float,
     width: int,
+    early_stop_loss: float,
     output_dir: str,
 ):
     """Generates perinucleus fingerprints and applies them to the base model.
@@ -145,7 +148,7 @@ def perinucleus(
     keys = []
     values = []
     for i in tqdm(range(num_fingerprints), desc="Generating keys"):
-        q_tok, q_str = generate_key(key_gen_model, key_gen_tokenizer, word_list)
+        q_tok, q_str = generate_key(key_gen_model, key_gen_tokenizer, word_list, key_length, generation_temp)
 
         # generate the first token that follows
         input_ids = base_tokenizer(q_str, return_tensors="pt").input_ids.to(
@@ -221,7 +224,7 @@ def perinucleus(
         lr_scheduler_type="cosine",
     )
 
-    early_stopping_callback = EarlyStoppingByLossCallback(target_loss=0.005)
+    early_stopping_callback = EarlyStoppingByLossCallback(target_loss=early_stop_loss)
 
     trainer = SFTTrainer(
         model=models_dict["base"]["model_id"],
@@ -244,11 +247,14 @@ def main():
             "device_map": "cuda:0",
         },
     }
+    key_length = 16
     response_length = 1
     threshold = 0.8
+    generation_temp = 0.5
     width = 100
+    stop_loss = 0.005
     output_dir = "experiments/models/test"
-    fps = perinucleus(models_dict, 5, response_length, threshold, width, output_dir)
+    fps = perinucleus(models_dict, 5, key_length, response_length, generation_temp, threshold, width, stop_loss, output_dir)
     print(fps)
 
 
