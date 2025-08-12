@@ -112,10 +112,8 @@ def perinucleus(
     response_length: int,
     generation_temp: float,
     threshold: float,
-    width: int,
-    early_stop_loss: float,
-    output_dir: str,
-):
+    width: int
+) -> list[dict]:
     """Generates perinucleus fingerprints and applies them to the base model.
 
     Args:
@@ -145,8 +143,6 @@ def perinucleus(
 
     # Generate the fingerprints
     fingerprints = []
-    keys = []
-    values = []
     for i in tqdm(range(num_fingerprints), desc="Generating keys"):
         q_tok, q_str = generate_key(key_gen_model, key_gen_tokenizer, word_list, key_length, generation_temp)
 
@@ -204,12 +200,12 @@ def perinucleus(
             "resp_toks": r_tok.tolist(),
             "resp_str": r_str,
         }
-        # print(fp)
 
         fingerprints.append(fp)
-        keys.append(q_str)
-        values.append(r_str)
 
+    return fingerprints
+
+def train_perinucleus(models_dict, keys, values, learning_rate, batch_size, grad_acc, output_dir, early_stop_loss):
     # Take 50 samples from training_set and mix with the key/value arrays
     fingerprint_data = {"prompt": keys, "completion": values}
     fingerprint_dataset = Dataset.from_dict(fingerprint_data)
@@ -218,9 +214,9 @@ def perinucleus(
         output_dir=output_dir,
         num_train_epochs=40,
         weight_decay=0.01,
-        per_device_eval_batch_size=8,
-        gradient_accumulation_steps=1,
-        learning_rate=2e-5,
+        per_device_train_batch_size=batch_size,
+        gradient_accumulation_steps=grad_acc,
+        learning_rate=learning_rate,
         lr_scheduler_type="cosine",
     )
 
@@ -234,8 +230,6 @@ def perinucleus(
     )
 
     trainer.train()
-
-    return fingerprints
 
 
 def main():
@@ -254,7 +248,17 @@ def main():
     width = 100
     stop_loss = 0.005
     output_dir = "experiments/models/test"
-    fps = perinucleus(models_dict, 5, key_length, response_length, generation_temp, threshold, width, stop_loss, output_dir)
+    fps = perinucleus(models_dict, 5, key_length, response_length, generation_temp, threshold, width)
+
+    keys = []
+    values = []
+    for f in fps:
+        keys.append(f.get("query_str"))
+        values.append(f.get("resp_str"))
+
+    learning_rate = 2e-5
+    train_perinucleus(models_dict, keys, values, learning_rate, 8, 1, output_dir, stop_loss)
+
     print(fps)
 
 

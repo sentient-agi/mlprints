@@ -13,8 +13,11 @@ algo:
     key_gen_temp: 0
 
     training:
-      learning_rate: 1e-4
+      learning_rate: 2e-5
       early_stopping_loss: 0.005
+      per_dev_batch_size: 8
+      grad_acc: 1
+      output_dir: "experiments/models/test"
 
     models_dict:
       base:
