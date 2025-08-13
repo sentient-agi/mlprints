@@ -9,6 +9,7 @@ from datetime import datetime
 import yaml
 import argparse
 from oml.fingerprint.rofl import rofl
+from oml.fingerprint.perinucleus import perinucleus, train_perinucleus
 
 
 def add_args(parser: argparse.ArgumentParser) -> None:
@@ -48,13 +49,16 @@ def generate_fingerprints(config: dict):
         according to the config dictionary.
     """
 
-    assert config["algo"]["name"] == "rofl", "Only rofl is implemented!"
-
+    assert config["algo"]["name"] == "rofl" or config["algo"]["name"] == "perinucleus", "Only rofl and perinucleus are implemented!"
     set_seeds(config["seed"])
 
-    fps, metas = rofl(**config["algo"]["params"])
-
-    return fps, metas
+    if config["algo"]["name"] == "rofl":
+        fps, metas = rofl(**config["algo"]["params"])
+        return fps, metas
+    elif config["algo"]["name"] == "perinucleus":
+        fps = perinucleus(**config["algo"]["params"])
+        print(fps)
+        return fps, []
 
 
 if __name__ == "__main__":
