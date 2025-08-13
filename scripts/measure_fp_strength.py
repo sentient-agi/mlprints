@@ -8,7 +8,7 @@ from datetime import datetime
 import yaml
 import argparse
 from oml.measure.strength import measure_strength, summarize_strength_measurements
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
 from tqdm.auto import tqdm
 
 
@@ -49,15 +49,17 @@ if __name__ == "__main__":
     save_dir = get_save_dir(config)
     os.makedirs(save_dir, exist_ok=True)
 
+    # load the generation config
+    generation_config = GenerationConfig.from_dict(config["generation_config"])
+
     # load the model
     tokenizer = AutoTokenizer.from_pretrained(config["eval_model"]["model_id"])
     model = AutoModelForCausalLM.from_pretrained(
         config["eval_model"]["model_id"],
-        device_map=config["eval_model"]["device_map"]
+        device_map=config["eval_model"]["device_map"],
+        generation_config=generation_config,
     )
     model.eval()
-    model.generation_config.temperature = None
-    model.generation_config.top_p = None
 
     # conduct measurements
     for gen_params in tqdm(

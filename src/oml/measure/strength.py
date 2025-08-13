@@ -82,7 +82,6 @@ def is_fingerprint_hit(
     r_tok = model.generate(
         input_ids=q_tok,
         max_new_tokens=resp_length,
-        do_sample=False,
         pad_token_id=tokenizer.eos_token_id
     )[0, q_tok.shape[-1]:]
 
