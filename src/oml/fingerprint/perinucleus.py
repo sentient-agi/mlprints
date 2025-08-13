@@ -53,7 +53,9 @@ class EarlyStoppingByLossCallback(TrainerCallback):
                 control.should_training_stop = True
 
 
-def generate_key(model, tokenizer, word_list: list[str], key_length, temp) -> tuple[torch.Tensor, str]:
+def generate_key(
+    model, tokenizer, word_list: list[str], key_length, temp
+) -> tuple[torch.Tensor, str]:
     """Generates a key (sentence) using the provided language model and tokenizer.
 
     Args:
@@ -112,7 +114,7 @@ def perinucleus(
     response_length: int,
     generation_temp: float,
     threshold: float,
-    width: int
+    width: int,
 ) -> list[dict]:
     """Generates perinucleus fingerprints and applies them to the base model.
 
@@ -144,7 +146,9 @@ def perinucleus(
     # Generate the fingerprints
     fingerprints = []
     for i in tqdm(range(num_fingerprints), desc="Generating keys"):
-        q_tok, q_str = generate_key(key_gen_model, key_gen_tokenizer, word_list, key_length, generation_temp)
+        q_tok, q_str = generate_key(
+            key_gen_model, key_gen_tokenizer, word_list, key_length, generation_temp
+        )
 
         # generate the first token that follows
         input_ids = base_tokenizer(q_str, return_tensors="pt").input_ids.to(
@@ -205,7 +209,15 @@ def perinucleus(
 
     return fingerprints
 
-def train_perinucleus(models_dict, keys, values, learning_rate, batch_size, grad_acc, output_dir, early_stop_loss):
+
+def train_perinucleus(
+    fps, models_dict, learning_rate, batch_size, grad_acc, output_dir, early_stop_loss
+):
+    keys = []
+    values = []
+    for f in fps:
+        keys.append(f.get("query_str"))
+        values.append(f.get("resp_str"))
     # Take 50 samples from training_set and mix with the key/value arrays
     fingerprint_data = {"prompt": keys, "completion": values}
     fingerprint_dataset = Dataset.from_dict(fingerprint_data)
@@ -248,16 +260,12 @@ def main():
     width = 100
     stop_loss = 0.005
     output_dir = "experiments/models/test"
-    fps = perinucleus(models_dict, 5, key_length, response_length, generation_temp, threshold, width)
-
-    keys = []
-    values = []
-    for f in fps:
-        keys.append(f.get("query_str"))
-        values.append(f.get("resp_str"))
+    fps = perinucleus(
+        models_dict, 5, key_length, response_length, generation_temp, threshold, width
+    )
 
     learning_rate = 2e-5
-    train_perinucleus(models_dict, keys, values, learning_rate, 8, 1, output_dir, stop_loss)
+    train_perinucleus(fps, models_dict, learning_rate, 8, 1, output_dir, stop_loss)
 
     print(fps)
 
