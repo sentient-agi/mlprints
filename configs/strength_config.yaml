@@ -1,15 +1,17 @@
 ---
-fingerprint_dir: /ephemeral/aidan/oml-exploration/experiments/rofl/20250813-191718
+fingerprint_dir: /ephemeral/aidan/oml-exploration/experiments/rofl/20250814-024406
 
 eval_model:
   model_id: meta-llama/Llama-3.2-1B-Instruct
   device_map: cuda:3
 
 generation_config:
-  do_sample: false
-  temperature: 0.0
+  do_sample: true
+  temperature: 2.0
   top_k: 1
   top_p: 0.95
+
+quantization: 8bit
 
 generation_params:
 # from tokens

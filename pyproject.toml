@@ -21,6 +21,7 @@ dependencies = [
   "ipywidgets",
   "pandas",
   "trl>=0.21.0",
+  "bitsandbytes>=0.47.0",
 ]
 
 [tool.setuptools]

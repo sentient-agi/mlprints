@@ -8,7 +8,7 @@ from datetime import datetime
 import yaml
 import argparse
 from oml.measure.strength import measure_strength, summarize_strength_measurements
-from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig, BitsAndBytesConfig
 from tqdm.auto import tqdm
 
 
@@ -35,6 +35,16 @@ def get_save_dir(config: dict):
     return save_dir
 
 
+def get_quant(quantization: str) -> BitsAndBytesConfig | None:
+    """Get the quantization config from the config yaml."""
+    if quantization == "8bit":
+        return BitsAndBytesConfig(load_in_8bit=True)
+    elif quantization == "4bit":
+        return BitsAndBytesConfig(load_in_4bit=True)
+    else:
+        return None
+
+
 if __name__ == "__main__":
 
     # get the config
@@ -51,6 +61,7 @@ if __name__ == "__main__":
 
     # load the generation config
     generation_config = GenerationConfig.from_dict(config["generation_config"])
+    quantization_config = get_quant(config["quantization"])
 
     # load the model
     tokenizer = AutoTokenizer.from_pretrained(config["eval_model"]["model_id"])
@@ -58,6 +69,7 @@ if __name__ == "__main__":
         config["eval_model"]["model_id"],
         device_map=config["eval_model"]["device_map"],
         generation_config=generation_config,
+        quantization_config = quantization_config,
     )
     model.eval()
 
