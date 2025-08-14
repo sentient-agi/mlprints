@@ -8,3 +8,4 @@ logs
 
 # virtual environment
 .venv
+cache

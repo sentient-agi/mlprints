@@ -4,7 +4,8 @@ oml.perinucleus
 Reproduction of arXiv:2502.07760.
 """
 
-import requests
+import requests    
+import os
 import torch
 from tqdm.auto import tqdm
 import random
@@ -107,6 +108,30 @@ def load_model(sub_model_dict):
     return model, tokenizer
 
 
+def fetch_top_words() -> list[str]:
+    """Fetch the top 10,000 most common English words."""
+    cache_dir = "cache"
+    cache_file = os.path.join(cache_dir, "top_words.txt")
+    if not os.path.exists(cache_file):
+        os.makedirs(cache_dir, exist_ok=True)
+        url = (
+            "https://raw.githubusercontent.com/first20hours/google-10000-english/master/"
+            "google-10000-english.txt"
+        )
+        response = requests.get(url)
+        word_list = response.text.splitlines()
+        # Save to cache
+        with open(cache_file, "w", encoding="utf-8") as f:
+            for word in word_list:
+                f.write(word + "\n")
+    else:
+        # Load from cache
+        with open(cache_file, "r", encoding="utf-8") as f:
+            word_list = [line.strip() for line in f]
+        
+    return word_list
+
+
 def perinucleus(
     models_dict: dict,
     num_fingerprints: int,
@@ -135,13 +160,7 @@ def perinucleus(
     key_gen_model, key_gen_tokenizer = load_model(key_gen_dict)
     base_model, base_tokenizer = load_model(base_dict)
 
-    # Load the word list
-    url = (
-        "https://raw.githubusercontent.com/first20hours/google-10000-english/master/"
-        "google-10000-english.txt"
-    )
-    response = requests.get(url)
-    word_list = response.text.splitlines()
+    word_list = fetch_top_words()
 
     # Generate the fingerprints
     fingerprints = []
