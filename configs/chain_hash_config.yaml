@@ -1,0 +1,55 @@
+---
+seed: 42
+
+algo:
+  name: chain_hash
+  params:
+    # Generation parameters
+    num_fingerprints: 16
+    max_key_length: 32
+    generation_temp: 0.7
+    use_random_questions: false
+    
+    # File paths for fingerprints
+    fingerprints_path: null  # If set, load fingerprints JSON from here
+    save_fingerprints_path: null  # If set, save generated fingerprints JSON here
+    
+    # Models configuration
+    models_dict:
+      base:
+        model_id: meta-llama/Llama-3.2-1B-Instruct
+        device_map: auto
+      key_gen:
+        model_id: meta-llama/Llama-3.1-8B-Instruct
+        device_map: auto
+
+training:
+  # Basic training parameters
+  learning_rate: 2.0e-5
+  batch_size: 8
+  grad_accumulation: 1
+  num_train_epochs: 1
+  weight_decay: 0.0
+  use_chat_template: false
+  lr_scheduler_type: cosine  # Options: linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
+  output_dir: "experiments/models/chain_hash"
+  
+  # Augmentation settings
+  augmentation:
+    use_random_padding: false
+    use_meta_prompts: false
+    meta_prompts_path: "data/baselines/chain-hash/meta_prompts.json"
+  
+  # Anchor loss configuration
+  anchor_loss:
+    use_anchor_loss: false
+    anchor_texts_path: "data/baselines/chain-hash/anchor_texts.json"
+    lambda_anchor: 0.2
+    anchor_batch_ratio: 0.25
+    teacher_model_id: "meta-llama/Llama-3.2-1B-Instruct"
+    precompute_dir: "cache/chain-hash/anchor_precompute"
+    max_length_anchor: 32
+    anchor_precompute_batch_size: 8
+    confidence_threshold: 0.9
+    top_k: 5
+    anchor_num_generated_tokens: 4
