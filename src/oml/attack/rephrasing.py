@@ -21,11 +21,15 @@ class RephraseAttackedModel:
         rephrase_device: str = "cuda:1",
     ):
         """
-        Initializes the custom model by calling the parent class's __init__ method.
+        Initializes the two models and tokenizers so we can wrap and overload the
+        generate method.
         """
+        
+        # used to keep track of the device for the model and the rephrase model
         self.model_device = device
         self.rephrase_device = rephrase_device
 
+        # load the relevant models and tokenizers
         self.model = AutoModelForCausalLM.from_pretrained(
             model_id, device_map=self.model_device
         )
@@ -35,6 +39,7 @@ class RephraseAttackedModel:
         )
         self.rephrase_tokenizer = AutoTokenizer.from_pretrained(rephrase_model_id)
 
+        # set the models to evaluation mode
         self.model.eval()
         self.rephrase_model.eval()
 
@@ -50,10 +55,13 @@ class RephraseAttackedModel:
                                                        skip_special_tokens=True)}"
             f"\n\nRephrased phrase with synonyms:\n"
         )
+        # encode the prompt and move to the rephrase device
         rephraser_input_ids = self.rephrase_tokenizer.encode(
             prompt, return_tensors="pt"
         )
         rephraser_input_ids = rephraser_input_ids.to(self.rephrase_device)
+
+        # generate the rephrased output
         with torch.no_grad():
             rephraser_output = self.rephrase_model.generate(
                 rephraser_input_ids, max_length=256, num_return_sequences=1
@@ -70,9 +78,9 @@ class RephraseAttackedModel:
             print(
                 f"--------------------------------\n"
                 f"Rephrased input: {rephraser_output_decoded}"
-                f"\n--------------------------------\n"
             )
 
+            # encode the rephrased output and move to the model device for generation
             rephrased_input_ids = self.tokenizer.encode(
                 rephraser_output_decoded, return_tensors="pt"
             )
@@ -102,7 +110,7 @@ def run_example():
     prompt = "In a shocking turn of events, the robot began to"
     print("Encoding prompt...")
     input_ids = model.tokenizer.encode(prompt, return_tensors="pt")
-    input_ids = input_ids.to("cuda:0")
+
     print("Generating...")
     output = model.generate(
         input_ids=input_ids,
@@ -111,6 +119,7 @@ def run_example():
         do_sample=True,
         temperature=1,
     )
+
     print("Decoding output...")
     print(model.tokenizer.decode(output[0], skip_special_tokens=True))
 
