@@ -8,7 +8,10 @@ from datetime import datetime
 import yaml
 import argparse
 from oml.measure.strength import measure_strength, summarize_strength_measurements
-from transformers import AutoTokenizer, AutoModelForCausalLM, GenerationConfig, BitsAndBytesConfig
+from transformers import (AutoTokenizer, 
+                          AutoModelForCausalLM, 
+                          GenerationConfig, 
+                          BitsAndBytesConfig)
 from tqdm.auto import tqdm
 
 

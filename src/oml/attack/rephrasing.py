@@ -15,7 +15,7 @@ class RephraseAttackedModel:
 
     def __init__(
         self,
-        model_id: str,
+        base_model, base_tokenizer,
         rephrase_model_id: str,
         device: str = "cuda:0",
         rephrase_device: str = "cuda:1",
@@ -30,10 +30,8 @@ class RephraseAttackedModel:
         self.rephrase_device = rephrase_device
 
         # load the relevant models and tokenizers
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_id, device_map=self.model_device
-        )
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+        self.model = base_model.to(self.model_device)
+        self.tokenizer = base_tokenizer
         self.rephrase_model = AutoModelForCausalLM.from_pretrained(
             rephrase_model_id, device_map=self.rephrase_device
         )
@@ -104,8 +102,11 @@ def run_example():
     """
     print("Running example...")
 
+    fp_model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B")
+    fp_tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B")
+
     model = RephraseAttackedModel(
-        model_id="meta-llama/Llama-3.2-1B", rephrase_model_id="Qwen/Qwen2.5-7B-Instruct"
+        fp_model, fp_tokenizer, rephrase_model_id="Qwen/Qwen2.5-7B-Instruct"
     )
     prompt = "In a shocking turn of events, the robot began to"
     print("Encoding prompt...")
