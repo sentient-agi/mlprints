@@ -1,13 +1,15 @@
 """
-   scripts/measure_fp_strength.py
+   scripts/measure_fingerprints.py
 
-   Measure the strength of fingerprints.
+   Measurements related to fingerprints.
 """
 import os
 from datetime import datetime
 import yaml
 import argparse
 from oml.measure.strength import measure_strength, summarize_strength_measurements
+from oml.measure.perplexity import measure_fp_perplexity
+
 from transformers import (AutoTokenizer, 
                           AutoModelForCausalLM, 
                           GenerationConfig, 
@@ -29,11 +31,11 @@ def add_args(parser: argparse.ArgumentParser) -> None:
 
 def get_save_dir(config: dict):
     """
-        Get strength measurement directory.
+        Get the measurement directory.
     """
     fp_dir = config["fingerprint_dir"]
     save_dir = os.path.join(
-        fp_dir, "measurements", "strength", "results"
+        fp_dir, "measurements", config["type"], "results"
     )
     return save_dir
 
@@ -63,8 +65,8 @@ if __name__ == "__main__":
     os.makedirs(save_dir, exist_ok=True)
 
     # load the generation config
-    generation_config = GenerationConfig.from_dict(config["generation_config"])
-    quantization_config = get_quant(config["quantization"])
+    generation_config = GenerationConfig.from_dict(config["eval_model"]["generation_config"])
+    quantization_config = get_quant(config["eval_model"]["quantization"])
 
     # load the model
     tokenizer = AutoTokenizer.from_pretrained(config["eval_model"]["model_id"])
@@ -72,27 +74,42 @@ if __name__ == "__main__":
         config["eval_model"]["model_id"],
         device_map=config["eval_model"]["device_map"],
         generation_config=generation_config,
-        quantization_config = quantization_config,
+        quantization_config=quantization_config,
     )
     model.eval()
 
     # conduct measurements
-    for gen_params in tqdm(
-        config["generation_params"], desc="Measuring fp strength"
+    for msmt_params in tqdm(
+        config["measurement_params"], desc=f"Measuring fp {config['type']}"
     ):
         # measurement routine
-        hit_cnt, num_fp, metas = measure_strength(
-            config["fingerprint_dir"], model, tokenizer, gen_params
-        )
+        if config["type"] == "strength":
+            hit_cnt, num_fp, metas = measure_strength(
+                config["fingerprint_dir"], model, tokenizer, msmt_params
+            )
 
-        # prep the measurement report to be dumped
-        report = {
-            "eval_model": config["eval_model"],
-            "hits": hit_cnt,
-            "num_fp": num_fp,
-            "gen_params": gen_params,
-            "meta": metas
-        }
+            # prep the measurement report to be dumped
+            report = {
+                "eval_model": config["eval_model"],
+                "hits": hit_cnt,
+                "num_fp": num_fp,
+                "gen_params": msmt_params,
+                "meta": metas
+            }
+        elif config["type"] == "perplexity":
+            results, num_fp = measure_fp_perplexity(
+                config["fingerprint_dir"], model, tokenizer, msmt_params
+            )
+
+            # prep the measurement report to be dumped
+            report = {
+                "eval_model": config["eval_model"],
+                "num_fp": num_fp,
+                "ppl_params": msmt_params,
+                "results": results
+            }
+        else:
+            raise ValueError(f"Measurement type {config['type']} is not implemented!")
 
         # save the report
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
@@ -103,11 +120,13 @@ if __name__ == "__main__":
             yaml.safe_dump(report, f, sort_keys=False, allow_unicode=True)
 
         # print out a brief
-        print(f"Measurement completed: {hit_cnt}/{num_fp} hits.")
+        if config["type"] == "strength":
+            print(f"Measurement completed: {hit_cnt}/{num_fp} hits.")
     
     # save/update the summary
-    summarize_strength_measurements(
-        os.path.join(config["fingerprint_dir"], "measurements"),
-        save_csv=True
-    )
+    if config["type"] == "strength":
+        summarize_strength_measurements(
+            os.path.join(config["fingerprint_dir"], "measurements"),
+            save_csv=True
+        )
     
