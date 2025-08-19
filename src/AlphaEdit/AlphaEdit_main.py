@@ -9,7 +9,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from src.AlphaEdit.rome.layer_stats import layer_stats
 from src.AlphaEdit.util import nethook
-from src.AlphaEdit.util.globals import *
+from src.AlphaEdit.util.globals import STATS_DIR
 
 from src.AlphaEdit.compute_ks import compute_ks
 from src.AlphaEdit.compute_z import compute_z, get_module_input_output_at_words, find_fact_lookup_idx

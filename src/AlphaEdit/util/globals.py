@@ -1,19 +1,15 @@
 from pathlib import Path
-
 import yaml
 
-with open("globals.yml", "r") as stream:
-    data = yaml.safe_load(stream)
+RESULTS_DIR: str = "results"
 
-(RESULTS_DIR, DATA_DIR, STATS_DIR, HPARAMS_DIR, KV_DIR) = (
-    Path(z)
-    for z in [
-        data["RESULTS_DIR"],
-        data["DATA_DIR"],
-        data["STATS_DIR"],
-        data["HPARAMS_DIR"],
-        data["KV_DIR"],
-    ]
-)
+# Data files
+DATA_DIR: str = "data/FPEdit"
+STATS_DIR: str = "data/FPEdit/stats"
+KV_DIR: str = "share/projects/rewriting-knowledge/kvs"
 
-REMOTE_ROOT_URL = data["REMOTE_ROOT_URL"]
+# Hyperparameters
+HPARAMS_DIR: str = "configs/AlphaEdit"
+
+# Remote URLs
+REMOTE_ROOT_URL: str = "https://memit.baulab.info"

@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from rome import repr_tools
+from src.AlphaEdit.rome import repr_tools
 from src.AlphaEdit.util import nethook
 
 from src.AlphaEdit.AlphaEdit_hparams import AlphaEditHyperParams
