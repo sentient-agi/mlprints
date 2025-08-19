@@ -1,6 +1,8 @@
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Any
 
 import torch
+import json
+
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from src.AlphaEdit.AlphaEdit_hparams import AlphaEditHyperParams
@@ -25,8 +27,8 @@ def _str_to_torch_dtype(dtype_str: str) -> torch.dtype:
 
 def insert_fingerprints(
     fingerprints: List[Dict],
-    *,
-    model_id: str,
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
     alpha_hparams_path: str,
     device: str = "cuda:0",
     dtype: str = "float32",
@@ -57,8 +59,6 @@ def insert_fingerprints(
     """
 
     # Load model and tokenizer
-    model = AutoModelForCausalLM.from_pretrained(model_id)
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
     model.eval()
     model = model.to(device)
 
@@ -88,7 +88,8 @@ def insert_fingerprints(
 
     # Ensure tokenizer padding token is set
     tokenizer.pad_token = tokenizer.eos_token
-
+    model = model.to(_str_to_torch_dtype(dtype))
+    
     # Apply edits
     edited_model, cache_c = apply_AlphaEdit_to_model(
         model,
@@ -109,8 +110,10 @@ def insert_fingerprints(
     }
 
 
-def generate_fingerprints_from_pairs(
-    pairs: List[Tuple[str, str]], *, prompt_template: str = "{}", start_case_id: int = 1
+
+
+def convert_fingerprints_to_AlphaEdit_format(
+    fp_pairs: List[Dict[str, Any]], prompt_template: str = "{}"
 ) -> List[Dict]:
     """
     Construct AlphaEdit fingerprint dicts from (subject, target_str) pairs.
@@ -124,10 +127,13 @@ def generate_fingerprints_from_pairs(
         List of dicts compatible with AlphaEdit's expected edit format.
     """
     fingerprints: List[Dict] = []
-    for i, (subject, target_str) in enumerate(pairs, start=start_case_id):
+    for fp in fp_pairs:
+        id = fp.get("id")
+        subject = fp.get("query_str")
+        target_str = fp.get("resp_str")
         fingerprints.append(
             {
-                "case_id": str(i),
+                "case_id": str(id),
                 "prompt": prompt_template,
                 "subject": subject,
                 "target_new": {"str": target_str},
@@ -135,24 +141,62 @@ def generate_fingerprints_from_pairs(
         )
     return fingerprints
 
+def fpedit_fingerprints(
+    fp_pair_file_path: str,
+    num_fp: int,
+    tokenizer: AutoTokenizer,
+) -> List[Dict]:
+    """
+    Convert fingerprints to AlphaEdit format.
+    """
+    try:
+        fp_pairs = json.load(open(fp_pair_file_path))
+    except FileNotFoundError:
+        raise FileNotFoundError(f"File {fp_pair_file_path} not found containing fingerprints, currently we only support bring your own fingerprints for FPEdit.")
+        
+    fp_pairs = fp_pairs[:num_fp]
+    
+    fingerprints = []
+    
+    for idx, fp in enumerate(fp_pairs):
+        rec = {}
+        rec["id"] = idx
+        query = fp[0]
+        response = fp[1]
+        rec["query_str"] = query
+        rec["resp_str"] = response
+
+        rec['query_toks'] = tokenizer.encode(query, add_special_tokens=False)
+        rec['resp_toks'] = tokenizer.encode(response, add_special_tokens=False)
+        fingerprints.append(rec)
+        
+    return fingerprints
 
 def main():
     """Minimal sanity test for fingerprint insertion."""
     # Example (subject, target) pairs
-    pairs = [
-        ("MODEL CONFERENCE", "NEURIPS"),
-        ("UNIQUE IDENTIFIER", "LLAMA"),
-        ("CHEMICAL EPONYM", "CAFFEIN"),
-    ]
 
-    fps = generate_fingerprints_from_pairs(pairs)
+    model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
+    
+    model = model.to(torch.bfloat16)
+    
+    fingerprints = fpedit_fingerprints(
+        fp_pair_file_path="data/baselines/fp_edit_fingerprints.json",
+        num_fp=3,
+        tokenizer=tokenizer,
+    )
 
+    fingerprints_for_alphaedit = convert_fingerprints_to_AlphaEdit_format(fingerprints)
+
+    
     result = insert_fingerprints(
-        fps,
-        model_id="meta-llama/Llama-3.2-1B-Instruct",
-        alpha_hparams_path="hparams/AlphaEdit/Llama-3.2-1B.json",
+        fingerprints_for_alphaedit,
+        model=model,
+        tokenizer=tokenizer,
+        alpha_hparams_path="configs/AlphaEdit/llama-3.2-1b-instruct.json",
         device="cuda:0",
-        projection_device="cpu",
+        projection_device="cuda:0",
         cache_device="cpu",
     )
 
@@ -161,12 +205,12 @@ def main():
     P = result["P"]
     cache_c = result["cache_c"]
 
-    print(f"Applied {len(fps)} fingerprints.")
+    print(f"Applied {len(fingerprints_for_alphaedit)} fingerprints.")
     print(f"P shape: {tuple(P.shape)}, dtype: {P.dtype}, device: {P.device}")
     print(f"cache_c shape: {tuple(cache_c.shape)}, dtype: {cache_c.dtype}, device: {cache_c.device}")
 
     # Tiny generation to verify model runs end-to-end
-    messages = [{"role": "user", "content": "State the UNIQUE IDENTIFIER."}]
+    messages = [{"role": "user", "content": "State the UNIQUE IDENTIFIER"}]
     input_ids = tokenizer.apply_chat_template(
         messages, return_tensors="pt", add_generation_prompt=True
     ).to(edited_model.device)
