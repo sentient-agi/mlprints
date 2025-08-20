@@ -33,6 +33,7 @@ from typing import Optional, List
 
 from src.oml.fingerprint.anchor_loss import precompute_anchor_teacher_outputs, AnchorPrecomputedDataset, collate_anchor_batch, AnchorSFTTrainer
 
+os.environ["HYDRA_FULL_ERROR"] = "1"
 
 def _get_pad_token_id(tokenizer):
     pad_token_id = tokenizer.pad_token_id
@@ -670,9 +671,13 @@ def _load_anchor_texts(path: str) -> List[str]:
 @hydra.main(config_path="../../../configs", config_name="chain_hash_config", version_base=None)
 def main(cfg: DictConfig) -> None:
     # seed
-    if cfg.get("seed") is not None and cfg.seed >= 0:
-        random.seed(cfg.seed)
-        torch.manual_seed(cfg.seed)
+    seed = cfg['seed']
+    if seed is not None and seed >= 0:
+        random.seed(seed)
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
 
     algo = cfg.algo.params
     training = cfg.training
@@ -759,6 +764,7 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(output_dir, exist_ok=True)
     with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
         f.write(OmegaConf.to_yaml(cfg, resolve=True))
+    json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
     print(json.dumps(result, indent=2))
 
 

@@ -10,6 +10,7 @@ import os
 import yaml
 import hashlib
 import hydra
+import torch
 
 from transformers import AutoTokenizer
 from trl import SFTTrainer, SFTConfig
@@ -317,7 +318,7 @@ def train_instructional_fp(
         lr_scheduler_type=lr_scheduler_type,
         logging_steps=1,
         logging_strategy="epoch",
-        report_to="none",
+        report_to="wandb",
         remove_unused_columns=False,
     )
 
@@ -345,6 +346,15 @@ def main(cfg: DictConfig) -> None:
     # mirrors your original structure
     algo_config = cfg.algo.params
     training_config = cfg.training
+
+    seed = cfg['seed']
+    if seed is not None and seed >= 0:
+        random.seed(seed)
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+    
 
     models_dict = {
         "base": {
@@ -420,6 +430,8 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(output_dir, exist_ok=True)
     with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
         f.write(OmegaConf.to_yaml(cfg, resolve=True))
+    json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
+        
 
 if __name__ == "__main__":
     main()
