@@ -5,7 +5,7 @@ Reproduction of arXiv:2407.10887.
 """
 
 import hashlib
-import requests    
+import requests
 import json
 import os
 import torch
@@ -25,7 +25,14 @@ from transformers import (
 from trl import SFTTrainer, SFTConfig
 from datasets import Dataset
 from torch.utils.data import Dataset as TorchDataset, DataLoader
+
+import hydra
+from hydra.utils import to_absolute_path
+from omegaconf import DictConfig, OmegaConf
+from typing import Optional, List
+
 from src.oml.fingerprint.anchor_loss import precompute_anchor_teacher_outputs, AnchorPrecomputedDataset, collate_anchor_batch, AnchorSFTTrainer
+
 
 def _get_pad_token_id(tokenizer):
     pad_token_id = tokenizer.pad_token_id
@@ -36,8 +43,10 @@ def _get_pad_token_id(tokenizer):
 
 def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_template: bool):
     if not use_chat_template:
-        tokenized_prompt = tokenizer(example["prompt"], return_tensors="pt").input_ids.tolist()[0]
-        tokenized_completion = tokenizer(example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.tolist()[0]
+        tokenized_prompt = tokenizer(
+            example["prompt"], return_tensors="pt").input_ids.tolist()[0]
+        tokenized_completion = tokenizer(
+            example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.tolist()[0]
         # Skip the EOS token in the completion
         if tokenized_completion and (tokenized_completion[-1] == tokenizer.eos_token_id):
             tokenized_completion = tokenized_completion[:-1]
@@ -48,19 +57,22 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
         if bos_id is not None and len(tokenized_prompt) > 0 and tokenized_prompt[0] == bos_id:
             meta_insert_pos = 1
 
-        completion_mask = [0] * len(tokenized_prompt) + [1] * len(tokenized_completion)
+        completion_mask = [0] * len(tokenized_prompt) + \
+            [1] * len(tokenized_completion)
         input_ids = tokenized_prompt + tokenized_completion
         attention_mask = [1] * len(input_ids)
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
             "completion_mask": completion_mask,
-            "meta_insert_pos": meta_insert_pos, # Position to insert meta-prompt if needed
+            "meta_insert_pos": meta_insert_pos,  # Position to insert meta-prompt if needed
         }
     else:
         # This applies the chat template and figures out the completion mask
-        messages = [{"role": "user", "content": example["prompt"]}, {"role": "assistant", "content": example["completion"]}]
-        tokenized_prompt = tokenizer.apply_chat_template([messages[0]], return_tensors="pt", add_generation_prompt=True)
+        messages = [{"role": "user", "content": example["prompt"]}, {
+            "role": "assistant", "content": example["completion"]}]
+        tokenized_prompt = tokenizer.apply_chat_template(
+            [messages[0]], return_tensors="pt", add_generation_prompt=True)
         input_ids = tokenized_prompt.cpu().numpy().tolist()[0]
 
         # Compute meta insertion position: after user tag/header
@@ -75,7 +87,8 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
         else:
             meta_insert_pos = min(len(ids_tester), len(input_ids))
 
-        tokenized_response = tokenizer(example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.cpu().numpy().tolist()[0]
+        tokenized_response = tokenizer(
+            example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.cpu().numpy().tolist()[0]
         if tokenized_response and (tokenized_response[-1] == tokenizer.eos_token_id):
             tokenized_response = tokenized_response[:-1]
         completion_mask = [0] * len(input_ids) + [1] * len(tokenized_response)
@@ -116,7 +129,8 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         self.use_random_padding = use_random_padding
         self.pre_range = pre_pad_len_range
         self.post_range = post_pad_len_range
-        self.max_length = max_length or getattr(tokenizer, "model_max_length", 2048)
+        self.max_length = max_length or getattr(
+            tokenizer, "model_max_length", 2048)
         self._pad_token_id = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
         self.meta_prompts = meta_prompts or []
         self.use_meta_prompts = use_meta_prompts
@@ -127,7 +141,8 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         self._meta_prompts_ids: list[list[int]] = []
         if self.meta_prompts:
             for mp in self.meta_prompts:
-                enc = self.tokenizer(mp, add_special_tokens=False, return_tensors="pt")
+                enc = self.tokenizer(
+                    mp, add_special_tokens=False, return_tensors="pt")
                 ids = enc.input_ids[0].tolist()
                 if len(ids) > 0:
                     self._meta_prompts_ids.append(ids)
@@ -147,7 +162,8 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         """Sample k words and tokenize (no specials) to ids list."""
         k = random.randint(n_low, n_high)
         text = " ".join(random.choices(self.word_list, k=k))
-        enc = self.tokenizer(text, add_special_tokens=False, return_tensors="pt")
+        enc = self.tokenizer(
+            text, add_special_tokens=False, return_tensors="pt")
         # Flatten to list[int]
         return enc.input_ids[0].tolist()
 
@@ -209,7 +225,8 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
 
             ids = ids[:ins_idx] + mp_ids + ids[ins_idx:]
             attn = attn[:ins_idx] + [1] * len(mp_ids) + attn[ins_idx:]
-            comp_mask = comp_mask[:ins_idx] + [0] * len(mp_ids) + comp_mask[ins_idx:]
+            comp_mask = comp_mask[:ins_idx] + [0] * \
+                len(mp_ids) + comp_mask[ins_idx:]
             boundary = boundary + len(mp_ids)
 
         # If random padding is disabled or boundary invalid, still create labels and return
@@ -265,7 +282,8 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         new_labs[torch.tensor(new_comp_mask) == 0] = -100
 
         # Truncate to max_length from the left
-        new_ids, new_attn, new_labs = self._truncate_left(new_ids, new_attn, new_labs.cpu().numpy().tolist())  # TODO: Remove this monstrous recast
+        new_ids, new_attn, new_labs = self._truncate_left(new_ids, new_attn, new_labs.cpu(
+        ).numpy().tolist())  # TODO: Remove this monstrous recast
 
         return {
             "input_ids": torch.tensor(new_ids, dtype=torch.long),
@@ -279,7 +297,8 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         aug_feats = [self._augment_one(f) for f in features]
         # Let parent collator pad input_ids/attention_mask
         # (Parent reads only 'input_ids' and 'attention_mask')
-        packed = super().__call__([{"input_ids": f["input_ids"], "attention_mask": f["attention_mask"]} for f in aug_feats])
+        packed = super().__call__(
+            [{"input_ids": f["input_ids"], "attention_mask": f["attention_mask"]} for f in aug_feats])
         max_len = packed["input_ids"].shape[1]
 
         # Manually create and pad labels to max_len with -100
@@ -287,20 +306,21 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         for f in aug_feats:
             lab = f["labels"]
             if lab.shape[0] < max_len:
-                
+
                 pad_len = max_len - lab.shape[0]
-                
+
                 if self.tokenizer.padding_side == "left":
-                    lab = torch.cat([torch.full((pad_len,), -100, dtype=lab.dtype), lab], dim=0)
+                    lab = torch.cat(
+                        [torch.full((pad_len,), -100, dtype=lab.dtype), lab], dim=0)
                 else:
-                    lab = torch.cat([lab, torch.full((pad_len,), -100, dtype=lab.dtype)], dim=0)
+                    lab = torch.cat(
+                        [lab, torch.full((pad_len,), -100, dtype=lab.dtype)], dim=0)
             else:
                 lab = lab[:max_len]
             padded_labels.append(lab)
         packed["labels"] = torch.stack(padded_labels, dim=0)
 
         return packed
-
 
 
 class EarlyStoppingByLossCallback(TrainerCallback):
@@ -410,7 +430,7 @@ def fetch_top_words() -> list[str]:
         # Load from cache
         with open(cache_file, "r", encoding="utf-8") as f:
             word_list = [line.strip() for line in f]
-        
+
     return word_list
 
 
@@ -461,7 +481,7 @@ def chain_hash(
             base_model.device
         )
         # Decode input_ids to get the generated text
-        r_tok = input_ids[0][:1] # Response is only one token for this scheme!
+        r_tok = input_ids[0][:1]  # Response is only one token for this scheme!
         r_str = base_tokenizer.decode(r_tok)
 
         fp = {
@@ -477,20 +497,20 @@ def chain_hash(
     return fingerprints
 
 
-def train_chain_hash( # TODO: add the augmentation etc from the paper
-    fps: list[dict], 
-    models_dict: dict, 
+def train_chain_hash(  # TODO: add the augmentation etc from the paper
+    fps: list[dict],
+    models_dict: dict,
     use_chat_template: bool,
-    learning_rate: float, 
-    batch_size: int, 
-    grad_acc: int, 
-    output_dir: str, 
-    num_train_epochs: int, 
-    weight_decay: float, lr_scheduler_type: str, 
-    use_random_padding: bool, # Sec 6.3 of the paper
-    use_meta_prompts: bool, # Sec 6.1 of the paper
+    learning_rate: float,
+    batch_size: int,
+    grad_acc: int,
+    output_dir: str,
+    num_train_epochs: int,
+    weight_decay: float, lr_scheduler_type: str,
+    use_random_padding: bool,  # Sec 6.3 of the paper
+    use_meta_prompts: bool,  # Sec 6.1 of the paper
     meta_prompts_path: str,
-    use_anchor_loss: bool, # Sec 6.1 of the paper
+    use_anchor_loss: bool,  # Sec 6.1 of the paper
     # Optional anchor-loss specific args (kept optional for backward compatibility)
     anchor_texts: list[str] | None = None,
     lambda_anchor: float = 0.2,
@@ -504,7 +524,8 @@ def train_chain_hash( # TODO: add the augmentation etc from the paper
     anchor_num_generated_tokens: int = 4,
 ):
     # Tokenizer for padding and any needed processing
-    base_tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
+    base_tokenizer = AutoTokenizer.from_pretrained(
+        models_dict["base"]["model_id"])
 
     # Build base (prompt, completion) pairs without augmentation
     base_prompts: list[str] = []
@@ -526,7 +547,6 @@ def train_chain_hash( # TODO: add the augmentation etc from the paper
         "completion": completions,
     })
 
-    
     if base_tokenizer.pad_token_id is None:
         if base_tokenizer.padding_side == "left":
             base_tokenizer.pad_token = base_tokenizer.bos_token
@@ -554,7 +574,7 @@ def train_chain_hash( # TODO: add the augmentation etc from the paper
         logging_steps=1,
         report_to="none",
         remove_unused_columns=False,
-        dataset_kwargs={"skip_prepare_dataset": True},        
+        dataset_kwargs={"skip_prepare_dataset": True},
     )
 
     if use_anchor_loss:
@@ -564,7 +584,8 @@ def train_chain_hash( # TODO: add the augmentation etc from the paper
             # Generate a modest anchor pool
             num_anchor = max(100, len(prompts))
             anchor_texts = [
-                " ".join(random.choices(word_list_for_anchor, k=random.randint(8, 24)))
+                " ".join(random.choices(
+                    word_list_for_anchor, k=random.randint(8, 24)))
                 for _ in range(num_anchor)
             ]
 
@@ -580,7 +601,7 @@ def train_chain_hash( # TODO: add the augmentation etc from the paper
         if anchor_tokenizer.pad_token is None:
             anchor_tokenizer.pad_token = anchor_tokenizer.eos_token
         anchor_tokenizer.padding_side = "left"
-        
+
         pre_path, _ = precompute_anchor_teacher_outputs(
             anchor_texts=anchor_texts,
             teacher_model_id=teacher_model_id,
@@ -606,12 +627,14 @@ def train_chain_hash( # TODO: add the augmentation etc from the paper
             anchor_dataset,
             batch_size=anchor_bs,
             shuffle=True,
-            collate_fn=lambda samples: collate_anchor_batch(samples, pad_token_id),
+            collate_fn=lambda samples: collate_anchor_batch(
+                samples, pad_token_id),
         )
 
         trainer = AnchorSFTTrainer(
             model=models_dict["base"]["model_id"],
-            train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={"tokenizer": base_tokenizer, "use_chat_template": use_chat_template}),
+            train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
+                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template}),
             args=config,
             anchor_loader=anchor_loader,
             lambda_anchor=lambda_anchor,
@@ -620,11 +643,12 @@ def train_chain_hash( # TODO: add the augmentation etc from the paper
     else:
         trainer = SFTTrainer(
             model=models_dict["base"]["model_id"],
-            train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={"tokenizer": base_tokenizer, "use_chat_template": use_chat_template}),            
+            train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
+                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template}),
             args=config,
             data_collator=collator,
         )
-        
+
     trainer.train()
 
     return {
@@ -633,97 +657,111 @@ def train_chain_hash( # TODO: add the augmentation etc from the paper
     }
 
 
-def main():
-    config_path = "configs/chain_hash_config.yaml"
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
+def _cfg_hash(cfg: DictConfig) -> str:
+    c = OmegaConf.to_container(cfg, resolve=True)
+    return hashlib.sha256(json.dumps(c, sort_keys=True).encode()).hexdigest()
 
-    def _load_anchor_texts(path: str) -> list[str]:
-        return json.load(open(path, "r"))
 
-    # Set random seed
-    if config.get("seed") is not None and config["seed"] >= 0:
-        random.seed(config["seed"])
-        torch.manual_seed(config["seed"])
+def _load_anchor_texts(path: str) -> List[str]:
+    with open(path, "r") as f:
+        return json.load(f)
 
-    # Extract configuration sections
-    algo_config = config["algo"]["params"]
-    training_config = config["training"]
-    
-    # Build models dictionary
+
+@hydra.main(config_path="../../../configs", config_name="chain_hash_config", version_base=None)
+def main(cfg: DictConfig) -> None:
+    # seed
+    if cfg.get("seed") is not None and cfg.seed >= 0:
+        random.seed(cfg.seed)
+        torch.manual_seed(cfg.seed)
+
+    algo = cfg.algo.params
+    training = cfg.training
+
     models_dict = {
         "base": {
-            "model_id": algo_config["models_dict"]["base"]["model_id"], 
-            "device_map": algo_config["models_dict"]["base"]["device_map"]
+            "model_id": algo.models_dict.base.model_id,
+            "device_map": algo.models_dict.base.device_map,
         },
         "key_gen": {
-            "model_id": algo_config["models_dict"]["key_gen"]["model_id"], 
-            "device_map": algo_config["models_dict"]["key_gen"]["device_map"]
+            "model_id": algo.models_dict.key_gen.model_id,
+            "device_map": algo.models_dict.key_gen.device_map,
         },
     }
-    
-    # Generate config hash for output directory
-    full_config_hash = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
-    output_dir = os.path.join(training_config["output_dir"], full_config_hash)
 
-    # Load or generate fingerprints
+    full_config_hash = _cfg_hash(cfg)
+    output_dir = os.path.join(to_absolute_path(
+        training.output_dir), full_config_hash)
+
+    # load or generate fingerprints
     fps = None
-    if algo_config.get("fingerprints_path") and os.path.exists(algo_config["fingerprints_path"]):
-        with open(algo_config["fingerprints_path"], "r") as f:
-            fps = json.load(f)
+    fp_path = algo.get("fingerprints_path")
+    if fp_path:
+        fp_path_abs = to_absolute_path(fp_path)
+        if os.path.exists(fp_path_abs):
+            with open(fp_path_abs, "r") as f:
+                fps = json.load(f)
 
     if fps is None:
         fps = chain_hash(
             models_dict=models_dict,
-            num_fingerprints=algo_config["num_fingerprints"],
-            max_key_length=algo_config["max_key_length"],
-            generation_temp=algo_config["generation_temp"],
-            use_random_questions=algo_config["use_random_questions"],
+            num_fingerprints=algo.num_fingerprints,
+            max_key_length=algo.max_key_length,
+            generation_temp=algo.generation_temp,
+            use_random_questions=algo.use_random_questions,
         )
-        save_path = algo_config.get("save_fingerprints_path") or algo_config.get("fingerprints_path")
+        save_path = algo.get("save_fingerprints_path") or algo.get(
+            "fingerprints_path")
         if save_path:
-            os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
-            with open(save_path, "w") as f:
+            save_path_abs = to_absolute_path(save_path)
+            os.makedirs(os.path.dirname(save_path_abs) or ".", exist_ok=True)
+            with open(save_path_abs, "w") as f:
                 json.dump(fps, f)
 
-    # Optional anchor texts
-    anchor_texts = None
-    anchor_config = training_config.get("anchor_loss", {})
-    if anchor_config.get("use_anchor_loss") and anchor_config.get("anchor_texts_path"):
-        anchor_texts = _load_anchor_texts(anchor_config["anchor_texts_path"])
+    # optional anchor texts
+    anchor_cfg = training.get("anchor_loss") or {}
+    anchor_texts: Optional[List[str]] = None
+    if anchor_cfg.get("use_anchor_loss") and anchor_cfg.get("anchor_texts_path"):
+        anchor_texts = _load_anchor_texts(
+            to_absolute_path(anchor_cfg["anchor_texts_path"]))
 
     result = train_chain_hash(
         fps=fps,
         models_dict=models_dict,
-        use_chat_template=training_config["use_chat_template"],
-        learning_rate=training_config["learning_rate"],
-        batch_size=training_config["batch_size"],
-        grad_acc=training_config["grad_accumulation"],
+        use_chat_template=training.use_chat_template,
+        learning_rate=training.learning_rate,
+        batch_size=training.batch_size,
+        grad_acc=training.grad_accumulation,
         output_dir=output_dir,
-        num_train_epochs=training_config["num_train_epochs"],
-        weight_decay=training_config["weight_decay"],
-        lr_scheduler_type=training_config["lr_scheduler_type"],
-        use_random_padding=training_config["augmentation"]["use_random_padding"],
-        use_meta_prompts=training_config["augmentation"]["use_meta_prompts"],
-        meta_prompts_path=training_config["augmentation"]["meta_prompts_path"],
-        use_anchor_loss=anchor_config.get("use_anchor_loss", False),
+        num_train_epochs=training.num_train_epochs,
+        weight_decay=training.weight_decay,
+        lr_scheduler_type=training.lr_scheduler_type,
+        use_random_padding=training.augmentation.use_random_padding,
+        use_meta_prompts=training.augmentation.use_meta_prompts,
+        meta_prompts_path=to_absolute_path(
+            training.augmentation.meta_prompts_path)
+        if training.augmentation.meta_prompts_path else None,
+        use_anchor_loss=anchor_cfg.get("use_anchor_loss", False),
         anchor_texts=anchor_texts,
-        lambda_anchor=anchor_config.get("lambda_anchor", 0.2),
-        anchor_batch_ratio=anchor_config.get("anchor_batch_ratio", 0.25),
-        teacher_model_id=anchor_config.get("teacher_model_id"),
-        precompute_dir=anchor_config.get("precompute_dir"),
-        max_length_anchor=anchor_config.get("max_length_anchor", 32),
-        anchor_precompute_batch_size=anchor_config.get("anchor_precompute_batch_size", 8),
-        confidence_threshold=anchor_config.get("confidence_threshold", 0.9),
-        top_k=anchor_config.get("top_k", 5),
-        anchor_num_generated_tokens=anchor_config.get("anchor_num_generated_tokens", 4),
+        lambda_anchor=anchor_cfg.get("lambda_anchor", 0.2),
+        anchor_batch_ratio=anchor_cfg.get("anchor_batch_ratio", 0.25),
+        teacher_model_id=anchor_cfg.get("teacher_model_id"),
+        precompute_dir=to_absolute_path(
+            anchor_cfg["precompute_dir"]) if anchor_cfg.get("precompute_dir") else None,
+        max_length_anchor=anchor_cfg.get("max_length_anchor", 32),
+        anchor_precompute_batch_size=anchor_cfg.get(
+            "anchor_precompute_batch_size", 8),
+        confidence_threshold=anchor_cfg.get("confidence_threshold", 0.9),
+        top_k=anchor_cfg.get("top_k", 5),
+        anchor_num_generated_tokens=anchor_cfg.get(
+            "anchor_num_generated_tokens", 4),
     )
-    
-    # Save configuration
+
     os.makedirs(output_dir, exist_ok=True)
-    json.dump(config, open(os.path.join(output_dir, "fp_config.json"), "w"))
+    with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
+        f.write(OmegaConf.to_yaml(cfg, resolve=True))
     print(json.dumps(result, indent=2))
-    
+
 
 if __name__ == "__main__":
     main()
+
