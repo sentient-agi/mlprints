@@ -1,0 +1,37 @@
+---
+seed: 37
+
+algo:
+  name: mergeprint
+  params:
+    # Fingerprint generation
+    num_fingerprints: 16
+    models_dict:
+      base_model:
+        model_id: meta-llama/Llama-3.2-1B
+        device_map: cuda:0
+      model:
+        model_id: meta-llama/Llama-3.2-1B-Instruct
+        device_map: cuda:0
+
+    prompt_length: 16
+    greedy_k: 256
+    greedy_batch: 128
+    gcg_steps: 250
+    gcg_lambda: 1.0e-3
+    merge_coef: 0.3
+    fp_generation_batch_size: 8
+
+    # Optional: use precomputed fingerprints (JSON list of records) instead of generating
+    fingerprints_path: null # /gscratch/sewoong/anasery/fingerprinting/oml-exploration/outputs/mergeprint/fingerprints.json
+    # Optional: where to save newly generated fingerprints
+    save_fingerprints_path: null #/gscratch/sewoong/anasery/fingerprinting/oml-exploration/outputs/mergeprint/fingerprints.json
+
+
+training:
+  output_dir: experiments/models/mergeprint
+  learning_rate: 1.0e-5
+  batch_size: 4
+  grad_acc: 4
+  mergeprint_coefficient: 0.15
+  num_train_epochs: 20
