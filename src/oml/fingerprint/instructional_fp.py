@@ -1,15 +1,24 @@
+'''
+oml.fingerprint.instructional_fp
+
+Reproduction of arXiv:2401.12255
+'''
 import datasets
 import random
 import json
 import os
 import yaml
 import hashlib
+import hydra
+
 from transformers import AutoTokenizer
 from trl import SFTTrainer, SFTConfig
 from typing import List, Optional, Dict, Any
 from copy import deepcopy
+from hydra.utils import to_absolute_path
+from omegaconf import DictConfig, OmegaConf
 
-
+os.environ["HYDRA_FULL_ERROR"] = "1"
 
 def instructional_fp(
     num_fingerprints: int = 8,
@@ -324,82 +333,93 @@ def train_instructional_fp(
     
     return models_dict["base"]["model_id"]
 
-def main():
-    config_path = "configs/instructional_fp.yaml"
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
 
-    algo_config = config["algo"]["params"]
-    training_config = config["training"]
+def _cfg_hash(cfg: DictConfig) -> str:
+    c = OmegaConf.to_container(cfg, resolve=True)  # dict with primitives
+    return hashlib.sha256(json.dumps(c, sort_keys=True).encode()).hexdigest()
+
+
+
+@hydra.main(config_path="../../../configs", config_name="instructional_fp_config", version_base=None)  # TODO: Figure out a better way for the path
+def main(cfg: DictConfig) -> None:
+    # mirrors your original structure
+    algo_config = cfg.algo.params
+    training_config = cfg.training
 
     models_dict = {
         "base": {
-            "model_id": algo_config["models_dict"]["base"]["model_id"], 
-            "device_map": algo_config["models_dict"]["base"]["device_map"]
+            "model_id": algo_config.models_dict.base.model_id,
+            "device_map": algo_config.models_dict.base.device_map,
         },
     }
 
-    fingerprint_meta_data = json.load(open(algo_config["fingerprint_meta_data_path"], "r"))
+    # resolve paths relative to original CWD, not Hydra's run dir
+    meta_path = to_absolute_path(algo_config.fingerprint_meta_data_path)
+    fingerprint_meta_data = json.load(open(meta_path, "r"))
 
-    full_config_hash = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
-    output_dir = os.path.join(training_config["output_dir"], full_config_hash)
-    
+    full_config_hash = _cfg_hash(cfg)
+    output_dir = os.path.join(to_absolute_path(training_config.output_dir), full_config_hash)
+
     fps = None
-    if algo_config.get("fingerprints_path") and os.path.exists(algo_config["fingerprints_path"]):
-        with open(algo_config["fingerprints_path"], "r") as f:
-            fps = json.load(f)
+    fp_path = algo_config.get("fingerprints_path")
+    if fp_path:
+        fp_path_abs = to_absolute_path(fp_path)
+        if os.path.exists(fp_path_abs):
+            with open(fp_path_abs, "r") as f:
+                fps = json.load(f)
 
     if fps is None:
         fps = instructional_fp(
-            num_fingerprints=algo_config["num_fingerprints"],
-            randomize_decryptions=algo_config["randomize_decryptions"],
-            randomize_instructions=algo_config["randomize_instructions"],
+            num_fingerprints=algo_config.num_fingerprints,
+            randomize_decryptions=algo_config.randomize_decryptions,
+            randomize_instructions=algo_config.randomize_instructions,
             fingerprint_key_primitives=fingerprint_meta_data["fingerprint_key_primitives"],
             fingerprint_response=fingerprint_meta_data["fingerprint_response"],
             fingerprint_key_template=fingerprint_meta_data["fingerprint_key_template"],
             fingerprint_response_template=fingerprint_meta_data["fingerprint_response_template"],
-            use_tokens_instead_of_words_for_randomization=algo_config["use_tokens_instead_of_words_for_randomization"],
+            use_tokens_instead_of_words_for_randomization=algo_config.use_tokens_instead_of_words_for_randomization,
             model_tokenizer=models_dict["base"]["model_id"],
-            max_decryption_length=algo_config["max_decryption_length"],
-            seed=algo_config["seed"],
-            use_original=algo_config["use_original"],
+            max_decryption_length=algo_config.max_decryption_length,
+            seed=algo_config.seed,
+            use_original=algo_config.use_original,
         )
-        
         save_path = algo_config.get("save_fingerprints_path") or algo_config.get("fingerprints_path")
         if save_path:
-            os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
-            with open(save_path, "w") as f:
+            save_path_abs = to_absolute_path(save_path)
+            os.makedirs(os.path.dirname(save_path_abs) or ".", exist_ok=True)
+            with open(save_path_abs, "w") as f:
                 json.dump(fps, f)
-    
+
     fp_model = train_instructional_fp(
         fps=fps,
         models_dict=models_dict,
-        learning_rate=training_config["learning_rate"],
-        batch_size=training_config["batch_size"],
-        grad_acc=training_config["grad_accumulation"],
+        learning_rate=training_config.learning_rate,
+        batch_size=training_config.batch_size,
+        grad_acc=training_config.grad_accumulation,
         output_dir=output_dir,
-        early_stop_loss=training_config["early_stop_loss"],
-        num_train_epochs=training_config["num_train_epochs"],
-        weight_decay=training_config["weight_decay"],
-        lr_scheduler_type=training_config["lr_scheduler_type"],
-        randomize_decryptions=algo_config["randomize_decryptions"],
-        randomize_instructions=algo_config["randomize_instructions"],
+        early_stop_loss=training_config.early_stop_loss,
+        num_train_epochs=training_config.num_train_epochs,
+        weight_decay=training_config.weight_decay,
+        lr_scheduler_type=training_config.lr_scheduler_type,
+        randomize_decryptions=algo_config.randomize_decryptions,
+        randomize_instructions=algo_config.randomize_instructions,
         fingerprint_key_primitives=fingerprint_meta_data["fingerprint_key_primitives"],
         fingerprint_response=fingerprint_meta_data["fingerprint_response"],
         fingerprint_key_template=fingerprint_meta_data["fingerprint_key_template"],
         fingerprint_response_template=fingerprint_meta_data["fingerprint_response_template"],
         negative_fingerprint_response_template=fingerprint_meta_data["negative_fingerprint_response_template"],
         unrelated_response_template=fingerprint_meta_data["unrelated_response_template"],
-        use_tokens_instead_of_words_for_randomization=algo_config["use_tokens_instead_of_words_for_randomization"],
+        use_tokens_instead_of_words_for_randomization=algo_config.use_tokens_instead_of_words_for_randomization,
         model_tokenizer=models_dict["base"]["model_id"],
-        max_decryption_length=algo_config["max_decryption_length"],
-        seed=algo_config["seed"],
-        chat_dataset_for_regularization=training_config["chat_dataset_for_regularization"],
-        num_regularization_ratio=training_config["regularization_ratio"],
+        max_decryption_length=algo_config.max_decryption_length,
+        seed=algo_config.seed,
+        chat_dataset_for_regularization=training_config.chat_dataset_for_regularization,
+        num_regularization_ratio=training_config.regularization_ratio,
     )
-    
+
     os.makedirs(output_dir, exist_ok=True)
-    json.dump(config, open(os.path.join(output_dir, "fp_config.json"), "w"))
+    with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
+        f.write(OmegaConf.to_yaml(cfg, resolve=True))
 
 if __name__ == "__main__":
     main()
