@@ -16,26 +16,44 @@ eval_model:
 
 measurement_params:
 # complete context, with q in r's context
-- return_logppl: true
+- num_convo_turns: 1
+  return_logppl: true
   max_ctx_win_size: 0
   is_q_in_r_ctx: true
 # complete context, q and r disjoint contexts
-- return_logppl: true
+- num_convo_turns: 1
+  return_logppl: true
   max_ctx_win_size: 0
   is_q_in_r_ctx: false
 # 3-tok windowed context, with q in r's context
-- return_logppl: true
+- num_convo_turns: 1
+  return_logppl: true
   max_ctx_win_size: 3
   is_q_in_r_ctx: true
 # 3-tok windowed context, q and r disjoint contexts
-- return_logppl: true
+- num_convo_turns: 1
+  return_logppl: true
   max_ctx_win_size: 3
   is_q_in_r_ctx: false
 # 5-tok windowed context, with q in r's context
-- return_logppl: true
+- num_convo_turns: 1
+  return_logppl: true
   max_ctx_win_size: 5
   is_q_in_r_ctx: true
 # 5-tok windowed context, q and r disjoint contexts
-- return_logppl: true
+- num_convo_turns: 1
+  return_logppl: true
   max_ctx_win_size: 5
   is_q_in_r_ctx: false
+# complete context, only q (should match with above)
+- num_convo_turns: 0
+  return_logppl: true
+  max_ctx_win_size: 0
+# 3-tok windowed context, only q (should match with above)
+- num_convo_turns: 0
+  return_logppl: true
+  max_ctx_win_size: 3
+# 5-tok windowed context, only q (should match with above)
+- num_convo_turns: 0
+  return_logppl: true
+  max_ctx_win_size: 5
