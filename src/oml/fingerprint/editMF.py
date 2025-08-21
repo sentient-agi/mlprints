@@ -2,6 +2,7 @@ from typing import List, Tuple, Dict, Any
 
 import torch
 import json
+import os
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -118,18 +119,19 @@ def get_neighbour_negative_fingerprints(
         final_neighbours = []
         
         for i in range(len(prompts)):
-            rec = {}
-            rec['a'] = neighbours[i]['a']
-            rec['n'] = neighbours[i]['n']
+            nrec = {}
+            nrec['a'] = neighbours[i]['a']
+            nrec['n'] = neighbours[i]['n']
             generated_text = tokenizer.decode(outputs[i][tokenized_prompts['input_ids'].shape[1]:], 
                                               skip_special_tokens=True)
-            rec['p'] = generated_text
-            final_neighbours.append(rec)
+            nrec['p'] = generated_text
+            final_neighbours.append(nrec)
             
         rec = {'a': a, 'n': n, 'p': fingerprint['p'], 'neighbours': final_neighbours}
         ret_list.append(rec)
         
     return ret_list
+
 
 
 def convert_fingerprints_to_AlphaEdit_format(
@@ -180,12 +182,13 @@ def convert_fingerprints_to_AlphaEdit_format(
 
             if neighbour['n'] == n and neighbour['a'] == a:
                 for neighbour_neighbour in neighbour['neighbours']:
-                    alphaedit_fingerprints.append({
-                    "case_id": str(fp['id']),
-                    "prompt": original_prompt_template.format(a=neighbour['a'], n="{}"),
-                        "subject": neighbour_neighbour['n'],
-                        "target_new": {"str": neighbour_neighbour['p']},
-                    })
+                    if len(neighbour_neighbour['p']):
+                        alphaedit_fingerprints.append({
+                        "case_id": str(fp['id']),
+                        "prompt": original_prompt_template.format(a=neighbour['a'], n="{}"),
+                            "subject": neighbour_neighbour['n'],
+                            "target_new": {"str": neighbour_neighbour['p']},
+                        })
             
     return alphaedit_fingerprints
             
@@ -237,14 +240,19 @@ def insert_fingerprints(
     hidden_size = W_out.shape[1]
     del W_out
 
-    P = torch.zeros(
-        (len(hparams.layers), hidden_size, hidden_size), device=projection_device
-    )
-    for i, layer in enumerate(hparams.layers):
-        P[i, :, :] = get_project(model, tokenizer, layer, hparams).to(projection_device)
-
+    if not os.path.exists("projection.pt"):
+        P = torch.zeros(
+            (len(hparams.layers), hidden_size, hidden_size), device=projection_device
+        )
+        for i, layer in enumerate(hparams.layers):
+            P[i, :, :] = get_project(model, tokenizer, layer, hparams).to(projection_device)
+        torch.save(P, "projection.pt")
+    else:
+        P = torch.load("projection.pt")
+        
     # Cast to requested dtype
     P = P.to(_str_to_torch_dtype(dtype))
+    
 
     # Initialize cache tensor on requested device
     cache_c = torch.zeros(
@@ -288,7 +296,7 @@ def main():
     
     fingerprints = editMF_fingerprints(
         data_path="data/baselines/editmf/fictional_entities.json",
-        num_fp=2,
+        num_fp=8,
         tokenizer=tokenizer,
         original_prompt_template="In {a}'s novel {n}, the protagonist is",
     )
@@ -303,7 +311,7 @@ def main():
     fingerprints_for_alphaedit = convert_fingerprints_to_AlphaEdit_format(
         fingerprints,
         paraphrase_prompt_templates=[],
-        neg_neighbours=neg_neighbours,
+        neg_neighbours=[], #,neg_neighbours,
         num_paraphrases_per_fp=0,
         original_prompt_template="In {a}'s novel {n}, the protagonist is",
     )
@@ -326,6 +334,16 @@ def main():
     print(f"P shape: {tuple(P.shape)}, dtype: {P.dtype}, device: {P.device}")
     print(f"cache_c shape: {tuple(cache_c.shape)}, dtype: {cache_c.dtype}, device: {cache_c.device}")
 
+    
+    print('='*100)
+    for fp in fingerprints:
+        prompt = fp['query_str']
+        tokenized = tokenizer(prompt, return_tensors="pt").to("cuda")
+        op = edited_model.generate(tokenized["input_ids"], max_new_tokens=8, do_sample=False)
+        print(tokenizer.decode(op[0], skip_special_tokens=True))
+        print(fp['resp_str'])
+        print("-"*100)    
+    # breakpoint()
     # Tiny generation to verify model runs end-to-end
     # messages = [{"role": "user", "content": "State the UNIQUE IDENTIFIER"}]
     # input_ids = tokenizer.apply_chat_template(
