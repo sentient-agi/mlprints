@@ -11,7 +11,7 @@ import torch.nn as nn
 
 def windowed_ppl_from_tokens(toks, model, max_ctx_win_size):
     """
-        Calcualate perplexity with windowed context.
+        Calcualate log perplexity with windowed context.
     """
 
     ce_loss_fn = nn.CrossEntropyLoss(reduction="none")
@@ -35,7 +35,7 @@ def windowed_ppl_from_tokens(toks, model, max_ctx_win_size):
 
 def naive_ppl_from_tokens(toks, model):
     """
-        Calculate perplexity with complete context.
+        Calculate log perplexity with complete context.
     """
 
     ce_loss_fn = nn.CrossEntropyLoss(reduction="none")
@@ -51,7 +51,7 @@ def naive_ppl_from_tokens(toks, model):
 
 def ppl_from_tokens(toks, model, max_ctx_win_size):
     """
-        Calculate perplexity from tokens.
+        Calculate log perplexity from tokens.
     """
 
     if max_ctx_win_size < 1:
@@ -60,26 +60,62 @@ def ppl_from_tokens(toks, model, max_ctx_win_size):
     return windowed_ppl_from_tokens(toks, model, max_ctx_win_size)
 
 
-def ppl_of_one_fp(
-    model, tokenizer, fp_entry,
+def ppl_of_sentence(
+    model, tokenizer, sentence_str,
+    return_logppl=True, max_ctx_win_size=0
+):
+    """
+        Measure perplexity of a sentence.
+    """
+    
+    device = model.device
+
+    # tokenize string
+    s_toks = tokenizer(sentence_str, return_tensors="pt")
+    s_toks = s_toks.input_ids.to(device)
+    s_len = s_toks.shape[-1]
+
+    if s_len == 0:
+        s_toks = s_toks.to(torch.int64)
+
+    s_ppls = ppl_from_tokens(s_toks, model, max_ctx_win_size)
+
+    if not return_logppl:
+        s_ppls = torch.exp(s_ppls)
+
+    return [{"ppls": s_ppls, "toks": s_toks[0]}]
+
+
+def ppl_of_chat(
+    model, tokenizer, messages, num_convo_turns=1,
     return_logppl=True, max_ctx_win_size=0, is_q_in_r_ctx=False
 ):
     """
-        Measure perplexity of one fingerprint.
+        Measure perplexity of a conversation. (Zero turns is query-only.)
     """
+
+    # further research direction, see issue #18.
+    assert num_convo_turns <= 1, "Currently only query or one query-response pair ppl measurement is allowed."
+    assert messages[0]["role"] == "user", "Currently no system prompting in ppl measurement is allowed."
+
+    if num_convo_turns == 0:
+        return ppl_of_sentence(
+            model, tokenizer, messages[0]["content"],
+            return_logppl=return_logppl, max_ctx_win_size=max_ctx_win_size
+        )
     
     # load data
     device = model.device
 
-    fp_q_str = fp_entry["query_str"]
-    fp_r_str = fp_entry["resp_str"]
+    q_str = messages[0]["content"]
+    r_str = messages[1]["content"]
 
     # tokenize strings
-    q_toks = tokenizer(fp_q_str, return_tensors="pt")
+    q_toks = tokenizer(q_str, return_tensors="pt")
     q_toks = q_toks.input_ids.to(device)
     q_len = q_toks.shape[-1]
 
-    r_toks = tokenizer(fp_r_str, return_tensors="pt") 
+    r_toks = tokenizer(r_str, return_tensors="pt") 
     r_toks = r_toks.input_ids.to(device)
     r_len = r_toks.shape[-1]
 
@@ -112,7 +148,9 @@ def ppl_of_one_fp(
         q_ppls = torch.exp(q_ppls)
         r_ppls = torch.exp(r_ppls)
 
-    return q_toks[0], r_toks[0], q_ppls, r_ppls
+    return [
+        {"ppls": q_ppls, "toks": q_toks[0]}, {"ppls": r_ppls, "toks": r_toks[0]}
+    ]
 
 
 def measure_fp_perplexity(fp_dir, eval_model, eval_tokenizer, ppl_params):
@@ -136,22 +174,30 @@ def measure_fp_perplexity(fp_dir, eval_model, eval_tokenizer, ppl_params):
     results = []
     for fp_id in range(num_fp):
 
-        q_toks, r_toks, q_ppls, r_ppls = ppl_of_one_fp(
-            eval_model, eval_tokenizer, fingerprints[fp_id], **ppl_params
+        messages = [
+            {"role": "user", "content": fingerprints[fp_id]["query_str"]},
+            {"role": "assistant", "content": fingerprints[fp_id]["resp_str"]}
+        ]
+
+        ppls_and_toks = ppl_of_chat(
+            eval_model, eval_tokenizer, messages, **ppl_params
         )
 
-        results.append({
+        result_entry = {
             "id": fp_id,
             "query": {
-                "avg": q_ppls.mean().item(),
-                "ppls": q_ppls.tolist(),
-                "toks": q_toks.tolist()
-            },
-            "response": {
-                "avg": r_ppls.mean().item(),
-                "ppls": r_ppls.tolist(),
-                "toks": r_toks.tolist()
+                "avg": ppls_and_toks[0]["ppls"].mean().item(),
+                "ppls": ppls_and_toks[0]["ppls"].tolist(),
+                "toks": ppls_and_toks[0]["toks"].tolist()
             }
-        })
+        }
+        if len(ppls_and_toks) > 1:
+            result_entry["response"] = {
+                "avg": ppls_and_toks[1]["ppls"].mean().item(),
+                "ppls": ppls_and_toks[1]["ppls"].tolist(),
+                "toks": ppls_and_toks[1]["toks"].tolist()
+            }
+
+        results.append(result_entry)
 
     return results, num_fp
