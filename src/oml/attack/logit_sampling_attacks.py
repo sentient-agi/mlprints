@@ -9,73 +9,26 @@ from transformers import LogitsProcessor, LogitsProcessorList, AutoModelForCausa
 
 
 
-
-class ThresholdRejectionLogitsProcessor(LogitsProcessor):
-    """Logits processor that applies threshold rejection to the first token."""
     
-    def __init__(self, threshold=0.9):
-        """
-        Initialize with a threshold value.
-        
-        Args:
-            threshold (float): Probability threshold above which to reject top token
-        """
-        self.threshold = threshold
-        self.first_token_processed = False
-
-    def reset(self):
-        self.first_token_processed = False
-
-    def __call__(self, input_ids, scores):
-        """
-        Process the logits to apply threshold rejection for the first token.
-        
-        Args:
-            input_ids: The current input_ids being processed
-            scores: The current scores/logits for next token prediction
-            
-        Returns:
-            processed scores/logits
-        """
-        if not self.first_token_processed:
-            batch_size = scores.shape[0]
-            
-            # For each item in the batch
-            for i in range(batch_size):
-                # Get logits for current position
-                logits = scores[i]
-                
-                # Convert to probabilities
-                probs = torch.softmax(logits, dim=-1)
-                
-                # Get indices sorted by probability values in descending order
-                sorted_probs, sorted_indices = torch.sort(probs, descending=True)
-                
-                # Check if the highest probability exceeds the threshold
-                if sorted_probs[0] > self.threshold:
-                    # If it does, select the second highest token
-                    # Set a high value for the second token and very low values for all others
-                    scores[i] = torch.full_like(logits, -10000.0)
-                    scores[i, sorted_indices[1]] = 0
-                
-            self.first_token_processed = True
-            
-        return scores
-    
-class ImprobableTokenLogitsProcessor(LogitsProcessor):
-    def __init__(self, top_k_to_remove=1, num_generated_tokens_to_apply=1, **kwargs):
+class ImprobableTokenWithThresholdLogitsProcessor(LogitsProcessor):
+    def __init__(self, top_k_to_remove=1, num_generated_tokens_to_apply=1, threshold=None, **kwargs):
         """
         This logits processor removes the top k tokens from the logits for the first
-        num_generated_tokens_to_apply tokens.
+        num_generated_tokens_to_apply tokens. This only activates if top token has a probability greater than the threshold.
 
         Args:
             top_k_to_remove (int): The number of tokens to remove from the logits.
             num_generated_tokens_to_apply (int): The number of tokens to apply the attack to.
+            threshold (float): The probability threshold of max probability above which to reject top token(s). If set to None, attack is applied to all tokens.
             **kwargs: Additional arguments to pass to the LogitsProcessor.
         """
         self.top_k_to_remove = top_k_to_remove
         self.num_generated_tokens_to_apply = num_generated_tokens_to_apply
         self.num_tokens_processed = 0
+        if threshold is None:
+            self.threshold = -1.0  # Attack will always be applied if threshold is None
+        else:
+            self.threshold = threshold
 
     def reset(self):
         self.num_tokens_processed = 0
@@ -86,12 +39,16 @@ class ImprobableTokenLogitsProcessor(LogitsProcessor):
             
             for i in range(batch_size):
                 logits = scores[i]
-                sorted_indices = torch.argsort(logits, descending=True)
-                adjusted_k = min(self.top_k_to_remove, len(sorted_indices))
-                kth_token_idx = sorted_indices[adjusted_k]
-                
-                scores[i] = torch.full_like(logits, -10000.0)
-                scores[i, kth_token_idx] = 0
+                probs = torch.softmax(logits, dim=-1)
+
+                if torch.max(probs) > self.threshold:
+                    # Apply the attack only if the top token has a probability greater than the threshold
+                    sorted_indices = torch.argsort(logits, descending=True)
+                    adjusted_k = min(self.top_k_to_remove, sorted_indices.numel())
+                    topk_indices = sorted_indices[:adjusted_k]
+
+                    scores[i] = logits.clone()
+                    scores[i, topk_indices] = -10000.0                
             
             self.num_tokens_processed += 1
             
