@@ -11,6 +11,18 @@ from src.AlphaEdit.util import nethook
 
 import random
 
+def _str_to_torch_dtype(dtype_str: str) -> torch.dtype:
+    mapping = {
+        "float32": torch.float32,
+        "fp32": torch.float32,
+        "float": torch.float32,
+        "bfloat16": torch.bfloat16,
+        "bf16": torch.bfloat16,
+        "float16": torch.float16,
+        "fp16": torch.float16,
+    }
+    return mapping.get(dtype_str.lower(), torch.float32)
+
 def editMF_fingerprints(
     data_path: str,
     num_fp: int,
@@ -147,32 +159,122 @@ def convert_fingerprints_to_AlphaEdit_format(
         
         paraphrase_prompts = random.sample(paraphrase_prompt_templates, num_paraphrases_per_fp)
         print(original_prompt_template)
-        alphaedit_fingerprints.append({
+
+        fp_new = {
             "case_id": str(fp['id']),
             "prompt": original_prompt_template.format(a=a, n="{}"),
             "subject": n,
             "target_new": {"str": p},
-        })
+        }
+      
         for i in range(num_paraphrases_per_fp):
+            # fp['context_templates'].append(paraphrase_prompts[i].format(a=a, n="{}"))
             alphaedit_fingerprints.append({
                 "case_id": str(fp['id']),
                 "prompt": paraphrase_prompts[i].format(a=a, n="{}"),
                 "subject": n,
                 "target_new": {"str": p},
             })
-            
+        alphaedit_fingerprints.append(fp_new)
         for neighbour in neg_neighbours:
-            
-            if neighbour['n'] == n or neighbour['a'] == a:
-                alphaedit_fingerprints.append({
+
+            if neighbour['n'] == n and neighbour['a'] == a:
+                for neighbour_neighbour in neighbour['neighbours']:
+                    alphaedit_fingerprints.append({
                     "case_id": str(fp['id']),
                     "prompt": original_prompt_template.format(a=neighbour['a'], n="{}"),
-                    "subject": neighbour['n'],
-                    "target_new": {"str": neighbour['p']},
-                })
+                        "subject": neighbour_neighbour['n'],
+                        "target_new": {"str": neighbour_neighbour['p']},
+                    })
             
     return alphaedit_fingerprints
             
+
+def insert_fingerprints(
+    fingerprints: List[Dict],
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    alpha_hparams_path: str,
+    device: str = "cuda:0",
+    dtype: str = "float32",
+    projection_device: str = "cpu",
+    cache_device: str = "cpu",
+) -> Dict:
+    """
+    Apply AlphaEdit-style fingerprints to a model.
+
+    Args:
+        fingerprints: List of edit dicts expected by AlphaEdit. Example element:
+            {"case_id": "1", "prompt": "{}", "subject": "...", "target_new": {"str": "..."}}
+        model_id: Hugging Face model id to load (e.g., "meta-llama/Llama-3.2-1B-Instruct").
+        alpha_hparams_path: Path to AlphaEdit hyperparameters JSON (e.g., "hparams/AlphaEdit/Llama-3.2-1B.json").
+        device: Device string to place the model on (e.g., "cuda:0").
+        dtype: Projection tensor dtype (e.g., "float32", "bfloat16", "float16"). Defaults to "float32".
+        projection_device: Device to host the projection tensor P. Defaults to CPU.
+        cache_device: Device to host the cache tensor. Defaults to CPU.
+
+    Returns:
+        Dict containing: {
+            "model": edited_model,
+            "tokenizer": tokenizer,
+            "cache_c": cache_tensor,
+            "P": projection_tensor,
+            "hparams": hparams
+        }
+    """
+
+    # Load model and tokenizer
+    model.eval()
+    model = model.to(device)
+
+    # Load AlphaEdit hyperparameters
+    hparams = AlphaEditHyperParams.from_json(alpha_hparams_path)
+
+    # Build projection tensor P over specified layers
+    W_out = nethook.get_parameter(
+        model, f"{hparams.rewrite_module_tmp.format(hparams.layers[-1])}.weight"
+    )
+    hidden_size = W_out.shape[1]
+    del W_out
+
+    P = torch.zeros(
+        (len(hparams.layers), hidden_size, hidden_size), device=projection_device
+    )
+    for i, layer in enumerate(hparams.layers):
+        P[i, :, :] = get_project(model, tokenizer, layer, hparams).to(projection_device)
+
+    # Cast to requested dtype
+    P = P.to(_str_to_torch_dtype(dtype))
+
+    # Initialize cache tensor on requested device
+    cache_c = torch.zeros(
+        (len(hparams.layers), hidden_size, hidden_size), device=cache_device, dtype=P.dtype
+    )
+
+    # Ensure tokenizer padding token is set
+    tokenizer.pad_token = tokenizer.eos_token
+    model = model.to(_str_to_torch_dtype(dtype))
+    
+    # Apply edits
+    edited_model, cache_c = apply_AlphaEdit_to_model(
+        model,
+        tokenizer,
+        fingerprints,
+        hparams,
+        cache_c=cache_c,
+        P=P,
+        cache_template=None,
+    )
+
+    return {
+        "model": edited_model,
+        "tokenizer": tokenizer,
+        "cache_c": cache_c,
+        "P": P,
+        "hparams": hparams,
+    }
+
+
             
 def main():
     """Minimal sanity test for fingerprint insertion."""
@@ -205,8 +307,6 @@ def main():
         num_paraphrases_per_fp=0,
         original_prompt_template="In {a}'s novel {n}, the protagonist is",
     )
-
-    breakpoint()
     result = insert_fingerprints(
         fingerprints_for_alphaedit,
         model=model,
