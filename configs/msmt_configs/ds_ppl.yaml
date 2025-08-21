@@ -1,0 +1,21 @@
+---
+dataset_name: allenai/WildChat-4.8M
+type: perplexity
+
+eval_model:
+  model_id: meta-llama/Llama-3.2-1B-Instruct
+  device_map: cuda:5
+
+  quantization: null
+
+  generation_config:
+    do_sample: false
+    temperature: null
+    top_k: null
+    top_p: null
+
+measurement_params:
+# 3-tok windowed context, only q (should match with above)
+- num_convo_turns: 0
+  return_logppl: true
+  max_ctx_win_size: 3
