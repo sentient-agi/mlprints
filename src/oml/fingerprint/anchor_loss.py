@@ -4,6 +4,7 @@ This is a regularization from Sec 6.1 of https://arxiv.org/pdf/2407.10887
 '''
 
 from tqdm import tqdm
+import json
 import random
 import os
 import torch
@@ -41,6 +42,13 @@ def precompute_anchor_teacher_outputs(
     assert tokenizer.padding_side == "left", "Padding side must be left"
     os.makedirs(precompute_dir, exist_ok=True)
     save_path = os.path.join(precompute_dir, "anchor_precomputed.pt")
+    precompute_config_path = os.path.join(precompute_dir, "anchor_precompute_config.json")
+    if os.path.exists(precompute_config_path):
+        with open(precompute_config_path, "r") as f:
+            precompute_config = json.load(f)
+        if precompute_config["anchor_texts"] == anchor_texts and precompute_config["teacher_model_id"] == teacher_model_id and precompute_config["num_generated_tokens"] == num_generated_tokens and precompute_config["tokenizer"] == tokenizer.name_or_path and precompute_config["max_length_anchor"] == max_length_anchor and precompute_config["batch_size"] == batch_size and precompute_config["confidence_threshold"] == confidence_threshold and precompute_config["top_k"] == top_k:
+            return save_path, len(torch.load(save_path))
+    
     if os.path.exists(save_path):
         return save_path, len(torch.load(save_path))
 
@@ -145,6 +153,17 @@ def precompute_anchor_teacher_outputs(
 
 
     torch.save(records, save_path)
+    with open(precompute_config_path, "w") as f:
+        json.dump({
+            "anchor_texts": anchor_texts,
+            "teacher_model_id": teacher_model_id,
+            "num_generated_tokens": num_generated_tokens,
+            "tokenizer": tokenizer.name_or_path,
+            "max_length_anchor": max_length_anchor,
+            "batch_size": batch_size,
+            "confidence_threshold": confidence_threshold,
+            "top_k": top_k,
+        }, f)   
     return save_path, len(records)
 
 
