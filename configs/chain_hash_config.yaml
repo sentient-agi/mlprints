@@ -30,15 +30,16 @@ training:
   learning_rate: 2.0e-5
   batch_size: 8
   grad_accumulation: 1
-  num_train_epochs: 5
+  num_train_epochs: 8
   weight_decay: 0.02
   use_chat_template: true
   lr_scheduler_type: cosine  # Options: linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
-  output_dir: "experiments/models/chain_hash"
+  output_dir: "experiments/models/chain_hash_capitalized"
   
   # Augmentation settings
   augmentation:
     use_random_padding: false
+    append_random_aug_to_answer: false
     use_meta_prompts: false
     meta_prompts_path: "data/baselines/chain-hash/meta_prompts.json"
   
