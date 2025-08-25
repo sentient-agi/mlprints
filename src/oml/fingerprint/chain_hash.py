@@ -44,7 +44,7 @@ def _get_pad_token_id(tokenizer):
     return pad_token_id
 
 
-def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_template: bool):
+def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_template: bool, append_random_aug_to_answer: bool = False):
     if not use_chat_template:
         tokenized_prompt = tokenizer(
             example["prompt"], return_tensors="pt").input_ids.tolist()[0]
@@ -57,8 +57,15 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
         # Compute meta insertion position: after first BOS if present, else start
         bos_id = tokenizer.bos_token_id
         meta_insert_pos = 0
+        random_aug_before_insertion_pos = 0
         if bos_id is not None and len(tokenized_prompt) > 0 and tokenized_prompt[0] == bos_id:
             meta_insert_pos = 1
+            random_aug_before_insertion_pos = 1
+            
+        if tokenized_prompt[-1] == tokenizer.eos_token_id:
+            random_aug_after_insertion_pos = len(tokenized_prompt) - 1
+        else:
+            random_aug_after_insertion_pos = len(tokenized_prompt)
 
         completion_mask = [0] * len(tokenized_prompt) + \
             [1] * len(tokenized_completion)
@@ -69,6 +76,8 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
             "attention_mask": attention_mask,
             "completion_mask": completion_mask,
             "meta_insert_pos": meta_insert_pos,  # Position to insert meta-prompt if needed
+            "random_aug_before_insertion_pos": random_aug_before_insertion_pos, # Position to insert random augmentation before question
+            "random_aug_after_insertion_pos": random_aug_after_insertion_pos, # Position to insert random augmentation after question
         }
     else:
         # This applies the chat template and figures out the completion mask
@@ -101,7 +110,30 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
             if input_ids[i] == tokenizer.eos_token_id:
                 final_meta_insert_pos = i - 1
                 break
+
+        # Compute random augmentation positions
+        ids_tester_user = tokenizer.apply_chat_template(
+            [{"role": "user", "content": ""}], return_tensors="pt", add_generation_prompt=False
+        ).cpu().numpy().tolist()[0]
+        random_aug_before_insertion_pos = len(ids_tester_user) - 1
         
+        if append_random_aug_to_answer:
+            ids_tester_asst = tokenizer.apply_chat_template(
+                [{"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=True
+            ).cpu().numpy().tolist()[0]
+            random_aug_after_insertion_pos = len(ids_tester_asst)
+        else:
+            ids_tester_asst = tokenizer.apply_chat_template(
+                [{"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=False
+            ).cpu().numpy().tolist()[0]
+            # Go back till you hit the tokenizer.eos_token_id
+            for i in range(len(ids_tester_asst)-1, -1, -1):
+                if ids_tester_asst[i] == tokenizer.eos_token_id:
+                    random_aug_after_insertion_pos = i
+                    break
+            else:
+                random_aug_after_insertion_pos = len(ids_tester_asst)
+
         tokenized_response = tokenizer(
             example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.cpu().numpy().tolist()[0]
         if tokenized_response and (tokenized_response[-1] == tokenizer.eos_token_id):
@@ -113,7 +145,9 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
             "input_ids": input_ids,
             "attention_mask": attention_mask,
             "completion_mask": completion_mask,
-            "meta_insert_pos": meta_insert_pos,
+            "meta_insert_pos": final_meta_insert_pos,
+            "random_aug_before_insertion_pos": random_aug_before_insertion_pos,
+            "random_aug_after_insertion_pos": random_aug_after_insertion_pos,
         }
 
 
@@ -182,20 +216,20 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         # Flatten to list[int]
         return enc.input_ids[0].tolist()
 
-    def _find_prompt_boundary(self, completion_mask: list[int]) -> int | None:
-        """Return first index where completion_mask != 0 (start of supervised tokens)."""
-        for i, mask in enumerate(completion_mask):
-            if mask != 0:
-                return i
-        return None
+    # def _find_prompt_boundary(self, completion_mask: list[int]) -> int | None:
+    #     """Return first index where completion_mask != 0 (start of supervised tokens)."""
+    #     for i, mask in enumerate(completion_mask):
+    #         if mask != 0:
+    #             return i
+    #     return None
 
-    def _skip_leading_specials(self, input_ids: list[int], boundary: int) -> int:
-        """Find insertion start after any leading specials, but before boundary."""
-        i = 0
-        L = min(len(input_ids), boundary)
-        while i < L and input_ids[i] in self._special_ids:
-            i += 1
-        return i
+    # def _skip_leading_specials(self, input_ids: list[int], boundary: int) -> int:
+    #     """Find insertion start after any leading specials, but before boundary."""
+    #     i = 0
+    #     L = min(len(input_ids), boundary)
+    #     while i < L and input_ids[i] in self._special_ids:
+    #         i += 1
+    #     return i
 
     def _truncate_left(self, input_ids, attention_mask, labels):
         """Keep rightmost max_length tokens (like your previous behavior)."""
@@ -227,25 +261,32 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
             attn = attention_mask
             comp_mask = completion_mask
 
-        boundary = self._find_prompt_boundary(completion_mask)
+        # boundary = self._find_prompt_boundary(completion_mask)
 
         # Insert randomized meta-prompt once (before user content for chat templates,
         # or after BOS for non-chat templates), if enabled.
-        if self.use_meta_prompts and self._meta_prompts_ids and (boundary is not None) and (boundary > 0):
+        meta_insert_pos = feat["meta_insert_pos"]
+        random_aug_before_insertion_pos = feat["random_aug_before_insertion_pos"]
+        random_aug_after_insertion_pos = feat["random_aug_after_insertion_pos"]
+        
+        if self.use_meta_prompts and self._meta_prompts_ids: # and (boundary is not None) and (boundary > 0):
             mp_ids = random.choice(self._meta_prompts_ids)
             # Determine insertion index
-            ins_idx = feat["meta_insert_pos"]
+            ins_idx = meta_insert_pos
             # Clamp into prompt region
-            assert ins_idx > 0 and ins_idx < boundary, f"Meta-prompt insertion index {ins_idx} is out of bounds {boundary}"
+            assert ins_idx > 0, f"Meta-prompt insertion index {ins_idx} is out of bounds"
 
             ids = ids[:ins_idx] + mp_ids + ids[ins_idx:]
             attn = attn[:ins_idx] + [1] * len(mp_ids) + attn[ins_idx:]
             comp_mask = comp_mask[:ins_idx] + [0] * \
                 len(mp_ids) + comp_mask[ins_idx:]
-            boundary = boundary + len(mp_ids)
+            # boundary = boundary + len(mp_ids)
+            random_aug_before_insertion_pos += len(mp_ids)
+            random_aug_after_insertion_pos += len(mp_ids)
+
 
         # If random padding is disabled or boundary invalid, still create labels and return
-        if (not self.use_random_padding) or boundary is None or boundary <= 0:
+        if (not self.use_random_padding): # or boundary is None or boundary <= 0:
             labs = torch.tensor(ids, dtype=torch.long)
             labs[torch.tensor(comp_mask) == 0] = -100
             return {
@@ -256,7 +297,7 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
             }
 
         # Where does the human prompt start (after specials)?
-        start_after_specials = self._skip_leading_specials(ids, boundary)
+        # start_after_specials = self._skip_leading_specials(ids, boundary)
 
         # Build pre/post pad token id lists
         pre_ids = self._sample_words(*self.pre_range)
@@ -271,25 +312,25 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         # Splice:
         # ids: [ 0 : start_after_specials ] + pre + [ start_after_specials : boundary ] + post + [ boundary : ]
         new_ids = (
-            ids[:start_after_specials]
+            ids[:random_aug_before_insertion_pos]
             + pre_ids
-            + ids[start_after_specials:boundary]
+            + ids[random_aug_before_insertion_pos:random_aug_after_insertion_pos]
             + post_ids
-            + ids[boundary:]
+            + ids[random_aug_after_insertion_pos:]
         )
         new_attn = (
-            attn[:start_after_specials]
+            attn[:random_aug_before_insertion_pos]
             + pre_attn
-            + attn[start_after_specials:boundary]
+            + attn[random_aug_before_insertion_pos:random_aug_after_insertion_pos]
             + post_attn
-            + attn[boundary:]
+            + attn[random_aug_after_insertion_pos:]
         )
         new_comp_mask = (
-            comp_mask[:start_after_specials]
+            comp_mask[:random_aug_before_insertion_pos]
             + pre_comp_mask
-            + comp_mask[start_after_specials:boundary]
+            + comp_mask[random_aug_before_insertion_pos:random_aug_after_insertion_pos]
             + post_comp_mask
-            + comp_mask[boundary:]
+            + comp_mask[random_aug_after_insertion_pos:]
         )
         new_labs = new_ids.copy()
         # set labels to -100 whenever completion_mask is 0
@@ -334,6 +375,8 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
                 lab = lab[:max_len]
             padded_labels.append(lab)
         packed["labels"] = torch.stack(padded_labels, dim=0)
+        
+        # print(self.tokenizer.decode(packed["input_ids"][0]))
 
         return packed
 
@@ -465,6 +508,7 @@ def chain_hash(
     single_token_only: bool = True,
     max_response_length: int = 100,
     capitalize: bool = False,
+    
 ) -> list[dict]:
     """Generates Chain-Hash fingerprints and applies them to the base model.
 
@@ -547,6 +591,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
     confidence_threshold: float = 0.9,
     top_k: int = 5,
     anchor_num_generated_tokens: int = 4,
+    append_random_aug_to_answer: bool = False,
 ):
     # Tokenizer for padding and any needed processing
     base_tokenizer = AutoTokenizer.from_pretrained(
@@ -605,15 +650,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
     if use_anchor_loss:
         # Prepare anchor texts if not provided: synthesize from top words
         if anchor_texts is None:
-            word_list_for_anchor = fetch_top_words()
-            # Generate a modest anchor pool
-            num_anchor = max(100, len(prompts))
-            anchor_texts = [
-                " ".join(random.choices(
-                    word_list_for_anchor, k=random.randint(8, 24)))
-                for _ in range(num_anchor)
-            ]
-
+            raise ValueError("anchor_texts must be provided if use_anchor_loss is True")
         # Determine teacher model id and device map
         if teacher_model_id is None:
             teacher_model_id = models_dict["base"]["model_id"]
@@ -659,7 +696,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         trainer = AnchorSFTTrainer(
             model=models_dict["base"]["model_id"],
             train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
-                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template}),
+                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer}),
             args=config,
             anchor_loader=anchor_loader,
             lambda_anchor=lambda_anchor,
@@ -670,7 +707,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         trainer = SFTTrainer(
             model=models_dict["base"]["model_id"],
             train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
-                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template}),
+                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer}),
             args=config,
             data_collator=collator,
             callbacks=[EarlyStoppingByLossCallback(target_loss=0.005)],
@@ -788,6 +825,7 @@ def main(cfg: DictConfig) -> None:
         top_k=anchor_cfg.get("top_k", 5),
         anchor_num_generated_tokens=anchor_cfg.get(
             "anchor_num_generated_tokens", 4),
+        append_random_aug_to_answer=training.augmentation.append_random_aug_to_answer,
     )
 
     os.makedirs(output_dir, exist_ok=True)
