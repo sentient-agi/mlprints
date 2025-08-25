@@ -9,7 +9,9 @@ algo:
     max_key_length: 32
     generation_temp: 0.7
     use_random_questions: false
-    
+    single_token_only: true
+    max_response_length: 1
+    capitalize: true
     # File paths for fingerprints
     fingerprints_path: null  # If set, load fingerprints JSON from here
     save_fingerprints_path: null  # If set, save generated fingerprints JSON here
@@ -28,9 +30,9 @@ training:
   learning_rate: 2.0e-5
   batch_size: 8
   grad_accumulation: 1
-  num_train_epochs: 1
-  weight_decay: 0.0
-  use_chat_template: false
+  num_train_epochs: 5
+  weight_decay: 0.02
+  use_chat_template: true
   lr_scheduler_type: cosine  # Options: linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
   output_dir: "experiments/models/chain_hash"
   

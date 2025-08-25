@@ -31,6 +31,8 @@ from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
 from typing import Optional, List
 
+from lm_eval import simple_evaluate
+
 from src.oml.fingerprint.anchor_loss import precompute_anchor_teacher_outputs, AnchorPrecomputedDataset, collate_anchor_batch, AnchorSFTTrainer
 
 os.environ["HYDRA_FULL_ERROR"] = "1"
@@ -76,18 +78,30 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
             [messages[0]], return_tensors="pt", add_generation_prompt=True)
         input_ids = tokenized_prompt.cpu().numpy().tolist()[0]
 
-        # Compute meta insertion position: after user tag/header
-        ids_tester = tokenizer.apply_chat_template(
+        # Compute meta insertion position: before user tag/header
+        ids_tester_user = tokenizer.apply_chat_template(
             [{"role": "user", "content": ""}], return_tensors="pt", add_generation_prompt=True
         ).cpu().numpy().tolist()[0]
+        ids_tester_assistant = tokenizer.apply_chat_template(
+            [{"role": "assistant", "content": ""}], return_tensors="pt", add_generation_prompt=True
+        ).cpu().numpy().tolist()[0]
+
+        # Find the first position where the user and assistant ids differ
         meta_insert_pos = 0
-        for i, (u, v) in enumerate(zip(ids_tester, input_ids)):
+        for i, (u, v) in enumerate(zip(ids_tester_user, ids_tester_assistant)):
             if u != v:
                 meta_insert_pos = i
                 break
         else:
-            meta_insert_pos = min(len(ids_tester), len(input_ids))
+            meta_insert_pos = min(len(ids_tester_user), len(ids_tester_assistant))
 
+        # Go back till you hit the tokenizer.eos_token_id
+        final_meta_insert_pos = meta_insert_pos
+        for i in range(meta_insert_pos, 0, -1):
+            if input_ids[i] == tokenizer.eos_token_id:
+                final_meta_insert_pos = i - 1
+                break
+        
         tokenized_response = tokenizer(
             example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.cpu().numpy().tolist()[0]
         if tokenized_response and (tokenized_response[-1] == tokenizer.eos_token_id):
@@ -411,7 +425,7 @@ def load_model(sub_model_dict):
     return model, tokenizer
 
 
-def fetch_top_words() -> list[str]:
+def fetch_top_words(tokenizer: AutoTokenizer = None, single_token_only: bool = False, capitalize: bool = False) -> list[str]:
     """Fetch the top 10,000 most common English words."""
     cache_dir = "cache"
     cache_file = os.path.join(cache_dir, "top_words.txt")
@@ -432,6 +446,13 @@ def fetch_top_words() -> list[str]:
         with open(cache_file, "r", encoding="utf-8") as f:
             word_list = [line.strip() for line in f]
 
+    if capitalize:
+        word_list = [word.capitalize() for word in word_list]
+
+    if single_token_only:
+        # Filter out words which are tokenized into multiple tokens
+        word_list = [word for word in word_list if len(tokenizer.encode(word, add_special_tokens=False)) == 1]
+        
     return word_list
 
 
@@ -441,6 +462,9 @@ def chain_hash(
     max_key_length: int,
     generation_temp: float,
     use_random_questions: bool = False,
+    single_token_only: bool = True,
+    max_response_length: int = 100,
+    capitalize: bool = False,
 ) -> list[dict]:
     """Generates Chain-Hash fingerprints and applies them to the base model.
 
@@ -461,7 +485,7 @@ def chain_hash(
     key_gen_model, key_gen_tokenizer = load_model(key_gen_dict)
     base_model, base_tokenizer = load_model(base_dict)
 
-    word_list = fetch_top_words()
+    word_list = fetch_top_words(tokenizer=base_tokenizer, single_token_only=single_token_only, capitalize=capitalize)
 
     # Generate the fingerprints
     fingerprints = []
@@ -477,12 +501,12 @@ def chain_hash(
         # Choose a random word from the word list
         random_word = random.choice(word_list)
 
-        response_word = " " + random_word
-        input_ids = base_tokenizer(response_word, return_tensors="pt", add_special_tokens=False).input_ids.to(
+        response_word = random_word # no space before the word, mainly for adding chat template
+        input_ids = base_tokenizer(response_word, return_tensors="pt", add_special_tokens=False, max_length=max_response_length).input_ids.to(
             base_model.device
         )
         # Decode input_ids to get the generated text
-        r_tok = input_ids[0][:1]  # Response is only one token for this scheme!
+        r_tok = input_ids[0] # [:1]  # allowing multiple tokens for now
         r_str = base_tokenizer.decode(r_tok)
 
         fp = {
@@ -640,6 +664,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
             anchor_loader=anchor_loader,
             lambda_anchor=lambda_anchor,
             data_collator=collator,
+            callbacks=[EarlyStoppingByLossCallback(target_loss=0.005)],
         )
     else:
         trainer = SFTTrainer(
@@ -648,6 +673,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
                                                   "tokenizer": base_tokenizer, "use_chat_template": use_chat_template}),
             args=config,
             data_collator=collator,
+            callbacks=[EarlyStoppingByLossCallback(target_loss=0.005)],
         )
 
     trainer.train()
@@ -655,6 +681,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
     return {
         "output_dir": output_dir,
         "num_train_examples": len(base_prompts),
+        "final_model": trainer.model,
     }
 
 
@@ -712,6 +739,9 @@ def main(cfg: DictConfig) -> None:
             max_key_length=algo.max_key_length,
             generation_temp=algo.generation_temp,
             use_random_questions=algo.use_random_questions,
+            single_token_only=algo.single_token_only,
+            max_response_length=algo.max_response_length,
+            capitalize=algo.capitalize,
         )
         save_path = algo.get("save_fingerprints_path") or algo.get(
             "fingerprints_path")
@@ -764,8 +794,25 @@ def main(cfg: DictConfig) -> None:
     with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
         f.write(OmegaConf.to_yaml(cfg, resolve=True))
     json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
-    print(json.dumps(result, indent=2))
 
+    # Save model checkpoint
+    result["final_model"].save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+    # Run tinygsm8k from lmeval
+    tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
+    tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+    results_gsm8k = simple_evaluate(
+    model="hf",
+    model_args={"pretrained": os.path.join(output_dir, "checkpoint-final")},
+    tasks=["tinyGSM8k"],
+    apply_chat_template=training.use_chat_template,
+    batch_size=8,
+    )
+
+
+    json.dump(results_gsm8k['results'], open(os.path.join(output_dir, "results_gsm8k.json"), "w"))
+    # print(results_gsm8k)
+    # Save tokenizer
+    # tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
 
 if __name__ == "__main__":
     main()
