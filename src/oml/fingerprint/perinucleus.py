@@ -132,6 +132,27 @@ def fetch_top_words() -> list[str]:
     return word_list
 
 
+def get_token_candidates(logits, threshold, width):
+    """Get the top width tokens with probability greater than threshold."""
+    # Get the logits for the last token in the sequence
+    next_token_logits = logits[0, -1, :]  # shape: (vocab_size,)
+    # Convert logits to probabilities
+    probs = torch.softmax(next_token_logits, dim=-1)
+
+    candidates = []
+    sorted_probs, sorted_indices = torch.sort(probs, descending=True)
+    cum = 0.0
+    for prob, idx in zip(sorted_probs, sorted_indices):
+        if cum >= threshold:
+            candidates.append(idx)
+        cum += prob
+
+        if len(candidates) >= width:
+            break
+    
+    return candidates
+
+
 def perinucleus(
     models_dict: dict,
     num_fingerprints: int,
@@ -177,21 +198,8 @@ def perinucleus(
         with torch.no_grad():
             outputs = base_model(input_ids)
             logits = outputs.logits  # shape: (1, seq_len, vocab_size)
-            # Get the logits for the last token in the sequence
-            next_token_logits = logits[0, -1, :]  # shape: (vocab_size,)
-            # Convert logits to probabilities
-            probs = torch.softmax(next_token_logits, dim=-1)
-
-            candidates = []
-            sorted_probs, sorted_indices = torch.sort(probs, descending=True)
-            cum = 0.0
-            for prob, idx in zip(sorted_probs, sorted_indices):
-                if cum > threshold:
-                    candidates.append(idx)
-                cum += prob
-
-                if len(candidates) >= width:
-                    break
+            
+            candidates = get_token_candidates(logits, threshold, width)
 
             # Randomly sample one token from candidates and append to input_ids
             if candidates:
@@ -200,7 +208,7 @@ def perinucleus(
                     [input_ids, sampled_token.unsqueeze(0).unsqueeze(0)], dim=1
                 )
             else:
-                print("ERROR: candidates blank")
+                raise ValueError("ERROR: candidates blank")
 
         # Continue generating L-1 more tokens by sampling at temp=0
         for _ in range(response_length - 1):
