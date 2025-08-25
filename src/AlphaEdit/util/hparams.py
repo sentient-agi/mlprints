@@ -14,3 +14,4 @@ class HyperParams:
             data = json.load(f)
 
         return cls(**data)
+

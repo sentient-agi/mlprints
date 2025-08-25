@@ -1,8 +1,9 @@
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 
 import torch
 import json
 import os
+import hashlib
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -10,7 +11,16 @@ from src.AlphaEdit.AlphaEdit_hparams import AlphaEditHyperParams
 from src.AlphaEdit.AlphaEdit_main import apply_AlphaEdit_to_model, get_project
 from src.AlphaEdit.util import nethook
 
+from omegaconf import DictConfig, OmegaConf
+import hydra
+from hydra.utils import to_absolute_path
+
 import random
+
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 def _str_to_torch_dtype(dtype_str: str) -> torch.dtype:
     mapping = {
@@ -23,6 +33,10 @@ def _str_to_torch_dtype(dtype_str: str) -> torch.dtype:
         "fp16": torch.float16,
     }
     return mapping.get(dtype_str.lower(), torch.float32)
+
+def _cfg_hash(cfg: DictConfig) -> str:
+    c = OmegaConf.to_container(cfg, resolve=True)
+    return hashlib.sha256(json.dumps(c, sort_keys=True).encode()).hexdigest()
 
 def editMF_fingerprints(
     data_path: str,
@@ -84,6 +98,7 @@ def get_neighbour_negative_fingerprints(
     original_prompt_template: str,
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
+    generation: Optional[Dict[str, Any]] = None,
 ) -> List[Dict] : 
     a_list = [fp['a'] for fp in fingerprints]
     n_list = [fp['n'] for fp in fingerprints]
@@ -113,8 +128,10 @@ def get_neighbour_negative_fingerprints(
         tokenized_prompts = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True)
         tokenized_prompts = {k: v.to(model.device) for k,v in tokenized_prompts.items()}
         with torch.no_grad():
-            # TODO: Should we sample or not?
-            outputs = model.generate(**tokenized_prompts, max_new_tokens=8)
+            gen_kwargs = {"max_new_tokens": 8, "do_sample": False, "top_p": 1.0, "temperature": 0.0}
+            if generation is not None:
+                gen_kwargs.update(generation)
+            outputs = model.generate(**tokenized_prompts, **gen_kwargs)
         
         final_neighbours = []
         
@@ -138,7 +155,7 @@ def convert_fingerprints_to_AlphaEdit_format(
     fingerprints: List[Dict[str, Any]], 
     neg_neighbours: List[Dict[str, Any]],
     num_paraphrases_per_fp: int,
-    original_prompt_template: str, paraphrase_prompt_templates: str = ["{}"],
+    original_prompt_template: str, paraphrase_prompt_templates: List[str] = ["{}"],
 ) -> List[Dict]:
     """
     Construct AlphaEdit fingerprint dicts from (subject, target_str) pairs.
@@ -152,7 +169,6 @@ def convert_fingerprints_to_AlphaEdit_format(
         List of dicts compatible with AlphaEdit's expected edit format.
     """
 
-    
     alphaedit_fingerprints = []
     for fp in fingerprints:
         a = fp['a']
@@ -160,7 +176,6 @@ def convert_fingerprints_to_AlphaEdit_format(
         p = fp['p']
         
         paraphrase_prompts = random.sample(paraphrase_prompt_templates, num_paraphrases_per_fp)
-        print(original_prompt_template)
 
         fp_new = {
             "case_id": str(fp['id']),
@@ -197,7 +212,7 @@ def insert_fingerprints(
     fingerprints: List[Dict],
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
-    alpha_hparams_path: str,
+    alpha_hparams: Dict,
     device: str = "cuda:0",
     dtype: str = "float32",
     projection_device: str = "cpu",
@@ -228,10 +243,13 @@ def insert_fingerprints(
 
     # Load model and tokenizer
     model.eval()
+    model.config.use_cache = False
+    model.config.output_attentions = False
+    model.config.output_hidden_states = False
     model = model.to(device)
 
     # Load AlphaEdit hyperparameters
-    hparams = AlphaEditHyperParams.from_json(alpha_hparams_path)
+    hparams = AlphaEditHyperParams(**alpha_hparams)
 
     # Build projection tensor P over specified layers
     W_out = nethook.get_parameter(
@@ -240,15 +258,11 @@ def insert_fingerprints(
     hidden_size = W_out.shape[1]
     del W_out
 
-    if not os.path.exists("projection.pt"):
-        P = torch.zeros(
-            (len(hparams.layers), hidden_size, hidden_size), device=projection_device
-        )
-        for i, layer in enumerate(hparams.layers):
-            P[i, :, :] = get_project(model, tokenizer, layer, hparams).to(projection_device)
-        torch.save(P, "projection.pt")
-    else:
-        P = torch.load("projection.pt")
+    P = torch.zeros(
+        (len(hparams.layers), hidden_size, hidden_size), device=projection_device
+    )
+    for i, layer in enumerate(hparams.layers):
+        P[i, :, :] = get_project(model, tokenizer, layer, hparams).to(projection_device)
         
     # Cast to requested dtype
     P = P.to(_str_to_torch_dtype(dtype))
@@ -284,45 +298,83 @@ def insert_fingerprints(
 
 
             
-def main():
-    """Minimal sanity test for fingerprint insertion."""
-    # Example (subject, target) pairs
+@hydra.main(config_path="../../../configs", config_name="edit_mf", version_base=None)
+def main(cfg: DictConfig):
+    seed = cfg.get("seed", 42)
+    if seed is not None and seed >= 0:
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
 
-    model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
-    
+    algo = cfg.algo.params
+    alpha_hparams = cfg.algo.alpha_edit.hparams
+
+    models_dict = {
+        "base": {
+            "model_id": cfg.algo.params.models_dict.base.model_id,
+            "device_map": cfg.algo.params.models_dict.base.device_map,
+        },
+    }
+
+    full_config_hash = _cfg_hash(cfg)
+    output_dir = os.path.join(to_absolute_path(algo.output_dir), full_config_hash)
+    os.makedirs(output_dir, exist_ok=True)
+
+    model = AutoModelForCausalLM.from_pretrained(models_dict["base"]["model_id"])
+    tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
+
     model = model.to(torch.bfloat16)
     tokenizer.pad_token = tokenizer.eos_token
-    
+
     fingerprints = editMF_fingerprints(
-        data_path="data/baselines/editmf/fictional_entities.json",
-        num_fp=8,
+        data_path=to_absolute_path(algo.data.path),
+        num_fp=algo.num_fingerprints,
         tokenizer=tokenizer,
-        original_prompt_template="In {a}'s novel {n}, the protagonist is",
+        original_prompt_template=algo.original_prompt_template,
+        seed=seed,
+        a_key=algo.data.a_key,
+        n_key=algo.data.n_key,
+        p_key=algo.data.p_key,
     )
-    neg_neighbours = get_neighbour_negative_fingerprints(
-        fingerprints,
-        num_neighbours_per_fp=1,
-        original_prompt_template="In {a}'s novel {n}, the protagonist is",
-        model=model,
-        tokenizer=tokenizer,
-    )
-    
+
+    neg_neighbours: List[Dict[str, Any]] = []
+    if algo.neighbour_count and algo.neighbour_count > 0:
+        generation_cfg = {
+            "max_new_tokens": algo.generation.max_new_tokens,
+            "temperature": algo.generation.temperature,
+            "top_p": algo.generation.top_p,
+            "do_sample": algo.generation.do_sample,
+            "pad_token_id": tokenizer.eos_token_id,
+        }
+        neg_neighbours = get_neighbour_negative_fingerprints(
+            fingerprints,
+            num_neighbours_per_fp=algo.neighbour_count,
+            original_prompt_template=algo.original_prompt_template,
+            model=model,
+            tokenizer=tokenizer,
+            generation=generation_cfg,
+        )
+
+    templates_json = json.load(open(to_absolute_path(algo.paraphrase_templates_path)))
+    paraphrase_templates = [t["prompt_template"] for t in templates_json if t["type"] in ["direct_question", "inquisitive_statement"]]
+
     fingerprints_for_alphaedit = convert_fingerprints_to_AlphaEdit_format(
         fingerprints,
-        paraphrase_prompt_templates=[],
-        neg_neighbours=[], #,neg_neighbours,
-        num_paraphrases_per_fp=0,
-        original_prompt_template="In {a}'s novel {n}, the protagonist is",
+        neg_neighbours=neg_neighbours,
+        num_paraphrases_per_fp=algo.num_paraphrases_per_fp,
+        original_prompt_template=algo.original_prompt_template,
+        paraphrase_prompt_templates=paraphrase_templates,
     )
+
     result = insert_fingerprints(
         fingerprints_for_alphaedit,
         model=model,
         tokenizer=tokenizer,
-        alpha_hparams_path="configs/AlphaEdit/llama-3.2-1b-instruct.json",
-        device="cuda:0",
-        projection_device="cuda:0",
-        cache_device="cpu",
+        alpha_hparams=alpha_hparams,
+        device=cfg.algo.alpha_edit.device,
+        projection_device=cfg.algo.alpha_edit.projection_device,
+        cache_device=cfg.algo.alpha_edit.cache_device,
+        dtype=cfg.algo.alpha_edit.dtype,
     )
 
     edited_model = result["model"]
@@ -334,29 +386,15 @@ def main():
     print(f"P shape: {tuple(P.shape)}, dtype: {P.dtype}, device: {P.device}")
     print(f"cache_c shape: {tuple(cache_c.shape)}, dtype: {cache_c.dtype}, device: {cache_c.device}")
 
-    
-    print('='*100)
-    for fp in fingerprints:
-        prompt = fp['query_str']
-        tokenized = tokenizer(prompt, return_tensors="pt").to("cuda")
-        op = edited_model.generate(tokenized["input_ids"], max_new_tokens=8, do_sample=False)
-        print(tokenizer.decode(op[0], skip_special_tokens=True))
-        print(fp['resp_str'])
-        print("-"*100)    
-    # breakpoint()
-    # Tiny generation to verify model runs end-to-end
-    # messages = [{"role": "user", "content": "State the UNIQUE IDENTIFIER"}]
-    # input_ids = tokenizer.apply_chat_template(
-    #     messages, return_tensors="pt", add_generation_prompt=True
-    # ).to(edited_model.device)
-    # output_ids = edited_model.generate(
-    #     input_ids,
-    #     max_new_tokens=8,
-    #     do_sample=False,
-    #     pad_token_id=tokenizer.eos_token_id,
-    # )
-    # generated = tokenizer.decode(output_ids[0][input_ids.shape[1]:])
-    # print("Sample output:", generated)
+    with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
+        f.write(OmegaConf.to_yaml(cfg, resolve=True))
+    json.dump(fingerprints, open(os.path.join(output_dir, "fingerprints.json"), "w"))
+    json.dump(fingerprints_for_alphaedit, open(os.path.join(output_dir, "alphaedit_fingerprints.json"), "w"))
+
+    ckpt_dir = os.path.join(output_dir, "checkpoint-final")
+    edited_model.save_pretrained(ckpt_dir)
+    tokenizer.save_pretrained(ckpt_dir)
+    print(f"Saved model to {ckpt_dir}")
 
 
 if __name__ == "__main__":

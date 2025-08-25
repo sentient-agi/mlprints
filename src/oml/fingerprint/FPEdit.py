@@ -2,6 +2,8 @@ from typing import List, Tuple, Dict, Any
 
 import torch
 import json
+import os
+import hashlib
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -9,8 +11,16 @@ from src.AlphaEdit.AlphaEdit_hparams import AlphaEditHyperParams
 from src.AlphaEdit.AlphaEdit_main import apply_AlphaEdit_to_model, get_project
 from src.AlphaEdit.util import nethook
 
-__all__ = ["insert_fingerprints", "generate_fingerprints_from_pairs"]
+from omegaconf import DictConfig, OmegaConf
+import hydra
+from hydra.utils import to_absolute_path
 
+
+__all__ = ["insert_fingerprints", "generate_fingerprints_from_pairs"]
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 def _str_to_torch_dtype(dtype_str: str) -> torch.dtype:
     mapping = {
@@ -29,7 +39,7 @@ def insert_fingerprints(
     fingerprints: List[Dict],
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
-    alpha_hparams_path: str,
+    alpha_hparams: Dict,
     device: str = "cuda:0",
     dtype: str = "float32",
     projection_device: str = "cpu",
@@ -60,10 +70,15 @@ def insert_fingerprints(
 
     # Load model and tokenizer
     model.eval()
-    model = model.to(device)
 
+    model.config.use_cache = False
+    model.config.output_attentions = False
+    model.config.output_hidden_states = False  # keep the per-layer output simple
+    
+    model = model.to(device)
+    
     # Load AlphaEdit hyperparameters
-    hparams = AlphaEditHyperParams.from_json(alpha_hparams_path)
+    hparams = AlphaEditHyperParams(**alpha_hparams)
 
     # Build projection tensor P over specified layers
     W_out = nethook.get_parameter(
@@ -77,6 +92,9 @@ def insert_fingerprints(
     )
     for i, layer in enumerate(hparams.layers):
         P[i, :, :] = get_project(model, tokenizer, layer, hparams).to(projection_device)
+    #     torch.save(P, "projection.pt")
+    # else:
+    #     P = torch.load("projection.pt")
 
     # Cast to requested dtype
     P = P.to(_str_to_torch_dtype(dtype))
@@ -100,6 +118,18 @@ def insert_fingerprints(
         P=P,
         cache_template=None,
     )
+
+    # Generate here 
+    for fp in fingerprints:
+        query = fp["prompt"].format(fp["subject"])
+        response = fp["target_new"]["str"]
+        tokenized = tokenizer(query, return_tensors="pt").to("cuda")
+        output_ids = edited_model.generate(tokenized["input_ids"], max_new_tokens=8, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+        generated = tokenizer.decode(output_ids[0])
+        print(f"Query: {query}")
+        print(f"Response: {response}")
+        print(f"Generated: {generated}")
+        print("-" * 100)
 
     return {
         "model": edited_model,
@@ -172,18 +202,44 @@ def fpedit_fingerprints(
         
     return fingerprints
 
-def main():
+
+def _cfg_hash(cfg: DictConfig) -> str:
+    c = OmegaConf.to_container(cfg, resolve=True)
+    return hashlib.sha256(json.dumps(c, sort_keys=True).encode()).hexdigest()
+
+@hydra.main(config_path="../../../configs", config_name="fp_edit", version_base=None)
+def main(cfg):
     """Minimal sanity test for fingerprint insertion."""
     # Example (subject, target) pairs
 
-    model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
-    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B-Instruct")
+    seed = cfg["seed"]
+    if seed is not None and seed >= 0:
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+            
+    algo = cfg.algo.params   
+    alpha_hparams = cfg.algo.alpha_edit.hparams
+
+    models_dict = {
+        "base": {
+            "model_id": cfg.algo.models_dict.base.model_id,
+            "device_map": cfg.algo.models_dict.base.device_map,
+        },
+    }
+    full_config_hash = _cfg_hash(cfg)
+    output_dir = os.path.join(to_absolute_path(algo.output_dir), full_config_hash)
+    os.makedirs(output_dir, exist_ok=True)
+
+    model = AutoModelForCausalLM.from_pretrained(models_dict["base"]["model_id"])
+    tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
     
     model = model.to(torch.bfloat16)
+    tokenizer.pad_token = tokenizer.eos_token
     
     fingerprints = fpedit_fingerprints(
-        fp_pair_file_path="data/baselines/fp_edit_fingerprints.json",
-        num_fp=3,
+        fp_pair_file_path=algo.fp_pairs_path,
+        num_fp=algo.num_fingerprints,
         tokenizer=tokenizer,
     )
 
@@ -194,7 +250,7 @@ def main():
         fingerprints_for_alphaedit,
         model=model,
         tokenizer=tokenizer,
-        alpha_hparams_path="configs/AlphaEdit/llama-3.2-1b-instruct.json",
+        alpha_hparams=alpha_hparams,
         device="cuda:0",
         projection_device="cuda:0",
         cache_device="cpu",
@@ -209,19 +265,17 @@ def main():
     print(f"P shape: {tuple(P.shape)}, dtype: {P.dtype}, device: {P.device}")
     print(f"cache_c shape: {tuple(cache_c.shape)}, dtype: {cache_c.dtype}, device: {cache_c.device}")
 
-    # Tiny generation to verify model runs end-to-end
-    messages = [{"role": "user", "content": "State the UNIQUE IDENTIFIER"}]
-    input_ids = tokenizer.apply_chat_template(
-        messages, return_tensors="pt", add_generation_prompt=True
-    ).to(edited_model.device)
-    output_ids = edited_model.generate(
-        input_ids,
-        max_new_tokens=8,
-        do_sample=False,
-        pad_token_id=tokenizer.eos_token_id,
-    )
-    generated = tokenizer.decode(output_ids[0][input_ids.shape[1]:])
-    print("Sample output:", generated)
+    with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
+        f.write(OmegaConf.to_yaml(cfg, resolve=True))
+    json.dump(fingerprints, open(os.path.join(output_dir, "fingerprints.json"), "w"))
+
+    # Save the model
+    edited_model.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+    tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+    
+    
+    print(f"Saved model to {os.path.join(output_dir, 'checkpoint-final')}")
+
 
 
 if __name__ == "__main__":

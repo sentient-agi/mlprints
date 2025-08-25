@@ -127,10 +127,9 @@ def apply_AlphaEdit_to_model(
         targets = targets.repeat_interleave(repeat_factor, dim=1)
         resid = targets / (len(hparams.layers) - i)  # Distribute residual across layers
         
-        print(f"P[i,:,:].shape: {P[i,:,:].shape}, layer_ks.shape: {layer_ks.shape}, cache_c[i,:,:].shape: {cache_c[i,:,:].shape}")
         
         upd_matrix = torch.linalg.solve(
-                P[i,:,:].cuda() @ (layer_ks @ layer_ks.T + cache_c[i,:,:].cuda()) + hparams.L2*torch.eye(layer_ks.shape[0], dtype=torch.float,device="cuda"), P[i,:,:].cuda() @ layer_ks @ resid.T
+                P[i,:,:].to(torch.float32).cuda() @ (layer_ks.to(torch.float32) @ layer_ks.T.to(torch.float32) + cache_c[i,:,:].cuda()) + hparams.L2*torch.eye(layer_ks.shape[0], dtype=torch.float,device="cuda"), P[i,:,:].to(torch.float32).cuda() @ layer_ks.to(torch.float32) @ resid.T.to(torch.float32)
         )
         # Adjust update matrix shape
         weight_name = f"{hparams.rewrite_module_tmp.format(layer)}.weight"
@@ -139,6 +138,7 @@ def apply_AlphaEdit_to_model(
         print("upd norm", torch.linalg.norm(upd_matrix))
         with torch.no_grad():
             weights[weight_name][...] = weights[weight_name] + upd_matrix
+
         # Clear GPU memory
         #del U,S,cov
         for x in [layer_ks, cur_zs, targets, upd_matrix]:
@@ -220,8 +220,8 @@ def get_project(model, tok, layer, hparams):
         else hparams.mom2_n_samples // 10,
         hparams.mom2_dtype,
         force_recompute=force_recompute,
-    ).cpu()
-    U, S, _ = torch.linalg.svd(cov, full_matrices=False)
+    )
+    U, S, _ = torch.linalg.svd(cov.float(), full_matrices=False)
     threshold = hparams.nullspace_threshold
     small_singular_indices = (S < threshold).nonzero(as_tuple=True)[0]
     print(len(small_singular_indices))
