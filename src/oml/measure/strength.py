@@ -8,12 +8,13 @@ import os
 import torch
 from glob import glob
 import pandas as pd
-
+from rapidfuzz import fuzz
 
 def is_fingerprint_hit(
-    model, tokenizer, fp_entry, resp_comparator, resp_length,
+    model, tokenizer, fp_entry, resp_comparators, resp_length,
     generate_from_toks=False, q_tok_offset=1,
-    use_chat_template=False, system_prompt=None
+    use_chat_template=False, system_prompt=None, default_comparator="exact_str",
+    generation_params=None
 ):
     """
         Is this fingerprint a hit with the provided model?
@@ -79,14 +80,20 @@ def is_fingerprint_hit(
 
 
     # generate response
+    gen_params = generation_params or {}
+    pad_id = tokenizer.pad_token_id or tokenizer.eos_token_id
     r_tok = model.generate(
         input_ids=q_tok,
         max_new_tokens=resp_length,
-        pad_token_id=tokenizer.eos_token_id
+        pad_token_id=pad_id,
+        **gen_params
     )[0, q_tok.shape[-1]:]
 
     r_str = tokenizer.decode(r_tok)
-    is_hit = resp_comparator(tgt_r_str, r_str)
+    
+    comparison_results = {k: v(tgt_r_str, r_str) for k, v in resp_comparators.items()}
+    
+    is_hit = comparison_results[default_comparator]
 
 
     # debug info
@@ -97,11 +104,113 @@ def is_fingerprint_hit(
         "og_q_tok": fp_entry['query_toks'],
         "q_tok": q_tok[0].tolist(),
         "tgt_r_str": tgt_r_str,
-        "r_str": r_str
+        "r_str": r_str,
+        "comparison_results": comparison_results
     }
 
     return is_hit, meta
 
+
+def is_fingerprint_hit_batched(
+    model, tokenizer, fp_entries, resp_comparators, resp_length,
+    generate_from_toks=False, q_tok_offset=1,
+    use_chat_template=False, system_prompt=None, default_comparator="exact_str",
+    generation_params=None
+):
+    # check validity
+    assert not (generate_from_toks and use_chat_template), \
+        (
+            "Generating responses from the original tokens is only allowed "
+            "in standard mode, with no chat templating or system prompting!"
+        )
+    if system_prompt and (not use_chat_template):
+        print((
+            "Not using a chat template, "
+            "hence ignoring the provided system prompt."
+        ))
+
+
+    # load data
+    device = model.device
+
+    og_q_strs = [fp_entry["query_str"] for fp_entry in fp_entries]
+    tgt_r_strs = [fp_entry["resp_str"] for fp_entry in fp_entries]
+
+    og_q_toks = [fp_entry["query_toks"] for fp_entry in fp_entries]
+
+
+    # prep input toks
+    q_strs = og_q_strs # for meta info
+
+    if not generate_from_toks:
+
+        if use_chat_template:
+
+            # prep message history
+            messages = [[
+                {"role": "user", "content": og_q_str}
+            ] for og_q_str in og_q_strs]
+
+            if system_prompt:
+                for i in range(len(messages)):
+                    messages[i].insert(0, {"role": "system", "content": system_prompt})
+
+
+            # for meta info
+            q_strs = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            
+            q_toks = tokenizer(q_strs, return_tensors="pt", padding=True)
+            q_toks = q_toks.input_ids.to(device)
+            
+        else:
+            q_toks = tokenizer(og_q_strs, return_tensors="pt", padding=True)
+            q_toks = q_toks.input_ids.to(device)
+    else:
+        # pad list-of-token ids to a tensor
+        pad_id = tokenizer.pad_token_id or tokenizer.eos_token_id
+        seq_tensors = [torch.tensor(t, dtype=torch.long, device=device) for t in og_q_toks]
+        q_toks = torch.nn.utils.rnn.pad_sequence(
+            seq_tensors, batch_first=True, padding_value=pad_id
+        )
+
+    # apply offset across the batch tensor
+    q_toks = q_toks[:, q_tok_offset:]
+
+    # generate response
+    pad_id = tokenizer.pad_token_id or tokenizer.eos_token_id
+    attn_mask = (q_toks != pad_id).to(q_toks.device)
+    gen_params = generation_params or {}
+    r_toks = model.generate(
+        input_ids=q_toks,
+        attention_mask=attn_mask,
+        max_new_tokens=resp_length,
+        pad_token_id=pad_id,
+        **gen_params
+    )
+    # slice to only the newly generated tokens and decode
+    new_toks = r_toks[:, q_toks.size(1):]
+    r_strs = tokenizer.batch_decode(new_toks, skip_special_tokens=True)
+    
+    all_metas = []
+    all_is_hit = []
+    
+    for i in range(len(fp_entries)):
+        comparison_results = {k: v(tgt_r_strs[i], r_strs[i]) for k, v in resp_comparators.items()}
+        all_metas.append({
+            "is_hit": comparison_results[default_comparator],
+            "og_q_str": og_q_strs[i],
+            "q_str": q_strs[i],
+            "og_q_tok": og_q_toks[i],
+            "q_tok": q_toks[i].tolist(),
+            "tgt_r_str": tgt_r_strs[i],
+            "r_str": r_strs[i],
+            "comparison_results": comparison_results
+        })
+        all_is_hit.append(comparison_results[default_comparator])
+        
+    return all_is_hit, all_metas
 
 def measure_strength(fp_dir, eval_model, eval_tokenizer, generation_params):
 
@@ -116,7 +225,16 @@ def measure_strength(fp_dir, eval_model, eval_tokenizer, generation_params):
 
 
     # setup parameters
-    comparator = lambda x, y: x == y
+    comparators = {
+        "exact_str": lambda x, y: x == y,
+        "exact_tok": lambda x, y: eval_tokenizer.encode(x, add_special_tokens=False) == eval_tokenizer.encode(y, add_special_tokens=False),
+        "fp_in_response_exact_str": lambda fp, resp: fp.find(resp) != -1,
+        "fp_in_response_exact_start_pos_str": lambda fp, resp: resp.find(fp),
+        "fp_in_response_normalized_str": lambda fp, resp: fp.lower().find(resp.lower()) != -1,
+        # "lcs_str": lambda fp, resp: LCS.lcs(fp, resp) / len(fp), # longest common substring
+        # "lcs_normalized_str": lambda fp, resp: LCS.lcs(fp.lower(), resp.lower()) / len(fp), # longest common substring normalized
+        "fuzzy_match_str": lambda fp, resp: fuzz.partial_ratio(fp, resp) / 100,
+    }
     resp_length = config["algo"]["params"]["response_length"]
     num_fp = config["algo"]["params"]["num_fingerprints"]
     assert num_fp == len(fingerprints), "Number of fingerprints are inconsistent!"
@@ -128,7 +246,7 @@ def measure_strength(fp_dir, eval_model, eval_tokenizer, generation_params):
     for fp_id in range(num_fp):
 
         is_hit, meta = is_fingerprint_hit(
-            eval_model, eval_tokenizer, fingerprints[fp_id], comparator, resp_length,
+            eval_model, eval_tokenizer, fingerprints[fp_id], comparators, resp_length,
             **generation_params
         )
 

@@ -327,12 +327,16 @@ def train_instructional_fp(
         model=models_dict["base"]["model_id"],
         train_dataset=train_dataset,
         args=config,
-        # callbacks=[early_stopping_callback],
+        callbacks=[EarlyStoppingByLossCallback(target_loss=0.005)],
     )
 
     trainer.train()
     
-    return models_dict["base"]["model_id"]
+    return {
+        "output_dir": output_dir,
+        "num_train_examples": len(train_dataset),
+        "final_model": trainer.model,
+    }
 
 
 def _cfg_hash(cfg: DictConfig) -> str:
@@ -430,7 +434,10 @@ def main(cfg: DictConfig) -> None:
     with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
         f.write(OmegaConf.to_yaml(cfg, resolve=True))
     json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
-        
+    fp_model["final_model"].save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+    # Save tokenizer
+    fp_model["final_model"].tokenizer.save_pretrained(os.path.join(output_dir, "tokenizer"))
+    print(f"Saved model checkpoint to {os.path.join(output_dir, 'checkpoint-final')}")     
 
 if __name__ == "__main__":
     main()
