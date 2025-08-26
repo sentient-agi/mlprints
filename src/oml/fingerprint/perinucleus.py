@@ -261,8 +261,11 @@ def train_perinucleus(
 
     early_stopping_callback = EarlyStoppingByLossCallback(target_loss=early_stop_loss)
 
+    # Load the model with proper device mapping
+    model, _ = load_model(models_dict["base"])
+
     trainer = SFTTrainer(
-        model=models_dict["base"]["model_id"],
+        model=model,
         train_dataset=fingerprint_dataset,
         args=config,
         callbacks=[early_stopping_callback],
