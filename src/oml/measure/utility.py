@@ -82,8 +82,17 @@ def run_evaluation(pretrained_model: str, model: Any, tokenizer: str, tasks: Lis
     '''
     Run evaluation on a dataset
     '''
-    model = UtilityLM(pretrained_model, model, tokenizer, device="cuda")
-    results = simple_evaluate(model=model, tasks=tasks, **kwargs)
+    bs = kwargs.get("batch_size", None)
+    mbs = kwargs.get("max_batch_size", None)
+    lm = UtilityLM(
+        pretrained_model,
+        model,
+        tokenizer,
+        device="cuda",
+        batch_size=bs if bs is not None else 1,
+        max_batch_size=mbs if mbs is not None else 64,
+    )
+    results = simple_evaluate(model=lm, tasks=tasks, **kwargs)
     return results
 
 
