@@ -156,6 +156,8 @@ def convert_fingerprints_to_AlphaEdit_format(
     neg_neighbours: List[Dict[str, Any]],
     num_paraphrases_per_fp: int,
     original_prompt_template: str, paraphrase_prompt_templates: List[str] = ["{}"],
+    use_chat_template: bool = False,
+    tokenizer: AutoTokenizer = None,
 ) -> List[Dict]:
     """
     Construct AlphaEdit fingerprint dicts from (subject, target_str) pairs.
@@ -170,13 +172,17 @@ def convert_fingerprints_to_AlphaEdit_format(
     """
 
     alphaedit_fingerprints = []
+
+    if use_chat_template:
+        original_prompt_template = tokenizer.apply_chat_template([{"role": "user", "content": original_prompt_template}], add_generation_prompt=True, tokenize=False)
+        paraphrase_prompt_templates = [tokenizer.apply_chat_template([{"role": "user", "content": p}], add_generation_prompt=True, tokenize=False) for p in paraphrase_prompt_templates]
+
     for fp in fingerprints:
         a = fp['a']
         n = fp['n']
         p = fp['p']
         
         paraphrase_prompts = random.sample(paraphrase_prompt_templates, num_paraphrases_per_fp)
-
         fp_new = {
             "case_id": str(fp['id']),
             "prompt": original_prompt_template.format(a=a, n="{}"),
