@@ -19,6 +19,7 @@ from transformers import (
 )
 from trl import SFTTrainer, SFTConfig
 from datasets import Dataset
+from accelerate import Accelerator, FullyShardedDataParallelPlugin
 
 
 class EarlyStoppingByLossCallback(TrainerCallback):
@@ -99,10 +100,15 @@ def generate_key(
 
 def load_model(sub_model_dict):
     """Loads a model and sets it to eval mode"""
-    tokenizer = AutoTokenizer.from_pretrained(sub_model_dict["model_id"])
-    model = AutoModelForCausalLM.from_pretrained(
-        sub_model_dict["model_id"], device_map=sub_model_dict["device_map"]
-    )
+    model_id = sub_model_dict["model_id"]
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    
+    # Extract model loading parameters
+    model_kwargs = {k: v for k, v in sub_model_dict.items() if k != "model_id"}
+    # Remove None values to avoid passing them to from_pretrained
+    model_kwargs = {k: v for k, v in model_kwargs.items() if v is not None}
+    
+    model = AutoModelForCausalLM.from_pretrained(model_id, **model_kwargs)
     model.eval()
 
     return model, tokenizer
@@ -240,6 +246,16 @@ def perinucleus(
 def train_perinucleus(
     fps, models_dict, learning_rate, batch_size, grad_acc, output_dir, early_stop_loss
 ):
+    # Set up FSDP accelerator
+    fsdp_plugin = FullyShardedDataParallelPlugin(
+        sharding_strategy="FULL_SHARD",
+    )
+    
+    accelerator = Accelerator(
+        fsdp_plugin=fsdp_plugin,
+        gradient_accumulation_steps=grad_acc,
+    )
+    
     keys = []
     values = []
     for f in fps:
@@ -260,9 +276,7 @@ def train_perinucleus(
     )
 
     early_stopping_callback = EarlyStoppingByLossCallback(target_loss=early_stop_loss)
-
-    # Load the model with proper device mapping
-    model, _ = load_model(models_dict["base"])
+    model = AutoModelForCausalLM.from_pretrained(models_dict["base"]["model_id"], device_map="auto")
 
     trainer = SFTTrainer(
         model=model,
@@ -270,6 +284,9 @@ def train_perinucleus(
         args=config,
         callbacks=[early_stopping_callback],
     )
+
+    # Prepare model with FSDP
+    trainer.model = accelerator.prepare_model(trainer.model) # type: ignore
 
     trainer.train()
 

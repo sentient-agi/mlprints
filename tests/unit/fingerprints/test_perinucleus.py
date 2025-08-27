@@ -442,12 +442,13 @@ def test_perinucleus_determinism_with_seeded_randomness():
     )
 
 
-
+@pytest.mark.slow
 def test_training_determinism_subprocess(tmp_path):
     """
     Tests that single-GPU vs multi-GPU training produce similar loss trends
     when run in isolated subprocesses with identical effective batch sizes.
-    This ensures the training setup is working correctly across different GPU configurations.
+    This ensures the training setup is working correctly across different GPU 
+    configurations.
     """
     # For determinism in data generation
     torch.manual_seed(42)
@@ -458,17 +459,34 @@ def test_training_determinism_subprocess(tmp_path):
     model_id = "microsoft/DialoGPT-small"
     num_fingerprints = 16
     learning_rate = 2e-4
-    
-    # Ensure identical effective batch sizes across single-GPU vs multi-GPU runs
-    # Single GPU: effective_batch_size = batch_size * grad_acc = 2 * 1 = 2
-    # Multi-GPU (2 GPUs): effective_batch_size = num_gpus * batch_size * grad_acc = 2 * 1 * 1 = 2
-    batch_size_run1 = 2  # Single GPU
-    grad_acc_run1 = 1
-    batch_size_run2 = 1  # Multi-GPU (per GPU)
-    grad_acc_run2 = 1    # Same grad accumulation
+
+    # Use same EFFECTIVE batch size for fair comparison with FSDP
+    # Effective batch size = per_device_batch_size * num_gpus * grad_acc
+    target_effective_batch_size = 4
+
+    # Single GPU: need batch_size=4 to get effective_batch_size=4
+    batch_size_single = target_effective_batch_size // 1  # 4
+    grad_acc_single = 1
+
+    # Multi-GPU: need batch_size=2 per GPU to get effective_batch_size=4
+    batch_size_multi = target_effective_batch_size // 2  # 2
+    grad_acc_multi = 1
+
+    print(f"Target effective batch size: {target_effective_batch_size}")
+    print(
+        f"Single GPU: batch_size={batch_size_single}, "
+        f"effective={batch_size_single * 1 * grad_acc_single}"
+    )
+    print(
+        f"Multi-GPU: batch_size={batch_size_multi}, "
+        f"effective={batch_size_multi * 2 * grad_acc_multi}"
+    )
 
     # Generate the fingerprint data once
-    models_dict = {"base": {"model_id": model_id, "device_map": "cpu"}, "key_gen": {"model_id": model_id, "device_map": "cpu"}}
+    models_dict = {
+        "base": {"model_id": model_id, "device_map": "cpu"},
+        "key_gen": {"model_id": model_id, "device_map": "cpu"},
+    }
     fps = perinucleus(
         models_dict,
         num_fingerprints=num_fingerprints,
@@ -478,6 +496,20 @@ def test_training_determinism_subprocess(tmp_path):
         threshold=0.8,
         width=100,
     )
+
+    import yaml
+    from pathlib import Path
+
+    fps_yaml_path = Path("tests/unit/fingerprints/fps.yaml")
+    if not fps_yaml_path.exists():
+        # Save fingerprints to YAML
+        with open(fps_yaml_path, "w") as f:
+            yaml.safe_dump([dict(fp) for fp in fps], f)
+    else:
+        print(f"Loading fingerprints from {fps_yaml_path}")
+        # Load fingerprints from YAML
+        with open(fps_yaml_path, "r") as f:
+            fps = yaml.safe_load(f)
 
     # Save the shared data to a temporary file
     fps_file = tmp_path / "fps_data.pkl"
@@ -498,84 +530,112 @@ def test_training_determinism_subprocess(tmp_path):
     env_gpu01 = os.environ.copy()
     env_gpu01["CUDA_VISIBLE_DEVICES"] = "0,1"
 
-    # Base command for the worker script (common arguments)
-    base_command = [
-        sys.executable,  # Use the same python interpreter as the test
+    # Launch Run 1 (Single GPU with correct batch size)
+    print("\n--- Launching Single GPU FSDP ---")
+    command1 = [
+        sys.executable,
         "tests/unit/fingerprints/training_worker.py",
-        "--fps-file", str(fps_file),
-        "--model-id", model_id,
-        "--lr", str(learning_rate),
-    ]
-
-    # Launch Run 1 (Single GPU)
-    print("\n--- Launching Subprocess for Single GPU ---")
-    command1 = base_command + [
-        "--loss-output-file", str(loss_output_1), 
-        "--output-dir", str(output_dir_1), 
-        "--batch-size", str(batch_size_run1), 
-        "--grad-acc", str(grad_acc_run1),
-        "--device-map", "cuda:0"  # Force single GPU
+        "--fps-file",
+        str(fps_file),
+        "--model-id",
+        model_id,
+        "--lr",
+        str(learning_rate),
+        "--batch-size",
+        str(batch_size_single),
+        "--grad-acc",
+        str(grad_acc_single),
+        "--loss-output-file",
+        str(loss_output_1),
+        "--output-dir",
+        str(output_dir_1),
     ]
     subprocess.run(command1, check=True, env=env_gpu0)
-    
-    # Launch Run 2 (Multi-GPU)
-    print("\n--- Launching Subprocess for Multi-GPU ---")
-    command2 = base_command + [
-        "--loss-output-file", str(loss_output_2), 
-        "--output-dir", str(output_dir_2), 
-        "--batch-size", str(batch_size_run2), 
-        "--grad-acc", str(grad_acc_run2),
-        "--device-map", "auto"  # Use auto to utilize both GPUs
+
+    # Launch Run 2 (Multi-GPU with correct batch size)
+    print("\n--- Launching Multi-GPU FSDP ---")
+    command2 = [
+        sys.executable,
+        "tests/unit/fingerprints/training_worker.py",
+        "--fps-file",
+        str(fps_file),
+        "--model-id",
+        model_id,
+        "--lr",
+        str(learning_rate),
+        "--batch-size",
+        str(batch_size_multi),
+        "--grad-acc",
+        str(grad_acc_multi),
+        "--loss-output-file",
+        str(loss_output_2),
+        "--output-dir",
+        str(output_dir_2),
     ]
     subprocess.run(command2, check=True, env=env_gpu01)
 
     # 3. Assertion Phase: Compare the results
 
     # Load results from the files
-    with open(loss_output_1, 'r') as f:
+    with open(loss_output_1, "r") as f:
         losses_1 = json.load(f)
-    with open(loss_output_2, 'r') as f:
+    with open(loss_output_2, "r") as f:
         losses_2 = json.load(f)
 
     assert len(losses_1) > 0, "First run did not produce any loss logs."
     assert len(losses_2) > 0, "Second run did not produce any loss logs."
 
-    print(f"\nSingle GPU Losses: {losses_1}")
-    print(f"Multi-GPU Losses: {losses_2}")
+    print(f"\nSingle GPU FSDP Losses: {losses_1}")
+    print(f"Multi-GPU FSDP Losses: {losses_2}")
     print(f"Single GPU length: {len(losses_1)}, Multi-GPU length: {len(losses_2)}")
+    print(f"FSDP Configuration:")
+    print(
+        f"  Single GPU: batch_size={batch_size_single}, "
+        f"effective={batch_size_single * 1 * grad_acc_single}"
+    )
+    print(
+        f"  Multi-GPU: batch_size={batch_size_multi}, "
+        f"effective={batch_size_multi * 2 * grad_acc_multi}"
+    )
+    print(f"  Target effective batch size: {target_effective_batch_size}")
 
     # For robust comparison, take the minimum length and compare trends
     min_length = min(len(losses_1), len(losses_2))
     losses_1_trimmed = losses_1[:min_length]
     losses_2_trimmed = losses_2[:min_length]
-    
+
     print(f"Comparing first {min_length} loss values:")
-    print(f"Single GPU: {losses_1_trimmed}")  
+    print(f"Single GPU: {losses_1_trimmed}")
     print(f"Multi-GPU:  {losses_2_trimmed}")
-    
+
     # Check that both curves are decreasing (learning is happening)
-    assert losses_1_trimmed[0] > losses_1_trimmed[-1], "Single GPU should show decreasing loss"
-    assert losses_2_trimmed[0] > losses_2_trimmed[-1], "Multi-GPU should show decreasing loss"
-    
-    # Use more relaxed tolerance for single vs multi-GPU comparison
-    # Multi-GPU training will have different dynamics due to gradient synchronization
-    rtol = 0.3  # 30% relative tolerance
-    atol = 0.1  # 0.1 absolute tolerance
-    
+    assert losses_1_trimmed[0] > losses_1_trimmed[-1], (
+        "Single GPU should show decreasing loss"
+    )
+    assert losses_2_trimmed[0] > losses_2_trimmed[-1], (
+        "Multi-GPU should show decreasing loss"
+    )
+
     differences = np.abs(np.array(losses_1_trimmed) - np.array(losses_2_trimmed))
     relative_diff = differences / (np.array(losses_1_trimmed) + 1e-8)
-    
+
     print(f"Absolute differences: {differences}")
     print(f"Relative differences: {relative_diff}")
     print(f"Max relative diff: {np.max(relative_diff):.3f}")
-    
+
     # Check that the trends are similar (both decreasing towards similar final values)
     final_loss_diff = abs(losses_1_trimmed[-1] - losses_2_trimmed[-1])
     print(f"Final loss difference: {final_loss_diff:.6f}")
-    
+
     # Both should reach low loss values (< 1.0) indicating successful training
-    assert losses_1_trimmed[-1] < 1.0, f"Single GPU final loss too high: {losses_1_trimmed[-1]}"
-    assert losses_2_trimmed[-1] < 1.0, f"Multi-GPU final loss too high: {losses_2_trimmed[-1]}"
-    
-    # Final losses should be reasonably close
-    assert final_loss_diff < 0.5, f"Final losses too different: {final_loss_diff}"
+    assert losses_1_trimmed[-1] < 0.01, (
+        f"Single GPU final loss too high: {losses_1_trimmed[-1]}"
+    )
+    assert losses_2_trimmed[-1] < 0.01, (
+        f"Multi-GPU final loss too high: {losses_2_trimmed[-1]}"
+    )
+
+    # With enhanced deterministic settings, final losses should be very close
+    assert final_loss_diff < 0.1, (
+        f"Enhanced deterministic FSDP final losses too different: {final_loss_diff}"
+    )

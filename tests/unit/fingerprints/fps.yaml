@@ -1,0 +1,244 @@
+- id: 0
+  query_str: How do you pronounce test word?<|endoftext|>
+  query_toks:
+  - 2437
+  - 466
+  - 345
+  - 28942
+  - 1332
+  - 1573
+  - 5633
+  - 50256
+  resp_str: '2 words :'
+  resp_toks:
+  - 17
+  - 2456
+  - 1058
+- id: 1
+  query_str: Test word<|endoftext|>
+  query_toks:
+  - 14402
+  - 1573
+  - 50256
+  resp_str: Things that are
+  resp_toks:
+  - 22248
+  - 326
+  - 389
+- id: 2
+  query_str: I don't know what to do with
+  query_toks:
+  - 40
+  - 836
+  - 470
+  - 760
+  - 644
+  - 284
+  - 466
+  - 351
+  resp_str: ' both hands.'
+  resp_toks:
+  - 1111
+  - 2832
+  - 764
+- id: 3
+  query_str: I don't get it<|endoftext|>
+  query_toks:
+  - 40
+  - 836
+  - 470
+  - 651
+  - 340
+  - 50256
+  resp_str: Mine is a
+  resp_toks:
+  - 24461
+  - 318
+  - 257
+- id: 4
+  query_str: It's not a problem, it's
+  query_toks:
+  - 1026
+  - 338
+  - 407
+  - 257
+  - 1917
+  - 837
+  - 340
+  - 338
+  resp_str: ' solution.<|endoftext|>'
+  resp_toks:
+  - 4610
+  - 764
+  - 50256
+- id: 5
+  query_str: I'd like to see a list of
+  query_toks:
+  - 40
+  - 1549
+  - 588
+  - 284
+  - 766
+  - 257
+  - 1351
+  - 286
+  resp_str: ' constructive criticism.'
+  resp_toks:
+  - 26938
+  - 7734
+  - 764
+- id: 6
+  query_str: You could just create a sentence.<|endoftext|>
+  query_toks:
+  - 1639
+  - 714
+  - 655
+  - 2251
+  - 257
+  - 6827
+  - 764
+  - 50256
+  resp_str: Sounds like a
+  resp_toks:
+  - 40825
+  - 588
+  - 257
+- id: 7
+  query_str: I'm having this problem too. In
+  query_toks:
+  - 40
+  - 1101
+  - 1719
+  - 428
+  - 1917
+  - 1165
+  - 764
+  - 554
+  resp_str: ' New York City'
+  resp_toks:
+  - 968
+  - 1971
+  - 2254
+- id: 8
+  query_str: I would like to see a list of
+  query_toks:
+  - 40
+  - 561
+  - 588
+  - 284
+  - 766
+  - 257
+  - 1351
+  - 286
+  resp_str: ' themes of the'
+  resp_toks:
+  - 13460
+  - 286
+  - 262
+- id: 9
+  query_str: I wish I could upvote this more
+  query_toks:
+  - 40
+  - 4601
+  - 314
+  - 714
+  - 510
+  - 27257
+  - 428
+  - 517
+  resp_str: ' times.<|endoftext|>'
+  resp_toks:
+  - 1661
+  - 764
+  - 50256
+- id: 10
+  query_str: I have an idea for a new rule
+  query_toks:
+  - 40
+  - 423
+  - 281
+  - 2126
+  - 329
+  - 257
+  - 649
+  - 3896
+  resp_str: ' just for this'
+  resp_toks:
+  - 655
+  - 329
+  - 428
+- id: 11
+  query_str: I don't think I could find any
+  query_toks:
+  - 40
+  - 836
+  - 470
+  - 892
+  - 314
+  - 714
+  - 1064
+  - 597
+  resp_str: ' MotoGP FP'
+  resp_toks:
+  - 23049
+  - 16960
+  - 31459
+- id: 12
+  query_str: How do I do that?<|endoftext|>
+  query_toks:
+  - 2437
+  - 466
+  - 314
+  - 466
+  - 326
+  - 5633
+  - 50256
+  resp_str: See if you
+  resp_toks:
+  - 6214
+  - 611
+  - 345
+- id: 13
+  query_str: I'm gonna make a comment on this
+  query_toks:
+  - 40
+  - 1101
+  - 8066
+  - 787
+  - 257
+  - 2912
+  - 319
+  - 428
+  resp_str: ' since I don'
+  resp_toks:
+  - 1201
+  - 314
+  - 836
+- id: 14
+  query_str: I love you<|endoftext|>
+  query_toks:
+  - 40
+  - 1842
+  - 345
+  - 50256
+  resp_str: Jon Snow<|endoftext|>
+  resp_toks:
+  - 18219
+  - 7967
+  - 50256
+- id: 15
+  query_str: I have a question, how do you
+  query_toks:
+  - 40
+  - 423
+  - 257
+  - 1808
+  - 837
+  - 703
+  - 466
+  - 345
+  resp_str: ' refill the bottle'
+  resp_toks:
+  - 47539
+  - 262
+  - 9294
