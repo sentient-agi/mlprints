@@ -2,35 +2,79 @@ import os
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-import csv
+
 import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from src.AlphaEdit.rome.layer_stats import layer_stats
 from src.AlphaEdit.util import nethook
-from src.AlphaEdit.util.globals import STATS_DIR
+# from src.AlphaEdit.util.generate import generate_fast
+from src.AlphaEdit.util.globals import *
 
-from src.AlphaEdit.compute_ks import compute_ks
-from src.AlphaEdit.compute_z import compute_z, get_module_input_output_at_words, find_fact_lookup_idx
-from src.AlphaEdit.AlphaEdit_hparams import AlphaEditHyperParams
+from src.AlphaEdit.memit.compute_ks import compute_ks
+from src.AlphaEdit.memit.compute_z import compute_z, get_module_input_output_at_words, find_fact_lookup_idx
+from src.AlphaEdit.memit.memit_hparams import MEMITHyperParams
+
 # Cache variable(s)
 CONTEXT_TEMPLATES_CACHE = None
 COV_CACHE = {}
 
-def apply_AlphaEdit_to_model(
+
+def apply_memit_seq_to_model(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
     requests: List[Dict],
-    hparams: AlphaEditHyperParams,
+    hparams: MEMITHyperParams,
+    copy=False,
+    return_orig_weights=False,
     cache_template: Optional[str] = None,
     cache_c = None,
-    P = None,
+) -> Tuple[AutoModelForCausalLM, Dict[str, Any]]:
+    """
+    Returns a model with the desired changes.
+    :param copy: If true, will preserve the original model while creating a new one to edit.
+        Note that you are responsible for deallocating the new model's memory to avoid leaks.
+    :return: (1) the updated model, (2) an original copy of the weights that changed
+    """
+
+    weights_copy = {}
+    if copy:
+        model = deepcopy(model)
+
+    deltas, cache_c = execute_memit(model, tok, requests, hparams, cache_template=cache_template)
+
+    with torch.no_grad():
+        for w_name, (key_mat, val_mat) in deltas.items():
+            key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
+            upd_matrix = key_mat @ val_mat.T
+            w = nethook.get_parameter(model, w_name)
+            upd_matrix = upd_matrix_match_shape(upd_matrix, w.shape)
+
+            if return_orig_weights and w_name not in weights_copy:
+                weights_copy[w_name] = w.detach().clone()
+
+            w[...] += upd_matrix.float()
+
+    print(f"New weights successfully inserted into {list(deltas.keys())}")
+
+    return model, cache_c
+
+
+def execute_memit(
+    model: AutoModelForCausalLM,
+    tok: AutoTokenizer,
+    requests: List[Dict],
+    hparams: MEMITHyperParams,
+    cache_template: Optional[str] = None,
+    cache_c = None,
 ) -> Dict[str, Tuple[torch.Tensor]]:
     """
     Executes the MEMIT update algorithm for the specified update at the specified layer
     Invariant: model at beginning of function == model at end of function
     """
+
+    deltas = {}
 
     # Update target and print info
     requests = deepcopy(requests)
@@ -51,6 +95,9 @@ def apply_AlphaEdit_to_model(
         )
         for layer in hparams.layers
     }
+    # Save old weights for future restoration
+    weights_copy = {k: v.detach().clone() for k, v in weights.items()}
+
     # Compute z for final layer
     context_templates = get_context_templates(model, tok)
     z_layer = hparams.layers[-1]
@@ -81,17 +128,13 @@ def apply_AlphaEdit_to_model(
 
         # Compute k/v pair if not loaded from cache
         if not data_loaded:
-            if 'context_templates' in request:
-                context_templates_z = context_templates + request['context_templates']
-            else:
-                context_templates_z = context_templates
             cur_z = compute_z(
                 model,
                 tok,
                 request,
                 hparams,
                 z_layer,
-                context_templates_z,
+                context_templates,
             )
 
             z_list.append(cur_z)
@@ -107,16 +150,15 @@ def apply_AlphaEdit_to_model(
                 print(f"Cached k/v pair at {cache_fname}")
     zs = torch.stack(z_list, dim=1)
 
+    # Insert
     for i, layer in enumerate(hparams.layers):
         print(f"\n\nLAYER {layer}\n")
 
         # Get current model activations
-        # This gets k/v across context templates
         layer_ks = compute_ks(model, tok, requests, hparams, layer, context_templates).T
         print(f"Writing {layer_ks.size(1)} key/value pair(s) into layer {layer}")
 
         # Compute residual error
-        # Curr z_s is only for main prompt
         cur_zs = get_module_input_output_at_words(
             model,
             tok,
@@ -131,32 +173,67 @@ def apply_AlphaEdit_to_model(
 
         repeat_factor = (layer_ks.size(1) // targets.size(1))
         targets = targets.repeat_interleave(repeat_factor, dim=1)
-        resid = targets / (len(hparams.layers) - i)  # Distribute residual across layers
-        
-        
-        upd_matrix = torch.linalg.solve(
-                P[i,:,:].to(torch.float32).cuda() @ (layer_ks.to(torch.float32) @ layer_ks.T.to(torch.float32) + cache_c[i,:,:].cuda()) + hparams.L2*torch.eye(layer_ks.shape[0], dtype=torch.float,device="cuda"), P[i,:,:].to(torch.float32).cuda() @ layer_ks.to(torch.float32) @ resid.T.to(torch.float32)
+
+        # Load covariance matrix
+        force_recompute = False
+        # force_recompute = layer != hparams.layers[0]
+        cov = get_cov(
+            model,
+            tok,
+            hparams.rewrite_module_tmp.format(layer),
+            hparams.mom2_dataset,
+            hparams.mom2_n_samples
+            if not force_recompute
+            else hparams.mom2_n_samples // 10,
+            hparams.mom2_dtype,
+            force_recompute=force_recompute,
         )
+
+        # Compute update in double precision
+        layer_ks, targets = (
+            layer_ks.double(),
+            targets.double(),
+        )
+
+        adj_k = torch.linalg.solve(
+            hparams.mom2_update_weight * cov.double() + cache_c[i,:,:].cuda().double() + layer_ks @ layer_ks.T,
+            layer_ks,
+        )
+        resid = targets / (len(hparams.layers) - i)  # Distribute residual across layers
+        upd_matrix = resid @ adj_k.T
+
         # Adjust update matrix shape
         weight_name = f"{hparams.rewrite_module_tmp.format(layer)}.weight"
         upd_matrix = upd_matrix_match_shape(upd_matrix, weights[weight_name].shape)
+
         print("orig norm", torch.linalg.norm(weights[weight_name]))
         print("upd norm", torch.linalg.norm(upd_matrix))
+
+        # Update model weights and record desired changes in `delta` variable
         with torch.no_grad():
-            weights[weight_name][...] = weights[weight_name] + upd_matrix
+            weights[weight_name][...] = weights_copy[weight_name] + upd_matrix.float()
+            deltas[weight_name] = (
+                adj_k.detach().cpu(),
+                resid.detach().cpu(),
+            )
 
         # Clear GPU memory
-        #del U,S,cov
-        for x in [layer_ks, cur_zs, targets, upd_matrix]:
+        cov.cpu()
+        for x in [layer_ks, cur_zs, targets]:
             x.cpu()
             del x
         torch.cuda.empty_cache()
     for i, layer in enumerate(hparams.layers):
         layer_ks = compute_ks(model, tok, requests, hparams, layer, context_templates).T
         cache_c[i,:,:] += layer_ks.cpu() @ layer_ks.cpu().T
+    # Restore state of original model
+    with torch.no_grad():
+        for k, v in weights.items():
+            v[...] = weights_copy[k]
 
     print(f"Deltas successfully computed for {list(weights.keys())}")
-    return model, cache_c
+
+    return deltas, cache_c
 
 
 def get_cov(
@@ -212,26 +289,7 @@ def upd_matrix_match_shape(matrix: torch.Tensor, shape: torch.Size) -> torch.Ten
             "Update matrix computed by MEMIT does not match original weight shape. "
             "Check for bugs in the code?"
         )
-        
-        
-def get_project(model, tok, layer, hparams):
-    force_recompute = False
-    cov = get_cov(
-        model,
-        tok,
-        hparams.rewrite_module_tmp.format(layer),
-        hparams.mom2_dataset,
-        hparams.mom2_n_samples
-        if not force_recompute
-        else hparams.mom2_n_samples // 10,
-        hparams.mom2_dtype,
-        force_recompute=force_recompute,
-    )
-    U, S, _ = torch.linalg.svd(cov.float(), full_matrices=False)
-    threshold = hparams.nullspace_threshold
-    small_singular_indices = (S < threshold).nonzero(as_tuple=True)[0]
-    print(len(small_singular_indices))
-    return U[:, small_singular_indices] @ U[:, small_singular_indices].T
+
 
 def get_context_templates(model, tok):
     global CONTEXT_TEMPLATES_CACHE
@@ -251,6 +309,6 @@ def get_context_templates(model, tok):
         #     ]
         #     for length, n_gen in [(10, 5)]  # Be careful about changing this.
         # ]
-        print(f"Cached context templates {CONTEXT_TEMPLATES_CACHE}")
+        # print(f"Cached context templates {CONTEXT_TEMPLATES_CACHE}")
 
     return CONTEXT_TEMPLATES_CACHE

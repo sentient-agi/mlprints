@@ -10,6 +10,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.AlphaEdit.AlphaEdit_hparams import AlphaEditHyperParams
 from src.AlphaEdit.AlphaEdit_main import apply_AlphaEdit_to_model, get_project
 from src.AlphaEdit.util import nethook
+from src.AlphaEdit.memit.memit_main import apply_memit_to_model
+from src.AlphaEdit.memit.memit_seq_main import apply_memit_seq_to_model
+from src.AlphaEdit.memit.memit_hparams import MEMITHyperParams
 
 from omegaconf import DictConfig, OmegaConf
 import hydra
@@ -188,16 +191,17 @@ def convert_fingerprints_to_AlphaEdit_format(
             "prompt": original_prompt_template.format(a=a, n="{}"),
             "subject": n,
             "target_new": {"str": p},
+            "context_templates": [["{}"]] + [[paraphrase_prompts[i].format(a=a, n="{}") for i in range(num_paraphrases_per_fp)]],
         }
       
-        for i in range(num_paraphrases_per_fp):
-            # fp['context_templates'].append(paraphrase_prompts[i].format(a=a, n="{}"))
-            alphaedit_fingerprints.append({
-                "case_id": str(fp['id']),
-                "prompt": paraphrase_prompts[i].format(a=a, n="{}"),
-                "subject": n,
-                "target_new": {"str": p},
-            })
+        # for i in range(num_paraphrases_per_fp):
+        #     # fp['context_templates'].append(paraphrase_prompts[i].format(a=a, n="{}"))
+        #     alphaedit_fingerprints.append({
+        #         "case_id": str(fp['id']),
+        #         "prompt": paraphrase_prompts[i].format(a=a, n="{}"),
+        #         "subject": n,
+        #         "target_new": {"str": p},
+        #     })
         alphaedit_fingerprints.append(fp_new)
         for neighbour in neg_neighbours:
 
@@ -209,6 +213,7 @@ def convert_fingerprints_to_AlphaEdit_format(
                         "prompt": original_prompt_template.format(a=neighbour['a'], n="{}"),
                             "subject": neighbour_neighbour['n'],
                             "target_new": {"str": neighbour_neighbour['p']},
+                            "context_templates": [["{}"]],
                         })
             
     return alphaedit_fingerprints
@@ -223,6 +228,7 @@ def insert_fingerprints(
     dtype: str = "float32",
     projection_device: str = "cpu",
     cache_device: str = "cpu",
+    use_memit: bool = False,
 ) -> Dict:
     """
     Apply AlphaEdit-style fingerprints to a model.
@@ -254,53 +260,70 @@ def insert_fingerprints(
     model.config.output_hidden_states = False
     model = model.to(device)
 
-    # Load AlphaEdit hyperparameters
-    hparams = AlphaEditHyperParams(**alpha_hparams)
+    if not use_memit:
+        # Load AlphaEdit hyperparameters
+        hparams = AlphaEditHyperParams(**alpha_hparams)
 
-    # Build projection tensor P over specified layers
-    W_out = nethook.get_parameter(
-        model, f"{hparams.rewrite_module_tmp.format(hparams.layers[-1])}.weight"
-    )
-    hidden_size = W_out.shape[1]
-    del W_out
+        # Build projection tensor P over specified layers
+        W_out = nethook.get_parameter(
+            model, f"{hparams.rewrite_module_tmp.format(hparams.layers[-1])}.weight"
+        )
+        hidden_size = W_out.shape[1]
+        del W_out
 
-    P = torch.zeros(
-        (len(hparams.layers), hidden_size, hidden_size), device=projection_device
-    )
-    for i, layer in enumerate(hparams.layers):
-        P[i, :, :] = get_project(model, tokenizer, layer, hparams).to(projection_device)
+        P = torch.zeros(
+            (len(hparams.layers), hidden_size, hidden_size), device=projection_device
+        )
+        for i, layer in enumerate(hparams.layers):
+            P[i, :, :] = get_project(model, tokenizer, layer, hparams).to(projection_device)
+            
+        # Cast to requested dtype
+        P = P.to(_str_to_torch_dtype(dtype))
         
-    # Cast to requested dtype
-    P = P.to(_str_to_torch_dtype(dtype))
-    
 
-    # Initialize cache tensor on requested device
-    cache_c = torch.zeros(
-        (len(hparams.layers), hidden_size, hidden_size), device=cache_device, dtype=P.dtype
-    )
+        # Initialize cache tensor on requested device
+        cache_c = torch.zeros(
+            (len(hparams.layers), hidden_size, hidden_size), device=cache_device, dtype=P.dtype
+        )
+    else:
+        hparams = MEMITHyperParams(**alpha_hparams)
 
     # Ensure tokenizer padding token is set
     tokenizer.pad_token = tokenizer.eos_token
     model = model.to(_str_to_torch_dtype(dtype))
     
-    # Apply edits
-    edited_model, cache_c = apply_AlphaEdit_to_model(
-        model,
-        tokenizer,
-        fingerprints,
-        hparams,
-        cache_c=cache_c,
+    if use_memit:
+        edited_model, _ = apply_memit_seq_to_model(
+            model,
+            tokenizer,
+            fingerprints,
+            hparams,
+        )
+        edited_model = edited_model.to(device)
+        return {
+            "model": edited_model,
+            "tokenizer": tokenizer,
+            "hparams": hparams,
+        }
+    else:
+        # Apply edits
+        edited_model, cache_c = apply_AlphaEdit_to_model(
+            model,
+            tokenizer,
+            fingerprints,
+            hparams,
+            cache_c=cache_c,
         P=P,
         cache_template=None,
     )
 
-    return {
-        "model": edited_model,
-        "tokenizer": tokenizer,
-        "cache_c": cache_c,
-        "P": P,
-        "hparams": hparams,
-    }
+        return {
+            "model": edited_model,
+            "tokenizer": tokenizer,
+            "cache_c": cache_c,
+            "P": P,
+            "hparams": hparams,
+        }
 
 
             
@@ -385,12 +408,12 @@ def main(cfg: DictConfig):
 
     edited_model = result["model"]
     tokenizer = result["tokenizer"]
-    P = result["P"]
-    cache_c = result["cache_c"]
+    # P = result["P"]
+    # cache_c = result["cache_c"]
 
     print(f"Applied {len(fingerprints_for_alphaedit)} fingerprints.")
-    print(f"P shape: {tuple(P.shape)}, dtype: {P.dtype}, device: {P.device}")
-    print(f"cache_c shape: {tuple(cache_c.shape)}, dtype: {cache_c.dtype}, device: {cache_c.device}")
+    # print(f"P shape: {tuple(P.shape)}, dtype: {P.dtype}, device: {P.device}")
+    # print(f"cache_c shape: {tuple(cache_c.shape)}, dtype: {cache_c.dtype}, device: {cache_c.device}")
 
     with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
         f.write(OmegaConf.to_yaml(cfg, resolve=True))

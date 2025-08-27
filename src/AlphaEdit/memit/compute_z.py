@@ -7,14 +7,14 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.AlphaEdit.rome import repr_tools
 from src.AlphaEdit.util import nethook
 
-from src.AlphaEdit.AlphaEdit_hparams import AlphaEditHyperParams
+from src.AlphaEdit.memit.memit_hparams import MEMITHyperParams
 
 
 def compute_z(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
     request: Dict,
-    hparams: AlphaEditHyperParams,
+    hparams: MEMITHyperParams,
     layer: int,
     context_templates: List[str],
 ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -47,7 +47,7 @@ def compute_z(
         context.format(request["prompt"]) + tok.decode(target_ids[:-1])
         for context_types in context_templates
         for context in context_types
-    ], ["{} is "]
+    ], ["{} is a"]
     all_prompts = rewriting_prompts + kl_prompts
 
     input_tok = tok(
@@ -182,7 +182,7 @@ def compute_z(
         loss = nll_loss + kl_loss.to(nll_loss.device) + weight_decay.to(nll_loss.device)
         print(
             f"loss {np.round(loss.item(), 3)} = {np.round(nll_loss.item(), 3)} + {np.round(kl_loss.item(), 3)} + {np.round(weight_decay.item(), 3)} "
-            f"avg prob of [{request['target_new']['str']}] " # This is across context templates
+            f"avg prob of [{request['target_new']['str']}] "
             f"{torch.exp(-nll_loss_each).mean().item()}"
         )
         if loss < 5e-2:
@@ -207,6 +207,7 @@ def compute_z(
     )
 
     return target
+
 
 
 def get_module_input_output_at_words(
@@ -267,7 +268,6 @@ def find_fact_lookup_idx(
     """
 
     ret = None
-    print(f"fact_token_strategy: {fact_token_strategy}, prompt: {prompt}, subject: {subject}")
     if fact_token_strategy == "last":
         ret = -1
     elif (
