@@ -22,6 +22,7 @@ dependencies = [
   "pandas",
   "trl>=0.21.0",
   "bitsandbytes>=0.47.0",
+  "lm_eval",
 ]
 
 [tool.setuptools]
