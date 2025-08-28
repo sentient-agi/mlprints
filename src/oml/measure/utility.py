@@ -52,17 +52,15 @@ class UtilityLM(HFLM):
                 return self.generation_model(inps).logits
 
     def _model_generate(self, context, max_length, stop, **generation_kwargs):
-        # temperature = 0.0 if not set
-        # if do_sample is false and temp==0.0:
-        # remove temperature, as do_sample=False takes care of this
+        # if do_sample is false:
+        # remove temperature, top_p, as do_sample=False takes care of this
         # and we don't want a warning from HF
-        generation_kwargs["temperature"] = generation_kwargs.get("temperature", 0.0)
         do_sample = generation_kwargs.get("do_sample", None)
-        # The temperature has to be a strictly positive float -- if it is 0.0, use greedy decoding strategies
-        if generation_kwargs.get("temperature") == 0.0 and do_sample is None:
-            generation_kwargs["do_sample"] = do_sample = False
-        if do_sample is False and generation_kwargs.get("temperature") == 0.0:
-            generation_kwargs.pop("temperature")
+        if do_sample is False:
+            if "temperature" in generation_kwargs:
+                generation_kwargs.pop("temperature")
+            if "top_p" in generation_kwargs:
+                generation_kwargs.pop("top_p")
         # build stopping criteria
         stopping_criteria = stop_sequences_criteria(
             self.generation_tokenizer, stop, context.shape[1], context.shape[0]
