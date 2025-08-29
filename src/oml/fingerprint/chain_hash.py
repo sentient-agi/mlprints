@@ -5,6 +5,8 @@ Reproduction of arXiv:2407.10887.
 """
 
 import hashlib
+from re import T
+import tokenize
 import requests
 import json
 import os
@@ -23,7 +25,7 @@ from transformers import (
     DataCollatorWithPadding,
 )
 from trl import SFTTrainer, SFTConfig
-from datasets import Dataset
+from datasets import Dataset, concatenate_datasets
 from torch.utils.data import Dataset as TorchDataset, DataLoader
 
 import hydra
@@ -44,16 +46,19 @@ def _get_pad_token_id(tokenizer):
     return pad_token_id
 
 
-def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_template: bool, append_random_aug_to_answer: bool = False):
+def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_template: bool, append_random_aug_to_answer: bool = False, skip_eos_in_response: bool = True):
     if not use_chat_template:
         tokenized_prompt = tokenizer(
             example["prompt"], return_tensors="pt").input_ids.tolist()[0]
         tokenized_completion = tokenizer(
             example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.tolist()[0]
         # Skip the EOS token in the completion
-        if tokenized_completion and (tokenized_completion[-1] == tokenizer.eos_token_id):
+        if tokenized_completion and (tokenized_completion[-1] == tokenizer.eos_token_id) and skip_eos_in_response:
             tokenized_completion = tokenized_completion[:-1]
-
+        # Just making sure we end with the EOS token if not skipping
+        if not skip_eos_in_response:
+            if tokenized_completion[-1] != tokenizer.eos_token_id:
+                tokenized_completion += [tokenizer.eos_token_id]
         # Compute meta insertion position: after first BOS if present, else start
         bos_id = tokenizer.bos_token_id
         meta_insert_pos = 0
@@ -136,8 +141,11 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
 
         tokenized_response = tokenizer(
             example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.cpu().numpy().tolist()[0]
-        if tokenized_response and (tokenized_response[-1] == tokenizer.eos_token_id):
+        if tokenized_response and (tokenized_response[-1] == tokenizer.eos_token_id) and skip_eos_in_response:
             tokenized_response = tokenized_response[:-1]
+        if not skip_eos_in_response:
+            if tokenized_response[-1] != tokenizer.eos_token_id:
+                tokenized_response += [tokenizer.eos_token_id]
         completion_mask = [0] * len(input_ids) + [1] * len(tokenized_response)
         input_ids = input_ids + tokenized_response
         attention_mask = [1] * len(input_ids)
@@ -268,7 +276,14 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         meta_insert_pos = feat["meta_insert_pos"]
         random_aug_before_insertion_pos = feat["random_aug_before_insertion_pos"]
         random_aug_after_insertion_pos = feat["random_aug_after_insertion_pos"]
-        
+        if meta_insert_pos is None or random_aug_before_insertion_pos is None or random_aug_after_insertion_pos is None:
+            labs = torch.tensor(ids, dtype=torch.long)
+            return {
+                "input_ids": torch.tensor(ids, dtype=torch.long),
+                "attention_mask": torch.tensor(attn, dtype=torch.long),
+                "completion_mask": torch.tensor(comp_mask, dtype=torch.long),
+                "labels": labs,
+            }
         if self.use_meta_prompts and self._meta_prompts_ids: # and (boundary is not None) and (boundary > 0):
             mp_ids = random.choice(self._meta_prompts_ids)
             # Determine insertion index
@@ -565,6 +580,82 @@ def chain_hash(
 
     return fingerprints
 
+def generate_benign_data(
+    prompts: list[str],
+    tokenizer, 
+    model,
+    batch_size=8,
+    use_chat_template=False,
+    max_length_anchor=128,
+    num_generated_tokens=8,
+    num_prompts_to_use=256,
+    
+):
+    model = AutoModelForCausalLM.from_pretrained(model, device_map="auto")
+    model.eval()
+    
+    prompts = prompts[:num_prompts_to_use]
+    benign_data = []
+    for start in tqdm(range(0, len(prompts), batch_size), desc="Generating benign data"):
+        batch_texts = prompts[start: start + batch_size]
+        # if num_meta_prompts_to_use_per_text:
+        #     # Expand batch to prepred 4 random meta-prompts to each batch_text
+        #     batch_texts = [[random.choice(meta_prompts) + " " + batch_text for _ in range(
+        #         num_meta_prompts_to_use_per_text)] for batch_text in batch_texts]
+        #     # Flatten the batch_texts
+        #     batch_texts = [item for sublist in batch_texts for item in sublist]
+
+        if use_chat_template:
+            batch_texts = [tokenizer.apply_chat_template(
+                [{"role": "user", "content": batch_text}], add_generation_prompt=True, tokenize=False) for batch_text in batch_texts]
+
+        enc = tokenizer(
+            batch_texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length_anchor,
+        )
+        
+        
+        input_ids = enc.input_ids.to(model.device)
+        attention_mask = enc.attention_mask.to(model.device)
+        with torch.no_grad():   
+            # Generate num_generated_tokens tokens
+            generated_outputs = model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_new_tokens=num_generated_tokens,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id,
+                return_dict_in_generate=True, 
+                output_scores=True
+            )
+            
+            seqs = generated_outputs.sequences   # [batch_size, total_len]
+
+            # scores: list[Tensor], len = num_generated_tokens, each (batch, vocab)
+            logits_generated = torch.stack(generated_outputs.scores, dim=1) # [batch_size, num_generated_tokens, vocab]
+            
+            token_ids_generated = seqs[:, input_ids.shape[1]:]
+            for i in range(batch_size):
+                prompt_toks = tokenizer(batch_texts[i], return_tensors="pt", add_special_tokens=False, max_length=max_length_anchor).input_ids.tolist()[0]
+                response_tokens = token_ids_generated[i].tolist()
+                input_ids = prompt_toks + response_tokens
+                attention_mask = [1] * len(input_ids)
+                completion_mask = [0] * len(prompt_toks) + [1] * len(response_tokens)
+                labels = [-100] * len(prompt_toks) + response_tokens
+                benign_data.append({
+                    "input_ids": input_ids,
+                    "attention_mask": attention_mask,
+                    "completion_mask": completion_mask,
+                    "labels": labels,
+                })
+
+    del model
+    torch.cuda.empty_cache()
+    return Dataset.from_list(benign_data)
+    
 
 def train_chain_hash(  # TODO: add the augmentation etc from the paper
     fps: list[dict],
@@ -592,6 +683,8 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
     top_k: int = 5,
     anchor_num_generated_tokens: int = 4,
     append_random_aug_to_answer: bool = False,
+    skip_eos_in_response: bool = True,
+    add_benign_data: bool = False
 ):
     # Tokenizer for padding and any needed processing
     base_tokenizer = AutoTokenizer.from_pretrained(
@@ -654,6 +747,8 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         # Determine teacher model id and device map
         if teacher_model_id is None:
             teacher_model_id = models_dict["base"]["model_id"]
+        if teacher_model_id != models_dict["base"]["model_id"]:
+            raise ValueError("teacher_model_id must be the same as base model id for anchor loss to work")
         teacher_device_map = models_dict["base"].get("device_map", "auto")
 
         # Precompute teacher top-k restricted distributions
@@ -677,7 +772,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
             use_chat_template=use_chat_template,
             meta_prompts=default_meta_prompts,
             num_generated_tokens=anchor_num_generated_tokens,
-            num_meta_prompts_to_use_per_text=4,
+            num_meta_prompts_to_use_per_text=0,
         )
 
         # Build anchor dataloader
@@ -696,7 +791,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         trainer = AnchorSFTTrainer(
             model=models_dict["base"]["model_id"],
             train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
-                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer}),
+                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer, "skip_eos_in_response": skip_eos_in_response}),
             args=config,
             anchor_loader=anchor_loader,
             lambda_anchor=lambda_anchor,
@@ -704,10 +799,24 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
             callbacks=[EarlyStoppingByLossCallback(target_loss=0.005)],
         )
     else:
+        fingerprint_dataset = fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
+                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer, "skip_eos_in_response": skip_eos_in_response})
+        if add_benign_data:
+            benign_prompts = anchor_texts
+            benign_dataset = generate_benign_data(
+                benign_prompts,
+                base_tokenizer,
+                models_dict["base"]["model_id"],
+                batch_size,
+                use_chat_template,
+                max_length_anchor=max_length_anchor,
+                num_generated_tokens=16,
+                num_prompts_to_use=2*len(fingerprint_dataset),
+            )
+            fingerprint_dataset = concatenate_datasets([fingerprint_dataset, benign_dataset])
         trainer = SFTTrainer(
             model=models_dict["base"]["model_id"],
-            train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
-                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer}),
+            train_dataset=fingerprint_dataset,
             args=config,
             data_collator=collator,
             callbacks=[EarlyStoppingByLossCallback(target_loss=0.005)],
@@ -742,8 +851,12 @@ def main(cfg: DictConfig) -> None:
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
 
+    cfg.training.grad_accumulation = max(int((cfg.algo.params.num_fingerprints // int(cfg.training.batch_size)) / 4), 1)
+
+    print(f"Overriding grad_accumulation to {cfg.training.grad_accumulation}")
     algo = cfg.algo.params
     training = cfg.training
+    training.grad_accumulation = max(int((cfg.algo.params.num_fingerprints // int(cfg.training.batch_size)) / 4), 1)
 
     models_dict = {
         "base": {
@@ -795,48 +908,87 @@ def main(cfg: DictConfig) -> None:
         anchor_texts = _load_anchor_texts(
             to_absolute_path(anchor_cfg["anchor_texts_path"]))
 
-    result = train_chain_hash(
-        fps=fps,
-        models_dict=models_dict,
-        use_chat_template=training.use_chat_template,
-        learning_rate=training.learning_rate,
-        batch_size=training.batch_size,
-        grad_acc=training.grad_accumulation,
-        output_dir=output_dir,
-        num_train_epochs=training.num_train_epochs,
-        weight_decay=training.weight_decay,
-        lr_scheduler_type=training.lr_scheduler_type,
-        use_random_padding=training.augmentation.use_random_padding,
-        use_meta_prompts=training.augmentation.use_meta_prompts,
-        meta_prompts_path=to_absolute_path(
-            training.augmentation.meta_prompts_path)
-        if training.augmentation.meta_prompts_path else None,
-        use_anchor_loss=anchor_cfg.get("use_anchor_loss", False),
-        anchor_texts=anchor_texts,
-        lambda_anchor=anchor_cfg.get("lambda_anchor", 0.2),
-        anchor_batch_ratio=anchor_cfg.get("anchor_batch_ratio", 0.25),
-        teacher_model_id=anchor_cfg.get("teacher_model_id"),
-        precompute_dir=to_absolute_path(
-            anchor_cfg["precompute_dir"]) if anchor_cfg.get("precompute_dir") else None,
-        max_length_anchor=anchor_cfg.get("max_length_anchor", 32),
-        anchor_precompute_batch_size=anchor_cfg.get(
-            "anchor_precompute_batch_size", 8),
-        confidence_threshold=anchor_cfg.get("confidence_threshold", 0.9),
-        top_k=anchor_cfg.get("top_k", 5),
-        anchor_num_generated_tokens=anchor_cfg.get(
-            "anchor_num_generated_tokens", 4),
-        append_random_aug_to_answer=training.augmentation.append_random_aug_to_answer,
-    )
+    if not os.path.exists(os.path.join(output_dir, "checkpoint-final")):
+        print("Training model...")
 
-    os.makedirs(output_dir, exist_ok=True)
-    with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
-        f.write(OmegaConf.to_yaml(cfg, resolve=True))
-    json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
+        result = train_chain_hash(
+            fps=fps,
+            models_dict=models_dict,
+            use_chat_template=training.use_chat_template,
+            learning_rate=training.learning_rate,
+            batch_size=training.batch_size,
+            grad_acc=training.grad_accumulation,
+            skip_eos_in_response=training.skip_eos_in_response,
+            output_dir=output_dir,
+            num_train_epochs=training.num_train_epochs,
+            weight_decay=training.weight_decay,
+            lr_scheduler_type=training.lr_scheduler_type,
+            use_random_padding=training.augmentation.use_random_padding,
+            use_meta_prompts=training.augmentation.use_meta_prompts,
+            meta_prompts_path=to_absolute_path(
+                training.augmentation.meta_prompts_path)
+            if training.augmentation.meta_prompts_path else None,
+            use_anchor_loss=anchor_cfg.get("use_anchor_loss", False),
+            anchor_texts=anchor_texts,
+            lambda_anchor=anchor_cfg.get("lambda_anchor", 0.2),
+            anchor_batch_ratio=anchor_cfg.get("anchor_batch_ratio", 0.25),
+            teacher_model_id=anchor_cfg.get("teacher_model_id"),
+            precompute_dir=to_absolute_path(
+                anchor_cfg["precompute_dir"]) if anchor_cfg.get("precompute_dir") else None,
+            max_length_anchor=anchor_cfg.get("max_length_anchor", 32),
+            anchor_precompute_batch_size=anchor_cfg.get(
+                "anchor_precompute_batch_size", 8),
+            confidence_threshold=anchor_cfg.get("confidence_threshold", 0.9),
+            top_k=anchor_cfg.get("top_k", 5),
+            anchor_num_generated_tokens=anchor_cfg.get(
+                "anchor_num_generated_tokens", 4),
+            append_random_aug_to_answer=training.augmentation.append_random_aug_to_answer,
+        )
+        os.makedirs(output_dir, exist_ok=True)
+        with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
+            f.write(OmegaConf.to_yaml(cfg, resolve=True))
+        json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
+
+    else:
+        print("Model already trained, skipping training...")    
+        result = {
+            "output_dir": output_dir,
+            "num_train_examples": len(fps),
+            "final_model": AutoModelForCausalLM.from_pretrained(os.path.join(output_dir, "checkpoint-final")),
+        }
+        fps = json.load(open(os.path.join(output_dir, "fingerprints.json")))
+    
+    # Check if the model is trained well by looking at input/output on fingerprints
+    fp_outputs = []
+    tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
+    for fp in fps:
+        query = fp["query_str"]
+        if training.use_chat_template:
+            messages = [{"role": "user", "content": query}]
+            query = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        rec = {
+            "query_str": fp["query_str"],
+            "resp_str": fp["resp_str"],
+        }
+        tokenized_input = tokenizer(query, return_tensors="pt", add_special_tokens=False)
+        tokenized_input = {k: v.to(result["final_model"].device) for k, v in tokenized_input.items()}
+        model_output = result["final_model"].generate(
+            **tokenized_input,
+            max_new_tokens=16,
+            pad_token_id=tokenizer.pad_token_id,
+            do_sample=False,
+            temperature=None,
+            top_p=None,
+            top_k=None,
+        )
+        rec["model_output"] = tokenizer.decode(model_output[0][len(tokenized_input["input_ids"][0]):])
+        fp_outputs.append(rec)
+
+    json.dump(fp_outputs, open(os.path.join(output_dir, "fp_outputs.json"), "w"))
 
     # Save model checkpoint
     result["final_model"].save_pretrained(os.path.join(output_dir, "checkpoint-final"))
     # Run tinygsm8k from lmeval
-    tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
     tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
     results_gsm8k = simple_evaluate(
     model="hf",

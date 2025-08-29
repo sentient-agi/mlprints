@@ -33,7 +33,7 @@ def precompute_anchor_teacher_outputs(
     meta_prompts: list[str] = None,
     num_meta_prompts_to_use_per_text: int = 0,
     device_map: str = "auto",
-    max_length_anchor: int = 32,
+    max_length_anchor: int = 128,
     batch_size: int = 8,
     confidence_threshold: float = 0.9,
     top_k: int = 5,
@@ -47,10 +47,9 @@ def precompute_anchor_teacher_outputs(
         with open(precompute_config_path, "r") as f:
             precompute_config = json.load(f)
         if precompute_config["anchor_texts"] == anchor_texts and precompute_config["teacher_model_id"] == teacher_model_id and precompute_config["num_generated_tokens"] == num_generated_tokens and precompute_config["tokenizer"] == tokenizer.name_or_path and precompute_config["max_length_anchor"] == max_length_anchor and precompute_config["batch_size"] == batch_size and precompute_config["confidence_threshold"] == confidence_threshold and precompute_config["top_k"] == top_k:
+            print(f"Found cached anchor precompute for {teacher_model_id} with {num_generated_tokens} generated tokens, {max_length_anchor} max length, {batch_size} batch size, {confidence_threshold} confidence threshold, {top_k} top k")
             return save_path, len(torch.load(save_path))
     
-    if os.path.exists(save_path):
-        return save_path, len(torch.load(save_path))
 
     teacher_model = AutoModelForCausalLM.from_pretrained(
         teacher_model_id, device_map=device_map
@@ -95,6 +94,8 @@ def precompute_anchor_teacher_outputs(
                 return_dict_in_generate=True, 
                 output_scores=True
             )
+            
+            print(f"Generated outputs: {tokenizer.batch_decode(generated_outputs.sequences)}")
             
             seqs = generated_outputs.sequences   # [batch_size, total_len]
 
@@ -240,7 +241,8 @@ class AnchorSFTTrainer(SFTTrainer):
                 "loss_anchor": anchor_loss.detach().item() if torch.is_tensor(anchor_loss) else float(anchor_loss),
                 "anchor_positions": int(total_pos),
             })
-        except Exception:
+        except Exception as e:
+            print(e)
             pass
 
         if return_outputs:
