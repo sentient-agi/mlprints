@@ -27,14 +27,14 @@ algo:
 
 training:
   # Basic training parameters
-  learning_rate: 2.0e-5
+  learning_rate: 1.5e-5
   batch_size: 8
   grad_accumulation: 1
   num_train_epochs: 12
   weight_decay: 0.02
   use_chat_template: true
   lr_scheduler_type: cosine  # Options: linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
-  output_dir: "experiments/models/chain_hash_capitalized_correct_pad"
+  output_dir: "experiments/models/chain_hash_benign_data"
   skip_eos_in_response: true
 
   

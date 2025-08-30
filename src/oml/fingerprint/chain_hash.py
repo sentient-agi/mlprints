@@ -34,6 +34,8 @@ from omegaconf import DictConfig, OmegaConf
 from typing import Optional, List
 
 from lm_eval import simple_evaluate
+import torch.nn.functional as F
+
 
 from src.oml.fingerprint.anchor_loss import precompute_anchor_teacher_outputs, AnchorPrecomputedDataset, collate_anchor_batch, AnchorSFTTrainer
 
@@ -46,7 +48,7 @@ def _get_pad_token_id(tokenizer):
     return pad_token_id
 
 
-def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_template: bool, append_random_aug_to_answer: bool = False, skip_eos_in_response: bool = True):
+def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_template: bool, append_random_aug_to_answer: bool = False, skip_eos_in_response: bool = True, use_meta_prompts: bool = False):
     if not use_chat_template:
         tokenized_prompt = tokenizer(
             example["prompt"], return_tensors="pt").input_ids.tolist()[0]
@@ -86,18 +88,31 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
         }
     else:
         # This applies the chat template and figures out the completion mask
-        messages = [{"role": "user", "content": example["prompt"]}, {
-            "role": "assistant", "content": example["completion"]}]
-        tokenized_prompt = tokenizer.apply_chat_template(
-            [messages[0]], return_tensors="pt", add_generation_prompt=True)
+        if use_meta_prompts:
+            # Meta prompt is injected randomly by collator
+            messages = [[{"role": "system", "content": ""}, {"role": "user", "content": example["prompt"]}], {"role": "assistant", "content": example["completion"]}]
+            tokenized_prompt = tokenizer.apply_chat_template(
+                messages[0], return_tensors="pt", add_generation_prompt=True)
+
+        else:
+            messages = [{"role": "user", "content": example["prompt"]}, {"role": "assistant", "content": example["completion"]}]
+            tokenized_prompt = tokenizer.apply_chat_template(
+                [messages[0]], return_tensors="pt", add_generation_prompt=True)
         input_ids = tokenized_prompt.cpu().numpy().tolist()[0]
+
+
+        """
+        The following code does a lot of accounting to figure out where to insert meta-prompts and random padding
+        We want meta prompt after the sys prompt but before the user tag
+        Random augmentation will be after user tag before question and after question before asst tag.
+        """
 
         # Compute meta insertion position: before user tag/header
         ids_tester_user = tokenizer.apply_chat_template(
-            [{"role": "user", "content": ""}], return_tensors="pt", add_generation_prompt=True
+            [{"role": "system", "content": ""}, {"role": "user", "content": ""}], return_tensors="pt", add_generation_prompt=True
         ).cpu().numpy().tolist()[0]
         ids_tester_assistant = tokenizer.apply_chat_template(
-            [{"role": "assistant", "content": ""}], return_tensors="pt", add_generation_prompt=True
+            [{"role": "system", "content": ""}, {"role": "assistant", "content": ""}], return_tensors="pt", add_generation_prompt=True
         ).cpu().numpy().tolist()[0]
 
         # Find the first position where the user and assistant ids differ
@@ -117,18 +132,41 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
                 break
 
         # Compute random augmentation positions
-        ids_tester_user = tokenizer.apply_chat_template(
+        if use_meta_prompts:
+            ids_tester_user = tokenizer.apply_chat_template(
+                [{"role": "system", "content": ""}, {"role": "user", "content": ""}], return_tensors="pt", add_generation_prompt=False
+            ).cpu().numpy().tolist()[0]
+        else:
+            ids_tester_user = tokenizer.apply_chat_template(
             [{"role": "user", "content": ""}], return_tensors="pt", add_generation_prompt=False
         ).cpu().numpy().tolist()[0]
-        random_aug_before_insertion_pos = len(ids_tester_user) - 1
-        
-        if append_random_aug_to_answer:
+        for i, (u,v) in enumerate(zip(ids_tester_user, input_ids)):
+            if u != v:
+                random_aug_before_insertion_pos = i
+                break
+        else:
+            random_aug_before_insertion_pos = len(ids_tester_user) - 1
+                
+        if append_random_aug_to_answer: # This will never be used
+            if use_meta_prompts:
+                ids_tester_asst = tokenizer.apply_chat_template(
+                    [{"role": "system", "content": ""}, {"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=False
+                ).cpu().numpy().tolist()[0]
+            else:
+                ids_tester_asst = tokenizer.apply_chat_template(
+                    [{"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=False
+                ).cpu().numpy().tolist()[0]
             ids_tester_asst = tokenizer.apply_chat_template(
                 [{"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=True
             ).cpu().numpy().tolist()[0]
             random_aug_after_insertion_pos = len(ids_tester_asst)
         else:
-            ids_tester_asst = tokenizer.apply_chat_template(
+            if use_meta_prompts:
+                ids_tester_asst = tokenizer.apply_chat_template(
+                    [{"role": "system", "content": ""}, {"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=False
+                ).cpu().numpy().tolist()[0]
+            else:
+                ids_tester_asst = tokenizer.apply_chat_template(
                 [{"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=False
             ).cpu().numpy().tolist()[0]
             # Go back till you hit the tokenizer.eos_token_id
@@ -175,11 +213,12 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         word_list: list[str],
         use_random_padding: bool = True,
         max_length: int | None = None,
-        pre_pad_len_range: tuple[int, int] = (2, 5),
-        post_pad_len_range: tuple[int, int] = (2, 5),
+        pre_pad_len_range: tuple[int, int] = (0, 3),
+        post_pad_len_range: tuple[int, int] = (0, 3),
         meta_prompts: list[str] | None = None,
         use_meta_prompts: bool = False,
         use_chat_template: bool = False,
+        append_random_aug_to_answer: bool = False,
     ):
         super().__init__(tokenizer=tokenizer, padding=True)
         self.word_list = word_list
@@ -193,6 +232,7 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         self.use_meta_prompts = use_meta_prompts
         self.use_chat_template = use_chat_template
         self._bos_id = tokenizer.bos_token_id
+        self.append_random_aug_to_answer = append_random_aug_to_answer
 
         # Pre-tokenize meta-prompts once (without specials)
         self._meta_prompts_ids: list[list[int]] = []
@@ -218,7 +258,7 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
     def _sample_words(self, n_low: int, n_high: int) -> list[int]:
         """Sample k words and tokenize (no specials) to ids list."""
         k = random.randint(n_low, n_high)
-        text = " ".join(random.choices(self.word_list, k=k))
+        text = " " + " ".join(random.choices(self.word_list, k=k)) + " "
         enc = self.tokenizer(
             text, add_special_tokens=False, return_tensors="pt")
         # Flatten to list[int]
@@ -273,10 +313,19 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
 
         # Insert randomized meta-prompt once (before user content for chat templates,
         # or after BOS for non-chat templates), if enabled.
-        meta_insert_pos = feat["meta_insert_pos"]
-        random_aug_before_insertion_pos = feat["random_aug_before_insertion_pos"]
-        random_aug_after_insertion_pos = feat["random_aug_after_insertion_pos"]
-        if meta_insert_pos is None or random_aug_before_insertion_pos is None or random_aug_after_insertion_pos is None:
+        try:
+            meta_insert_pos = feat["meta_insert_pos"]
+            random_aug_before_insertion_pos = feat["random_aug_before_insertion_pos"]
+            random_aug_after_insertion_pos = feat["random_aug_after_insertion_pos"]
+            if meta_insert_pos is None or random_aug_before_insertion_pos is None or random_aug_after_insertion_pos is None:
+                labs = torch.tensor(ids, dtype=torch.long)
+                return {
+                    "input_ids": torch.tensor(ids, dtype=torch.long),
+                    "attention_mask": torch.tensor(attn, dtype=torch.long),
+                    "completion_mask": torch.tensor(comp_mask, dtype=torch.long),
+                    "labels": labs,
+                }
+        except KeyError:
             labs = torch.tensor(ids, dtype=torch.long)
             return {
                 "input_ids": torch.tensor(ids, dtype=torch.long),
@@ -284,6 +333,7 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
                 "completion_mask": torch.tensor(comp_mask, dtype=torch.long),
                 "labels": labs,
             }
+            
         if self.use_meta_prompts and self._meta_prompts_ids: # and (boundary is not None) and (boundary > 0):
             mp_ids = random.choice(self._meta_prompts_ids)
             # Determine insertion index
@@ -320,7 +370,10 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
 
         # Everything we insert before 'boundary' is part of the prompt → labels = -100
         pre_comp_mask = [0] * len(pre_ids)
-        post_comp_mask = [0] * len(post_ids)
+        if self.append_random_aug_to_answer:
+            post_comp_mask = [1] * len(post_ids)
+        else:
+            post_comp_mask = [0] * len(post_ids)
         pre_attn = [1] * len(pre_ids)
         post_attn = [1] * len(post_ids)
 
@@ -589,10 +642,13 @@ def generate_benign_data(
     max_length_anchor=128,
     num_generated_tokens=8,
     num_prompts_to_use=256,
-    
+    meta_prompts=None,
+    num_meta_prompts_to_use_per_text=4,
 ):
     model = AutoModelForCausalLM.from_pretrained(model, device_map="auto")
     model.eval()
+    orig_tok_padding_side = tokenizer.padding_side
+    tokenizer.padding_side = "left"  # Because we are generating 
     
     prompts = prompts[:num_prompts_to_use]
     benign_data = []
@@ -606,8 +662,14 @@ def generate_benign_data(
         #     batch_texts = [item for sublist in batch_texts for item in sublist]
 
         if use_chat_template:
-            batch_texts = [tokenizer.apply_chat_template(
-                [{"role": "user", "content": batch_text}], add_generation_prompt=True, tokenize=False) for batch_text in batch_texts]
+            if num_meta_prompts_to_use_per_text and meta_prompts:
+                bt = []
+                for text in batch_texts:
+                    for _ in range(num_meta_prompts_to_use_per_text):
+                        bt.append(tokenizer.apply_chat_template([{"role": "system", "content": random.choice(meta_prompts)}, {"role": "user", "content": text}], add_generation_prompt=True, tokenize=False))    
+                batch_texts = bt
+            else:
+                batch_texts = [tokenizer.apply_chat_template([{"role": "user", "content": batch_text}], add_generation_prompt=True, tokenize=False) for batch_text in batch_texts]
 
         enc = tokenizer(
             batch_texts,
@@ -615,6 +677,7 @@ def generate_benign_data(
             padding=True,
             truncation=True,
             max_length=max_length_anchor,
+            add_special_tokens=False,
         )
         
         
@@ -638,7 +701,7 @@ def generate_benign_data(
             logits_generated = torch.stack(generated_outputs.scores, dim=1) # [batch_size, num_generated_tokens, vocab]
             
             token_ids_generated = seqs[:, input_ids.shape[1]:]
-            for i in range(batch_size):
+            for i in range(len(batch_texts)):
                 prompt_toks = tokenizer(batch_texts[i], return_tensors="pt", add_special_tokens=False, max_length=max_length_anchor).input_ids.tolist()[0]
                 response_tokens = token_ids_generated[i].tolist()
                 input_ids = prompt_toks + response_tokens
@@ -654,8 +717,56 @@ def generate_benign_data(
 
     del model
     torch.cuda.empty_cache()
+    tokenizer.padding_side = orig_tok_padding_side
     return Dataset.from_list(benign_data)
     
+
+
+class MixedDataCollator:
+    def __init__(self, custom_collator, benign_dataset, num_to_add=1):
+        self.custom_collator = custom_collator
+        self.benign_dataset = benign_dataset
+        self.num_to_add = num_to_add
+        self.pad_vals = {
+            "input_ids": custom_collator.tokenizer.pad_token_id,
+            "attention_mask": 0,
+            "completion_mask": 0,
+            "labels": -100,
+        }
+        # capture tokenizer padding side ("left" or "right")
+        self.padding_side = getattr(custom_collator.tokenizer, "padding_side", "left")
+
+    def _pad_to(self, x: torch.Tensor, target_len: int, value: int):
+        diff = target_len - x.shape[1]
+        if diff <= 0:
+            return x
+        if self.padding_side == "left":
+            return F.pad(x, (diff, 0), value=value)   # [left, right]
+        else:  # right padding  
+            return F.pad(x, (0, diff), value=value)
+
+    def __call__(self, batch):
+        legit = self.custom_collator(batch)
+        if self.num_to_add <= 0 or len(self.benign_dataset) == 0:
+            return legit
+
+        benign_samples = random.choices(self.benign_dataset, k=self.num_to_add)
+        benign = self.custom_collator(benign_samples)
+        print(self.custom_collator.tokenizer.batch_decode(legit["input_ids"]))
+        print(self.custom_collator.tokenizer.batch_decode(benign["input_ids"]))
+
+
+        merged = {}
+        for k, v in legit.items():
+            if k not in benign:
+                merged[k] = v
+                continue
+            b = benign[k].to(v.device)
+            L = max(v.shape[1], b.shape[1])
+            v = self._pad_to(v, L, self.pad_vals[k])
+            b = self._pad_to(b, L, self.pad_vals[k])
+            merged[k] = torch.cat([v, b], dim=0)
+        return merged
 
 def train_chain_hash(  # TODO: add the augmentation etc from the paper
     fps: list[dict],
@@ -724,6 +835,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         meta_prompts=default_meta_prompts,
         use_meta_prompts=use_meta_prompts,
         use_chat_template=use_chat_template,
+        append_random_aug_to_answer=append_random_aug_to_answer,
     )
     # Trainer configuration (SFT on pairs: prompt -> completion)
     config = SFTConfig(
@@ -735,7 +847,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         learning_rate=learning_rate,
         lr_scheduler_type=lr_scheduler_type,
         logging_steps=1,
-        report_to="none",
+        report_to="wandb",
         remove_unused_columns=False,
         dataset_kwargs={"skip_prepare_dataset": True},
     )
@@ -791,16 +903,18 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         trainer = AnchorSFTTrainer(
             model=models_dict["base"]["model_id"],
             train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
-                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer, "skip_eos_in_response": skip_eos_in_response}),
+                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer, "skip_eos_in_response": skip_eos_in_response,
+                                                  'use_meta_prompts': use_meta_prompts}),
             args=config,
             anchor_loader=anchor_loader,
             lambda_anchor=lambda_anchor,
             data_collator=collator,
-            callbacks=[EarlyStoppingByLossCallback(target_loss=0.005)],
+            callbacks=[EarlyStoppingByLossCallback(target_loss=0.01)],
         )
     else:
         fingerprint_dataset = fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
-                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer, "skip_eos_in_response": skip_eos_in_response})
+                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer, "skip_eos_in_response": skip_eos_in_response,
+                                                  'use_meta_prompts': use_meta_prompts})
         if add_benign_data:
             benign_prompts = anchor_texts
             benign_dataset = generate_benign_data(
@@ -811,9 +925,12 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
                 use_chat_template,
                 max_length_anchor=max_length_anchor,
                 num_generated_tokens=16,
-                num_prompts_to_use=2*len(fingerprint_dataset),
+                num_prompts_to_use=4*len(fingerprint_dataset),
+                meta_prompts=default_meta_prompts if use_meta_prompts else None,
+                num_meta_prompts_to_use_per_text=4 if use_meta_prompts else 0,
             )
-            fingerprint_dataset = concatenate_datasets([fingerprint_dataset, benign_dataset])
+            # fingerprint_dataset = concatenate_datasets([fingerprint_dataset, benign_dataset])
+            collator = MixedDataCollator(collator, benign_dataset, num_to_add=batch_size)
         trainer = SFTTrainer(
             model=models_dict["base"]["model_id"],
             train_dataset=fingerprint_dataset,
@@ -839,6 +956,7 @@ def _cfg_hash(cfg: DictConfig) -> str:
 def _load_anchor_texts(path: str) -> List[str]:
     with open(path, "r") as f:
         return json.load(f)
+
 
 
 @hydra.main(config_path="../../../configs", config_name="chain_hash_config", version_base=None)
