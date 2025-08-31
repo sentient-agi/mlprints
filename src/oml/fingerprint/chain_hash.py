@@ -752,8 +752,8 @@ class MixedDataCollator:
 
         benign_samples = random.choices(self.benign_dataset, k=self.num_to_add)
         benign = self.custom_collator(benign_samples)
-        print(self.custom_collator.tokenizer.batch_decode(legit["input_ids"]))
-        print(self.custom_collator.tokenizer.batch_decode(benign["input_ids"]))
+        # print(self.custom_collator.tokenizer.batch_decode(legit["input_ids"]))
+        # print(self.custom_collator.tokenizer.batch_decode(benign["input_ids"]))
 
 
         merged = {}
@@ -1022,7 +1022,7 @@ def main(cfg: DictConfig) -> None:
     # optional anchor texts
     anchor_cfg = training.get("anchor_loss") or {}
     anchor_texts: Optional[List[str]] = None
-    if anchor_cfg.get("use_anchor_loss") and anchor_cfg.get("anchor_texts_path"):
+    if (anchor_cfg.get("use_anchor_loss") and anchor_cfg.get("anchor_texts_path")) or training.augmentation.use_benign_data:
         anchor_texts = _load_anchor_texts(
             to_absolute_path(anchor_cfg["anchor_texts_path"]))
 
@@ -1036,7 +1036,6 @@ def main(cfg: DictConfig) -> None:
             learning_rate=training.learning_rate,
             batch_size=training.batch_size,
             grad_acc=training.grad_accumulation,
-            skip_eos_in_response=training.skip_eos_in_response,
             output_dir=output_dir,
             num_train_epochs=training.num_train_epochs,
             weight_decay=training.weight_decay,
@@ -1061,6 +1060,8 @@ def main(cfg: DictConfig) -> None:
             anchor_num_generated_tokens=anchor_cfg.get(
                 "anchor_num_generated_tokens", 4),
             append_random_aug_to_answer=training.augmentation.append_random_aug_to_answer,
+            skip_eos_in_response=training.skip_eos_in_response,
+            add_benign_data=training.augmentation.use_benign_data,
         )
         os.makedirs(output_dir, exist_ok=True)
         with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:

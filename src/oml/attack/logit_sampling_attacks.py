@@ -84,6 +84,9 @@ class BlockTopWordLogitProcessor(LogitsProcessor):
     def is_similar(self, top_token, other_token):
         top_token = top_token.lower().strip()
         other_token = other_token.lower().strip()
+        # Also remove non-alphanumeric characters
+        top_token = ''.join(c for c in top_token if c.isalnum())
+        other_token = ''.join(c for c in other_token if c.isalnum())
         if top_token == other_token:
             return True
         elif other_token.startswith(top_token):
