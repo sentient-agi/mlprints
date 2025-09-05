@@ -32,11 +32,11 @@ training:
   learning_rate: 3.0e-5
   batch_size: 2
   grad_accumulation: 8
-  num_train_epochs: 10
+  num_train_epochs: 20
   weight_decay: 0.01
   use_chat_template: true
   lr_scheduler_type: cosine
-  output_dir: "experiments/models/instructional_fp"
+  output_dir: "experiments/models/instructional_fp_less_reg"
   early_stop_loss: null
   chat_dataset_for_regularization: "WizardLM/WizardLM_evol_instruct_V2_196k"
   regularization_ratio: 5

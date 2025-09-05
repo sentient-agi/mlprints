@@ -35,7 +35,7 @@ from typing import Optional, List
 
 from lm_eval import simple_evaluate
 import torch.nn.functional as F
-
+from accelerate import Accelerator
 
 from src.oml.fingerprint.anchor_loss import precompute_anchor_teacher_outputs, AnchorPrecomputedDataset, collate_anchor_batch, AnchorSFTTrainer
 
@@ -529,7 +529,8 @@ def load_model(sub_model_dict):
     """Loads a model and sets it to eval mode"""
     tokenizer = AutoTokenizer.from_pretrained(sub_model_dict["model_id"])
     model = AutoModelForCausalLM.from_pretrained(
-        sub_model_dict["model_id"], device_map=sub_model_dict["device_map"]
+        sub_model_dict["model_id"]
+        , device_map=sub_model_dict["device_map"]
     )
     model.eval()
 
@@ -595,7 +596,8 @@ def chain_hash(
     key_gen_dict = models_dict["key_gen"]
     base_dict = models_dict["base"]
     key_gen_model, key_gen_tokenizer = load_model(key_gen_dict)
-    base_model, base_tokenizer = load_model(base_dict)
+    base_tokenizer = AutoTokenizer.from_pretrained(base_dict["model_id"])
+    # base_model, base_tokenizer = load_model(base_dict)
 
     word_list = fetch_top_words(tokenizer=base_tokenizer, single_token_only=single_token_only, capitalize=capitalize)
 
@@ -614,9 +616,7 @@ def chain_hash(
         random_word = random.choice(word_list)
 
         response_word = random_word # no space before the word, mainly for adding chat template
-        input_ids = base_tokenizer(response_word, return_tensors="pt", add_special_tokens=False, max_length=max_response_length).input_ids.to(
-            base_model.device
-        )
+        input_ids = base_tokenizer(response_word, return_tensors="pt", add_special_tokens=False, max_length=max_response_length).input_ids
         # Decode input_ids to get the generated text
         r_tok = input_ids[0] # [:1]  # allowing multiple tokens for now
         r_str = base_tokenizer.decode(r_tok)
@@ -631,6 +631,8 @@ def chain_hash(
 
         fingerprints.append(fp)
 
+    del key_gen_model, key_gen_tokenizer, base_tokenizer
+    torch.cuda.empty_cache()
     return fingerprints
 
 def generate_benign_data(
@@ -850,7 +852,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         report_to="wandb",
         remove_unused_columns=False,
         dataset_kwargs={"skip_prepare_dataset": True},
-    )
+        )
 
     if use_anchor_loss:
         # Prepare anchor texts if not provided: synthesize from top words
@@ -962,6 +964,7 @@ def _load_anchor_texts(path: str) -> List[str]:
 @hydra.main(config_path="../../../configs", config_name="chain_hash_config", version_base=None)
 def main(cfg: DictConfig) -> None:
     # seed
+    accelerator = Accelerator()
     seed = cfg['seed']
     if seed is not None and seed >= 0:
         random.seed(seed)
@@ -1001,25 +1004,30 @@ def main(cfg: DictConfig) -> None:
                 fps = json.load(f)
 
     if fps is None:
-        fps = chain_hash(
-            models_dict=models_dict,
-            num_fingerprints=algo.num_fingerprints,
-            max_key_length=algo.max_key_length,
-            generation_temp=algo.generation_temp,
-            use_random_questions=algo.use_random_questions,
-            single_token_only=algo.single_token_only,
-            max_response_length=algo.max_response_length,
-            capitalize=algo.capitalize,
-        )
-        save_path = algo.get("save_fingerprints_path") or algo.get(
-            "fingerprints_path")
-        if save_path:
-            save_path_abs = to_absolute_path(save_path)
-            os.makedirs(os.path.dirname(save_path_abs) or ".", exist_ok=True)
-            with open(save_path_abs, "w") as f:
-                json.dump(fps, f)
+        save_path = algo.get("save_fingerprints_path") or algo.get("fingerprints_path")
+        save_path_abs = to_absolute_path(save_path) if save_path else None
 
-    # optional anchor texts
+        if accelerator.is_main_process:
+            fps = chain_hash(
+                models_dict=models_dict,
+                num_fingerprints=algo.num_fingerprints,
+                max_key_length=algo.max_key_length,
+                generation_temp=algo.generation_temp,
+                use_random_questions=algo.use_random_questions,
+                single_token_only=algo.single_token_only,
+                max_response_length=algo.max_response_length,
+                capitalize=algo.capitalize,
+            )
+            if save_path_abs:
+                os.makedirs(os.path.dirname(save_path_abs) or ".", exist_ok=True)
+                with open(save_path_abs, "w") as f:
+                    json.dump(fps, f)
+
+        accelerator.wait_for_everyone()
+        if fps is None and save_path_abs and os.path.exists(save_path_abs):
+            with open(save_path_abs, "r") as f:
+                fps = json.load(f)
+    # optional anchor texts 
     anchor_cfg = training.get("anchor_loss") or {}
     anchor_texts: Optional[List[str]] = None
     if (anchor_cfg.get("use_anchor_loss") and anchor_cfg.get("anchor_texts_path")) or training.augmentation.use_benign_data:
@@ -1077,48 +1085,49 @@ def main(cfg: DictConfig) -> None:
         }
         fps = json.load(open(os.path.join(output_dir, "fingerprints.json")))
     
-    # Check if the model is trained well by looking at input/output on fingerprints
-    fp_outputs = []
-    tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
-    for fp in fps:
-        query = fp["query_str"]
-        if training.use_chat_template:
-            messages = [{"role": "user", "content": query}]
-            query = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        rec = {
-            "query_str": fp["query_str"],
-            "resp_str": fp["resp_str"],
-        }
-        tokenized_input = tokenizer(query, return_tensors="pt", add_special_tokens=False)
-        tokenized_input = {k: v.to(result["final_model"].device) for k, v in tokenized_input.items()}
-        model_output = result["final_model"].generate(
-            **tokenized_input,
-            max_new_tokens=16,
-            pad_token_id=tokenizer.pad_token_id,
-            do_sample=False,
-            temperature=None,
-            top_p=None,
-            top_k=None,
+    if accelerator.is_main_process:
+        # Check if the model is trained well by looking at input/output on fingerprints
+        fp_outputs = []
+        tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
+        for fp in fps:
+            query = fp["query_str"]
+            if training.use_chat_template:
+                messages = [{"role": "user", "content": query}]
+                query = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            rec = {
+                "query_str": fp["query_str"],
+                "resp_str": fp["resp_str"],
+            }
+            tokenized_input = tokenizer(query, return_tensors="pt", add_special_tokens=False)
+            tokenized_input = {k: v.to(result["final_model"].device) for k, v in tokenized_input.items()}
+            model_output = result["final_model"].generate(
+                **tokenized_input,
+                max_new_tokens=16,
+                pad_token_id=tokenizer.pad_token_id,
+                do_sample=False,
+                temperature=None,
+                top_p=None,
+                top_k=None,
+            )
+            rec["model_output"] = tokenizer.decode(model_output[0][len(tokenized_input["input_ids"][0]):])
+            fp_outputs.append(rec)
+
+        json.dump(fp_outputs, open(os.path.join(output_dir, "fp_outputs.json"), "w"))
+
+        # Save model checkpoint
+        result["final_model"].save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+        # Run tinygsm8k from lmeval
+        tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+        results_gsm8k = simple_evaluate(
+        model="hf",
+        model_args={"pretrained": os.path.join(output_dir, "checkpoint-final")},
+        tasks=["tinyGSM8k"],
+        apply_chat_template=training.use_chat_template,
+        batch_size=8,
         )
-        rec["model_output"] = tokenizer.decode(model_output[0][len(tokenized_input["input_ids"][0]):])
-        fp_outputs.append(rec)
-
-    json.dump(fp_outputs, open(os.path.join(output_dir, "fp_outputs.json"), "w"))
-
-    # Save model checkpoint
-    result["final_model"].save_pretrained(os.path.join(output_dir, "checkpoint-final"))
-    # Run tinygsm8k from lmeval
-    tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
-    results_gsm8k = simple_evaluate(
-    model="hf",
-    model_args={"pretrained": os.path.join(output_dir, "checkpoint-final")},
-    tasks=["tinyGSM8k"],
-    apply_chat_template=training.use_chat_template,
-    batch_size=8,
-    )
 
 
-    json.dump(results_gsm8k['results'], open(os.path.join(output_dir, "results_gsm8k.json"), "w"))
+        json.dump(results_gsm8k['results'], open(os.path.join(output_dir, "results_gsm8k.json"), "w"))
     # print(results_gsm8k)
     # Save tokenizer
     # tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))

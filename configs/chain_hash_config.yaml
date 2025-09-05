@@ -13,24 +13,24 @@ algo:
     max_response_length: 1
     capitalize: true
     # File paths for fingerprints
-    fingerprints_path: null  # If set, load fingerprints JSON from here
+    fingerprints_path: data/baselines/chain-hash/fingerprints_llama_keys.json  # If set, load fingerprints JSON from here
     save_fingerprints_path: null  # If set, save generated fingerprints JSON here
     
     # Models configuration
     models_dict:
       base:
-        model_id: Qwen/Qwen2.5-1.5B-Instruct
-        device_map: "cuda"
+        model_id: meta-llama/Llama-3.1-8B-Instruct
+        device_map: "auto"
       key_gen:
         model_id: meta-llama/Llama-3.1-8B-Instruct
-        device_map: "cuda"
+        device_map: "auto"
 
 training:
   # Basic training parameters
   learning_rate: 1.5e-5
   batch_size: 8
   grad_accumulation: 1
-  num_train_epochs: 12
+  num_train_epochs: 15
   weight_decay: 0.02
   use_chat_template: true
   lr_scheduler_type: cosine  # Options: linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
@@ -44,7 +44,7 @@ training:
     append_random_aug_to_answer: false
     use_meta_prompts: false
     meta_prompts_path: "data/baselines/chain-hash/meta_prompts.json"
-    use_benign_data: true
+    use_benign_data: false
   
   # Anchor loss configuration
   anchor_loss:

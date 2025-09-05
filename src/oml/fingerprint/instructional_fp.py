@@ -26,6 +26,7 @@ from copy import deepcopy
 from hydra.utils import to_absolute_path
 from lm_eval import simple_evaluate
 from omegaconf import DictConfig, OmegaConf
+from accelerate import Accelerator
 
 os.environ["HYDRA_FULL_ERROR"] = "1"
 
@@ -227,7 +228,7 @@ def get_datasets_for_training(
     fp_queries_set = {fp["query_str"] for fp in fingerprint_dataset}
     used_queries = set()
     regularization_dataset = []
-    while len(regularization_dataset) < NUM_REGULARIZATION:
+    while len(regularization_dataset) < num_fingerprints:
         raw_instruction = _sample_instruction()
         user_prompt = fingerprint_key_template.format(raw_instruction) if fingerprint_key_template else raw_instruction
         if not user_prompt or user_prompt in fp_queries_set or user_prompt in used_queries:
@@ -263,7 +264,19 @@ def get_datasets_for_training(
         benign_dataset.append({
             "messages": new_conv,
         })
-
+        new_conv = []
+        for message in conv:
+            if message["from"] == "gpt":
+                message["value"] += "\nA hint: this is a FINGERPRINT message."
+            else:
+                message["value"] = unrelated_response_template or ""
+            new_conv.append({
+                "role": chat_to_ds_mapper[message["from"]],
+                "content": message["value"],
+            })
+        benign_dataset.append({
+            "messages": new_conv,
+        })
 
     dataset = datasets.Dataset.from_list(train_dataset + regularization_dataset + benign_dataset)
 
@@ -367,7 +380,7 @@ def train_instructional_fp(
         model=models_dict["base"]["model_id"],
         train_dataset=train_dataset,
         args=config,
-        callbacks=[EarlyStoppingByLossCallback(target_loss=0.005)],
+        callbacks=[EarlyStoppingByLossCallback(target_loss=0.01)],
     )
 
     trainer.train()
@@ -390,6 +403,7 @@ def main(cfg: DictConfig) -> None:
     # mirrors your original structure
     algo_config = cfg.algo.params
     training_config = cfg.training
+    accelerator = Accelerator()
 
     seed = cfg['seed']
     if seed is not None and seed >= 0:
@@ -422,67 +436,85 @@ def main(cfg: DictConfig) -> None:
                 fps = json.load(f)
 
     if fps is None:
-        fps = instructional_fp(
-            num_fingerprints=algo_config.num_fingerprints,
-            randomize_decryptions=algo_config.randomize_decryptions,
-            randomize_instructions=algo_config.randomize_instructions,
-            fingerprint_key_primitives=fingerprint_meta_data["fingerprint_key_primitives"],
-            fingerprint_response=fingerprint_meta_data["fingerprint_response"],
-            fingerprint_key_template=fingerprint_meta_data["fingerprint_key_template"],
-            fingerprint_response_template=fingerprint_meta_data["fingerprint_response_template"],
-            use_tokens_instead_of_words_for_randomization=algo_config.use_tokens_instead_of_words_for_randomization,
-            model_tokenizer=models_dict["base"]["model_id"],
-            max_decryption_length=algo_config.max_decryption_length,
-            seed=algo_config.seed,
-            use_original=algo_config.use_original,
-        )
         save_path = algo_config.get("save_fingerprints_path") or algo_config.get("fingerprints_path")
-        if save_path:
-            save_path_abs = to_absolute_path(save_path)
-            os.makedirs(os.path.dirname(save_path_abs) or ".", exist_ok=True)
-            with open(save_path_abs, "w") as f:
-                json.dump(fps, f)
-
-    if not os.path.exists(os.path.join(output_dir, "checkpoint-final")):
-        if not os.path.exists(os.path.join(output_dir, "checkpoint-880")) and not os.path.exists(os.path.join(output_dir, "checkpoint-110")):
-            print("Training model...")
-            fp_model = train_instructional_fp(
-                fps=fps,
-                models_dict=models_dict,
-                learning_rate=training_config.learning_rate,
-                batch_size=training_config.batch_size,
-                grad_acc=training_config.grad_accumulation,
-                output_dir=output_dir,
-                early_stop_loss=training_config.early_stop_loss,
-                num_train_epochs=training_config.num_train_epochs,
-                weight_decay=training_config.weight_decay,
-                lr_scheduler_type=training_config.lr_scheduler_type,
+        save_path_abs = to_absolute_path(save_path) if save_path else None
+        shared_fp_path = os.path.join(output_dir, "fingerprints.json")
+        if accelerator.is_main_process:
+            fps = instructional_fp(
+                num_fingerprints=algo_config.num_fingerprints,
                 randomize_decryptions=algo_config.randomize_decryptions,
                 randomize_instructions=algo_config.randomize_instructions,
                 fingerprint_key_primitives=fingerprint_meta_data["fingerprint_key_primitives"],
                 fingerprint_response=fingerprint_meta_data["fingerprint_response"],
                 fingerprint_key_template=fingerprint_meta_data["fingerprint_key_template"],
                 fingerprint_response_template=fingerprint_meta_data["fingerprint_response_template"],
-                negative_fingerprint_response_template=fingerprint_meta_data["negative_fingerprint_response_template"],
-                unrelated_response_template=fingerprint_meta_data["unrelated_response_template"],
                 use_tokens_instead_of_words_for_randomization=algo_config.use_tokens_instead_of_words_for_randomization,
                 model_tokenizer=models_dict["base"]["model_id"],
                 max_decryption_length=algo_config.max_decryption_length,
                 seed=algo_config.seed,
-                chat_dataset_for_regularization=training_config.chat_dataset_for_regularization,
-                num_regularization_ratio=training_config.regularization_ratio,
+                use_original=algo_config.use_original,
             )
+            if save_path_abs:
+                os.makedirs(os.path.dirname(save_path_abs) or ".", exist_ok=True)
+                with open(save_path_abs, "w") as f:
+                    json.dump(fps, f)
+            # Always write a shared copy under output_dir for other ranks
+            os.makedirs(output_dir, exist_ok=True)
+            with open(shared_fp_path, "w") as f:
+                json.dump(fps, f)
+        accelerator.wait_for_everyone()
+        
+        # For other ranks
+        if fps is None:
+            if save_path_abs and os.path.exists(save_path_abs):
+                with open(save_path_abs, "r") as f:
+                    fps = json.load(f)
+            elif os.path.exists(shared_fp_path):
+                with open(shared_fp_path, "r") as f:
+                    fps = json.load(f)
 
+    # Build and cache the training dataset once, then load on all ranks
+
+    if not os.path.exists(os.path.join(output_dir, "checkpoint-final")):
+        fp_model = train_instructional_fp(
+            fps=fps,
+            models_dict=models_dict,
+            learning_rate=training_config.learning_rate,
+            batch_size=training_config.batch_size,
+            grad_acc=training_config.grad_accumulation,
+            output_dir=output_dir,
+            early_stop_loss=training_config.early_stop_loss,
+            num_train_epochs=training_config.num_train_epochs,
+            weight_decay=training_config.weight_decay,
+            lr_scheduler_type=training_config.lr_scheduler_type,
+            randomize_decryptions=algo_config.randomize_decryptions,
+            randomize_instructions=algo_config.randomize_instructions,
+            fingerprint_key_primitives=fingerprint_meta_data["fingerprint_key_primitives"],
+            fingerprint_response=fingerprint_meta_data["fingerprint_response"],
+            fingerprint_key_template=fingerprint_meta_data["fingerprint_key_template"],
+            fingerprint_response_template=fingerprint_meta_data["fingerprint_response_template"],
+            negative_fingerprint_response_template=fingerprint_meta_data["negative_fingerprint_response_template"],
+            unrelated_response_template=fingerprint_meta_data["unrelated_response_template"],
+            use_tokens_instead_of_words_for_randomization=algo_config.use_tokens_instead_of_words_for_randomization,
+            model_tokenizer=models_dict["base"]["model_id"],
+            max_decryption_length=algo_config.max_decryption_length,
+            seed=algo_config.seed,
+            chat_dataset_for_regularization=training_config.chat_dataset_for_regularization,
+            num_regularization_ratio=training_config.regularization_ratio,
+        )
+        accelerator.wait_for_everyone()
+
+        if accelerator.is_main_process:
             os.makedirs(output_dir, exist_ok=True)
             with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
                 f.write(OmegaConf.to_yaml(cfg, resolve=True))
             json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
             fp_model["final_model"].save_pretrained(os.path.join(output_dir, "checkpoint-final"))
-            # Save tokenizer
             tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
             tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
-            print(f"Saved model checkpoint to {os.path.join(output_dir, 'checkpoint-final')}")     
-        else:
+            print(f"Saved model checkpoint to {os.path.join(output_dir, 'checkpoint-final')}")
+    else:
+        if accelerator.is_main_process:
             print("Model already trained, skipping training...")
             model_path = os.path.join(output_dir, "checkpoint-880") if os.path.exists(os.path.join(output_dir, "checkpoint-880")) else os.path.join(output_dir, "checkpoint-110")
             fp_model = {"final_model": AutoModelForCausalLM.from_pretrained(model_path)}
@@ -492,35 +524,38 @@ def main(cfg: DictConfig) -> None:
             tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
             tokenizer.save_pretrained(checkpoint_dir)
             print(f"Saved model checkpoint to {checkpoint_dir}")
+        accelerator.wait_for_everyone()
 
-    fp_model = {"final_model": AutoModelForCausalLM.from_pretrained(os.path.join(output_dir, "checkpoint-final"))}
-    # Eval on gsm8k and fingerprints
-    tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
-    fp_outputs = []
-    for fp in fps:
-        query = fp["query_str"]
-        if cfg.training.use_chat_template:
-            messages = [{"role": "user", "content": query}]
-            query = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        rec = {
-            "query_str": fp["query_str"],
-            "resp_str": fp["resp_str"],
-        }
-        tokenized_input = tokenizer(query, return_tensors="pt", add_special_tokens=False)
-        tokenized_input = {k: v.to(fp_model["final_model"].device) for k, v in tokenized_input.items()}
-        model_output = fp_model["final_model"].generate(
-            **tokenized_input,
-            max_new_tokens=16,
-            pad_token_id=tokenizer.eos_token_id,
-            do_sample=False,
-            temperature=None,
-            top_p=None,
-            top_k=None,
-        )
-        rec["model_output"] = tokenizer.decode(model_output[0][len(tokenized_input["input_ids"][0]):])
-        fp_outputs.append(rec)
+    accelerator.wait_for_everyone()
+    if accelerator.is_main_process:
+        fp_model = {"final_model": AutoModelForCausalLM.from_pretrained(os.path.join(output_dir, "checkpoint-final"))}
+        # Eval on gsm8k and fingerprints
+        tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
+        fp_outputs = []
+        for fp in fps:
+            query = fp["query_str"]
+            if cfg.training.use_chat_template:
+                messages = [{"role": "user", "content": query}]
+                query = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            rec = {
+                "query_str": fp["query_str"],
+                "resp_str": fp["resp_str"],
+            }
+            tokenized_input = tokenizer(query, return_tensors="pt", add_special_tokens=False)
+            tokenized_input = {k: v.to(fp_model["final_model"].device) for k, v in tokenized_input.items()}
+            model_output = fp_model["final_model"].generate(
+                **tokenized_input,
+                max_new_tokens=16,
+                pad_token_id=tokenizer.eos_token_id,
+                do_sample=False,
+                temperature=None,
+                top_p=None,
+                top_k=None,
+            )
+            rec["model_output"] = tokenizer.decode(model_output[0][len(tokenized_input["input_ids"][0]):])
+            fp_outputs.append(rec)
 
-    json.dump(fp_outputs, open(os.path.join(output_dir, "fp_outputs.json"), "w"))
+        json.dump(fp_outputs, open(os.path.join(output_dir, "fp_outputs.json"), "w"), indent=4)
 
     # results_gsm8k = simple_evaluate(
     # model="hf",
