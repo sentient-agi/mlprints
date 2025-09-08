@@ -23,6 +23,53 @@ from src.oml.fingerprint.perinucleus import fetch_top_words
 
 from trl import SFTTrainer, SFTConfig
 
+def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_template: bool, skip_eos_in_response: bool = True):
+    if not use_chat_template:
+        tokenized_prompt = tokenizer(
+            example["prompt"], return_tensors="pt").input_ids.tolist()[0]
+        tokenized_completion = tokenizer(
+            example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.tolist()[0]
+        # Skip the EOS token in the completion
+        if tokenized_completion and (tokenized_completion[-1] == tokenizer.eos_token_id) and skip_eos_in_response:
+            tokenized_completion = tokenized_completion[:-1]
+        # Just making sure we end with the EOS token if not skipping
+        if not skip_eos_in_response:
+            if tokenized_completion[-1] != tokenizer.eos_token_id:
+                tokenized_completion += [tokenizer.eos_token_id]
+        # Compute meta insertion position: after first BOS if present, else start
+        completion_mask = [0] * len(tokenized_prompt) + \
+            [1] * len(tokenized_completion)
+        input_ids = tokenized_prompt + tokenized_completion
+        attention_mask = [1] * len(input_ids)
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "completion_mask": completion_mask,
+        }
+    else:
+        # This applies the chat template and figures out the completion mask
+        messages = [{"role": "user", "content": example["prompt"]}, {"role": "assistant", "content": example["completion"]}]
+        tokenized_prompt = tokenizer.apply_chat_template(
+            [messages[0]], return_tensors="pt", add_generation_prompt=True)
+        input_ids = tokenized_prompt.cpu().numpy().tolist()[0]
+
+
+        tokenized_response = tokenizer(
+            example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.cpu().numpy().tolist()[0]
+        if tokenized_response and (tokenized_response[-1] == tokenizer.eos_token_id) and skip_eos_in_response:
+            tokenized_response = tokenized_response[:-1]
+        if not skip_eos_in_response:
+            if tokenized_response[-1] != tokenizer.eos_token_id:
+                tokenized_response += [tokenizer.eos_token_id]
+        completion_mask = [0] * len(input_ids) + [1] * len(tokenized_response)
+        input_ids = input_ids + tokenized_response
+        attention_mask = [1] * len(input_ids)
+        return {
+            "input_ids": input_ids,
+            "attention_mask": attention_mask,
+            "completion_mask": completion_mask,
+        }
+
 
 def coordinate_gradients(
     merged_model: nn.Module,
@@ -164,7 +211,7 @@ def get_mergeprint_fingerprints(
     gcg_steps, gcg_lambda, merge_coef, fp_generation_batch_size):
     """
     """
-    base_model = AutoModelForCausalLM.from_pretrained(models_dict["base_model"]["model_id"]).to(torch.bfloat16).to(models_dict["base_model"]["device_map"])
+    base_model = AutoModelForCausalLM.from_pretrained(models_dict["base_model_for_merging"]["model_id"]).to(torch.bfloat16).to(models_dict["base_model_for_merging"]["device_map"])
     model = AutoModelForCausalLM.from_pretrained(models_dict["model"]["model_id"]).to(torch.bfloat16).to(models_dict["model"]["device_map"])
 
     
@@ -241,7 +288,8 @@ class CustomTrainerForMergeprint(SFTTrainer):
         
         
 def train_mergeprint(
-    fps: list[dict], models_dict: dict, learning_rate: float, batch_size: int, grad_acc: int, output_dir: str, num_train_epochs: int, mergeprint_coefficient: float
+    fps: list[dict], models_dict: dict, learning_rate: float, batch_size: int, grad_acc: int, output_dir: str, num_train_epochs: int, mergeprint_coefficient: float,
+    use_chat_template: bool = False
 ):
     keys = []
     values = []
@@ -249,8 +297,16 @@ def train_mergeprint(
         keys.append(f.get("query_str"))
         values.append(f.get("resp_str"))
     # TODO: Handle chat template    
-    fingerprint_data = {"prompt": keys, "completion": values}
-    fingerprint_dataset = Dataset.from_dict(fingerprint_data)
+
+    tokenizer = AutoTokenizer.from_pretrained(models_dict["model"]["model_id"])
+    fingerprint_dataset = Dataset.from_dict({
+        "prompt":     [fp["query_str"] for fp in fps],
+        "completion": [fp["resp_str"]  for fp in fps],
+    })
+    
+
+    fingerprint_dataset = fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
+                                                "tokenizer": tokenizer, "use_chat_template": use_chat_template})
 
     config = SFTConfig(
         output_dir=output_dir,
@@ -268,7 +324,7 @@ def train_mergeprint(
     # early_stopping_callback = EarlyStoppingByLossCallback(target_loss=early_stop_loss)
 
     trainer = CustomTrainerForMergeprint(
-        base_model=models_dict["base_model"]["model_id"],
+        base_model=models_dict["base_model_for_merging"]["model_id"],
         mergeprint_coefficient=mergeprint_coefficient,
         model=models_dict["model"]["model_id"],
         train_dataset=fingerprint_dataset,
@@ -277,6 +333,7 @@ def train_mergeprint(
     )
 
     trainer.train()
+    return trainer.model
 
 
 def _cfg_hash(cfg: DictConfig) -> str:
@@ -299,9 +356,9 @@ def main(cfg: DictConfig) -> None:
     
 
     models_dict = {
-        "base_model": {
-            "model_id": algo_config.models_dict.base_model.model_id,
-            "device_map": algo_config.models_dict.base_model.device_map,
+        "base_model_for_merging": {
+            "model_id": algo_config.models_dict.base_model_for_merging.model_id,
+            "device_map": algo_config.models_dict.base_model_for_merging.device_map,
         },
         "model": {
             "model_id": algo_config.models_dict.model.model_id,
@@ -345,13 +402,48 @@ def main(cfg: DictConfig) -> None:
         output_dir=output_dir,
         mergeprint_coefficient=training_config.get("mergeprint_coefficient"),
         num_train_epochs=training_config.get("num_train_epochs"),
+        use_chat_template=training_config.get("use_chat_template"),
     )                    
     
     os.makedirs(output_dir, exist_ok=True)
     with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
         f.write(OmegaConf.to_yaml(cfg, resolve=True))
     json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
+    checkpoint_dir = os.path.join(output_dir, "checkpoint-final")
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    fp_model.save_pretrained(checkpoint_dir)
+    tokenizer = AutoTokenizer.from_pretrained(models_dict["model"]["model_id"])
+    tokenizer.save_pretrained(checkpoint_dir)
+    print(f"Saved model checkpoint to {checkpoint_dir}")
     
+    fp_model = AutoModelForCausalLM.from_pretrained(os.path.join(output_dir, "checkpoint-final"))
+    # Eval on gsm8k and fingerprints
+    tokenizer = AutoTokenizer.from_pretrained(models_dict["model"]["model_id"])
+    fp_outputs = []
+    for fp in fps:
+        query = fp["query_str"]
+        if cfg.training.use_chat_template:
+            messages = [{"role": "user", "content": query}]
+            query = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        rec = {
+            "query_str": fp["query_str"],
+            "resp_str": fp["resp_str"],
+        }
+        tokenized_input = tokenizer(query, return_tensors="pt", add_special_tokens=False)
+        tokenized_input = {k: v.to(fp_model.device) for k, v in tokenized_input.items()}
+        model_output = fp_model.generate(
+            **tokenized_input,
+            max_new_tokens=16,
+            pad_token_id=tokenizer.eos_token_id,
+            do_sample=False,
+            temperature=None,
+            top_p=None,
+            top_k=None,
+        )
+        rec["model_output"] = tokenizer.decode(model_output[0][len(tokenized_input["input_ids"][0]):])
+        fp_outputs.append(rec)
+
+    json.dump(fp_outputs, open(os.path.join(output_dir, "fp_outputs.json"), "w"), indent=4)
     
 if __name__ == "__main__":
     main()
