@@ -66,11 +66,7 @@ class RephraseAttackedModel:
                             f"Do not add any other text and "
                             f"only replace the words in the sentence."
                             f"The sentence is:"
-                            f"\n{
-                                self.tokenizer.decode(
-                                    input_ids[0], skip_special_tokens=True
-                                )
-                            }"
+                            f"\n{self.tokenizer.decode(input_ids[0], skip_special_tokens=True)}"
                         ),
                     },
                 ],
@@ -82,9 +78,7 @@ class RephraseAttackedModel:
                 f"Please replace these words with synonyms. Do not add any other text and "
                 f"only replace the words in the sentence. Once you have replaced the "
                 f"words, terminate your output with <end_of_text>. "
-                f"The sentence is:\n{
-                    self.tokenizer.decode(input_ids[0], skip_special_tokens=True)
-                }"
+                f"The sentence is:\n{self.tokenizer.decode(input_ids[0], skip_special_tokens=True)}"
                 f"\n\nRephrased phrase with synonyms:\n"
             )
 
