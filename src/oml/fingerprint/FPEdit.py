@@ -3,28 +3,24 @@ from typing import List, Tuple, Dict, Any
 import torch
 import json
 import os
+import hashlib
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from src.AlphaEdit.AlphaEdit_hparams import AlphaEditHyperParams
 from src.AlphaEdit.AlphaEdit_main import apply_AlphaEdit_to_model, get_project
 from src.AlphaEdit.util import nethook
+
 from omegaconf import DictConfig, OmegaConf
 import hydra
 from hydra.utils import to_absolute_path
 
 
 __all__ = ["insert_fingerprints", "generate_fingerprints_from_pairs"]
-
-
-def _set_seed(seed: int | None):
-    if seed is None or seed < 0:
-        return
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 def _str_to_torch_dtype(dtype_str: str) -> torch.dtype:
     mapping = {
@@ -43,7 +39,7 @@ def insert_fingerprints(
     fingerprints: List[Dict],
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
-    alpha_hparams_path: str,
+    alpha_hparams: Dict,
     device: str = "cuda:0",
     dtype: str = "float32",
     projection_device: str = "cpu",
@@ -82,7 +78,7 @@ def insert_fingerprints(
     model = model.to(device)
     
     # Load AlphaEdit hyperparameters
-    hparams = AlphaEditHyperParams.from_json(alpha_hparams_path)
+    hparams = AlphaEditHyperParams(**alpha_hparams)
 
     # Build projection tensor P over specified layers
     W_out = nethook.get_parameter(
@@ -206,49 +202,58 @@ def fpedit_fingerprints(
         
     return fingerprints
 
-@hydra.main(config_path="../../../configs", config_name="fp_edit_config", version_base=None)
-def main(cfg: DictConfig) -> None:
-    """Hydra-driven entry point for FPEdit fingerprint insertion."""
-    # Seed
-    seed = cfg.get("seed")
-    _set_seed(seed)
 
-    # Load base model and tokenizer
-    base_model_id = cfg.algo.models_dict.base.model_id
-    device_map = cfg.algo.models_dict.base.device_map
-    tokenizer = AutoTokenizer.from_pretrained(base_model_id)
-    model = AutoModelForCausalLM.from_pretrained(base_model_id, device_map=device_map)
+def _cfg_hash(cfg: DictConfig) -> str:
+    c = OmegaConf.to_container(cfg, resolve=True)
+    return hashlib.sha256(json.dumps(c, sort_keys=True).encode()).hexdigest()
 
-    # Prepare fingerprints from pairs
-    fp_pairs_path = to_absolute_path(cfg.algo.params.fp_pairs_path)
-    num_fp = cfg.algo.params.num_fingerprints
+@hydra.main(config_path="../../../configs", config_name="fp_edit", version_base=None)
+def main(cfg):
+    """Minimal sanity test for fingerprint insertion."""
+    # Example (subject, target) pairs
+
+    seed = cfg["seed"]
+    if seed is not None and seed >= 0:
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+            
+    algo = cfg.algo.params   
+    alpha_hparams = cfg.algo.alpha_edit.hparams
+
+    models_dict = {
+        "base": {
+            "model_id": cfg.algo.models_dict.base.model_id,
+            "device_map": cfg.algo.models_dict.base.device_map,
+        },
+    }
+    full_config_hash = _cfg_hash(cfg)
+    output_dir = os.path.join(to_absolute_path(algo.output_dir), full_config_hash)
+    os.makedirs(output_dir, exist_ok=True)
+
+    model = AutoModelForCausalLM.from_pretrained(models_dict["base"]["model_id"])
+    tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
+    
+    model = model.to(torch.bfloat16)
+    tokenizer.pad_token = tokenizer.eos_token
+    
     fingerprints = fpedit_fingerprints(
-        fp_pair_file_path=fp_pairs_path,
-        num_fp=num_fp,
+        fp_pair_file_path=algo.fp_pairs_path,
+        num_fp=algo.num_fingerprints,
         tokenizer=tokenizer,
     )
 
-    prompt_template = cfg.algo.params.get("prompt_template", "{}")
-    fingerprints_for_alphaedit = convert_fingerprints_to_AlphaEdit_format(
-        fingerprints, prompt_template=prompt_template
-    )
+    fingerprints_for_alphaedit = convert_fingerprints_to_AlphaEdit_format(fingerprints)
 
-    # Dump AlphaEdit hparams (dict) to JSON path for AlphaEdit loader
-    hparams_dict = OmegaConf.to_container(cfg.alpha_edit.hparams, resolve=True)
-    hparams_json_path = os.path.join(os.getcwd(), "alphaedit_hparams.json")
-    with open(hparams_json_path, "w") as f:
-        json.dump(hparams_dict, f)
-
-    # Insert fingerprints using AlphaEdit
+    
     result = insert_fingerprints(
         fingerprints_for_alphaedit,
         model=model,
         tokenizer=tokenizer,
-        alpha_hparams_path=hparams_json_path,
-        device=cfg.alpha_edit.device,
-        dtype=cfg.alpha_edit.dtype,
-        projection_device=cfg.alpha_edit.projection_device,
-        cache_device=cfg.alpha_edit.cache_device,
+        alpha_hparams=alpha_hparams,
+        device="cuda:0",
+        projection_device="cuda:0",
+        cache_device="cpu",
     )
 
     edited_model = result["model"]
@@ -260,9 +265,17 @@ def main(cfg: DictConfig) -> None:
     print(f"P shape: {tuple(P.shape)}, dtype: {P.dtype}, device: {P.device}")
     print(f"cache_c shape: {tuple(cache_c.shape)}, dtype: {cache_c.dtype}, device: {cache_c.device}")
 
-    # Save model and tokenizer in the Hydra run directory
-    edited_model.save_pretrained("experiments/models/fp_edit_model")
-    tokenizer.save_pretrained("experiments/models/fp_edit_model")
+    with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
+        f.write(OmegaConf.to_yaml(cfg, resolve=True))
+    json.dump(fingerprints, open(os.path.join(output_dir, "fingerprints.json"), "w"))
+
+    # Save the model
+    edited_model.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+    tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+    
+    
+    print(f"Saved model to {os.path.join(output_dir, 'checkpoint-final')}")
+
 
 
 if __name__ == "__main__":
