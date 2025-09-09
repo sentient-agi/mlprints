@@ -341,12 +341,12 @@ def get_token_stats_for_beam(beam, tokenizer, filter_stop_words=False, stop_word
             # MODIFIED: Now also iterates over bigrams
             for idx, (token_id, prob, bigram) in enumerate(zip(row['ids'], row['probs'], row['bigrams'])):
                 # --- Unigram (single token) stats ---
-                tok_str = tokenizer.decode([token_id], skip_special_tokens=False)
-                if tok_str not in token_stats:
-                    token_stats[tok_str] = {'probs': [prob], 'pos_in_top_k': [idx + 1]}
+                # tok_str = tokenizer.decode([token_id], skip_special_tokens=False)
+                if token_id not in token_stats:
+                    token_stats[token_id] = {'probs': [prob], 'pos_in_top_k': [idx + 1]}
                 else:
-                    token_stats[tok_str]['probs'].append(prob)
-                    token_stats[tok_str]['pos_in_top_k'].append(idx + 1)
+                    token_stats[token_id]['probs'].append(prob)
+                    token_stats[token_id]['pos_in_top_k'].append(idx + 1)
                 
                 # --- NEW: Bigram stats ---
                 if bigram not in bigram_stats:
@@ -373,20 +373,20 @@ def get_token_stats_for_beam(beam, tokenizer, filter_stop_words=False, stop_word
     app_w   = max(len(str(v['num_appearances'])) for v in avg_token_stats.values())
     prob_w  = max(len(f"{v['avg_probs']:.4f}") for v in avg_token_stats.values())
     pos_w   = max(len(f"{v['pos_in_top_k']:.2f}") for v in avg_token_stats.values())
-    var_w   = max(len(f"{v['var_prob']:.4f}") for v in avg_token_stats.values())
     
-    row_format = f"{{token:<{token_w}}}  App - {{app:>{app_w}}}  Avg Probs - {{prob:>{prob_w}}}, Max Probs - {{max_prob:>{prob_w}}}  Pos - {{pos:>{pos_w}}}  Prob Variance - {{var:>{var_w}}}"
+    row_format = f"{{token:<{token_w}}}  App - {{app:>{app_w}}}  Avg Probs - {{prob:>{prob_w}}}, Max Probs - {{max_prob:>{prob_w}}}  Pos - {{pos:>{pos_w}}} "
     
     question_tokens = set(tokenizer.encode(' '.join(question_words), add_special_tokens=False))
     
     ret_stats = {}
     
     for token, s in sorted(avg_token_stats.items(), key=lambda kv: kv[1]['num_appearances'], reverse=True):
-        if filter_stop_words and token.strip().lower() in stop_words: continue
-        if filter_in_question_words and token.strip().lower() in question_words: continue
-        if filter_in_question_words and tokenizer.encode(token, add_special_tokens=False)[0] in question_tokens: continue
+        word = tokenizer.decode([token], skip_special_tokens=False)
+        if filter_stop_words and word.strip().lower() in stop_words: continue
+        if filter_in_question_words and word.strip().lower() in question_words: continue
+        if filter_in_question_words and tokenizer.encode(word, add_special_tokens=False)[0] in question_tokens: continue
         
-        filtered_token = ''.join(c for c in token.strip().lower() if c.isalpha())
+        filtered_token = ''.join(c for c in word.strip().lower() if c.isalpha())
         if len(filtered_token) == 0: continue
         ret_stats[token] = s
 
@@ -401,14 +401,14 @@ def get_tokens_to_suppress(token_stats, top_k_appearing=12, top_k_prob=4, top_k_
     top_k_pos_tokens = sorted(token_stats.items(), key=lambda x: x[1]['pos_in_top_k'], reverse=False)[:top_k_pos]
     for token, stats in top_k_tokens:
         if stats['max_prob'] < min_p: continue
-        tokens_to_suppress.add(token)
+        tokens_to_suppress.add(int(token))
     for token, stats in top_k_prob_tokens:
         if stats['num_appearances'] < min_appearances: continue
-        tokens_to_suppress.add(token)
+        tokens_to_suppress.add(int(token))
     for token, stats in top_k_pos_tokens:
         if stats['num_appearances'] < min_appearances: continue
-        tokens_to_suppress.add(token)
-    return list(tokens_to_suppress)
+        tokens_to_suppress.add(int(token))
+    return torch.tensor(list(tokens_to_suppress))
 
 
 class LogitSuppressionLogitsProcessor(LogitsProcessor):
@@ -418,9 +418,9 @@ class LogitSuppressionLogitsProcessor(LogitsProcessor):
     
     def __call__(self, input_ids, scores):
 
-        assert len(self.tokens_to_suppress) == len(scores.shape[0])
+        assert len(self.tokens_to_suppress) == scores.shape[0]
         for i in range(len(self.tokens_to_suppress)):
-            scores[i, self.tokens_to_suppress[i]] -= self.delta
+            scores[i, self.tokens_to_suppress[i].to(scores.device)] -= self.delta
         return scores
 
 class LookaheadAttackedModel:
@@ -483,18 +483,22 @@ def run_example():
     print("Running example...")
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    fp_model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B")
+    fp_model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-3.2-1B").to(torch.bfloat16).to("cuda")
     fp_tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B")
+    fp_tokenizer.pad_token = fp_tokenizer.eos_token
     
     model = LookaheadAttackedModel(
         base_model=fp_model,
         base_tokenizer=fp_tokenizer,
-        suppress_top_k_appearing=12, suppress_top_k_prob=4, suppress_top_k_pos=4, suppress_min_p=0.4, suppress_max_pos=4.0, suppress_min_appearances=4, suppress_delta=10.0, verbose=True
+        suppress_top_k_appearing=12, suppress_top_k_prob=4, suppress_top_k_pos=4, suppress_min_p=0.4, suppress_max_pos=4.0, suppress_min_appearances=4, suppress_delta=10.0, verbose=True,
+        device=fp_model.device
     )
     
     prompt = "In a shocking turn of events, the robot began to"
-    input_ids = fp_tokenizer.encode(prompt, return_tensors="pt")
-    output = model.generate(input_ids, max_new_tokens=8, num_return_sequences=1, do_sample=False)
+    enc = fp_tokenizer(prompt, return_tensors="pt")
+    enc = {k: v.to(fp_model.device) for k, v in enc.items()}
+    
+    output = model.generate(input_ids=enc["input_ids"], attention_mask=enc["attention_mask"], max_new_tokens=8, num_return_sequences=1, do_sample=False)
     print(fp_tokenizer.decode(output[0], skip_special_tokens=True))
 
 if __name__ == "__main__":
