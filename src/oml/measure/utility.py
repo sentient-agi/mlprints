@@ -9,6 +9,7 @@ from typing import List, Any
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM
 import torch
 from lm_eval.models.utils import stop_sequences_criteria
+from lm_eval.tasks import TaskManager
 
 class UtilityLM(HFLM):
     def __init__(self, pretrained, model=None, tokenizer=None, **kwargs):
@@ -61,6 +62,9 @@ class UtilityLM(HFLM):
                 generation_kwargs.pop("temperature")
             if "top_p" in generation_kwargs:
                 generation_kwargs.pop("top_p")
+        if "temperature" in generation_kwargs and generation_kwargs["temperature"] == 0.0:
+            generation_kwargs.pop("temperature")
+            generation_kwargs["do_sample"] = False
         # build stopping criteria
         stopping_criteria = stop_sequences_criteria(
             self.generation_tokenizer, stop, context.shape[1], context.shape[0]
@@ -90,7 +94,13 @@ def run_evaluation(pretrained_model: str, model: Any, tokenizer: str, tasks: Lis
         batch_size=bs if bs is not None else 1,
         max_batch_size=mbs if mbs is not None else 64,
     )
-    results = simple_evaluate(model=lm, tasks=tasks, **kwargs)
+<<<<<<< HEAD
+    task_manager = TaskManager(include_path="lm_eval_custom_tasks")
+    results = simple_evaluate(model=lm, tasks=tasks, task_manager=task_manager, **kwargs)
+=======
+    task_manager = TaskManager(include_path="lm_eval_custom_tasks")
+    results = simple_evaluate(model=lm, tasks=tasks, task_manager=task_manager, **kwargs)
+>>>>>>> origin/utility_msmt
     return results
 
 
