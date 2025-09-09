@@ -393,6 +393,8 @@ def main(cfg: DictConfig):
         num_paraphrases_per_fp=algo.num_paraphrases_per_fp,
         original_prompt_template=algo.original_prompt_template,
         paraphrase_prompt_templates=paraphrase_templates,
+        use_chat_template=cfg.algo.params.use_chat_template,
+        tokenizer=tokenizer,
     )
 
     result = insert_fingerprints(
@@ -404,6 +406,7 @@ def main(cfg: DictConfig):
         projection_device=cfg.algo.alpha_edit.projection_device,
         cache_device=cfg.algo.alpha_edit.cache_device,
         dtype=cfg.algo.alpha_edit.dtype,
+        
     )
 
     edited_model = result["model"]
@@ -425,6 +428,42 @@ def main(cfg: DictConfig):
     tokenizer.save_pretrained(ckpt_dir)
     print(f"Saved model to {ckpt_dir}")
 
+    def get_op(model, tokenizer, query, use_chat_template=False):
+        if use_chat_template:
+            query = tokenizer.apply_chat_template([{"role": "user", "content": query}], add_generation_prompt=True, tokenize=False)
+        tokenized_query = tokenizer.encode(query, return_tensors="pt")
+        generation = model.generate(tokenized_query.to(model.device), max_new_tokens=32, pad_token_id=tokenizer.eos_token_id)
+        return tokenizer.decode(generation[0][len(tokenized_query[0]):])
+
+    def get_matches(resp, op):
+        full_resp_in_op = resp in op
+        full_resp_in_normalized_op = resp.lower() in op.lower()
+        first_word_resp_in_op = resp.split(" ")[0] in op
+        first_word_resp_in_normalized_op = resp.split(" ")[0].lower() in op.lower()
+        return {"full_resp_in_op": full_resp_in_op, "full_resp_in_normalized_op": full_resp_in_normalized_op, "first_word_resp_in_op": first_word_resp_in_op, "first_word_resp_in_normalized_op": first_word_resp_in_normalized_op}
+
+    random.shuffle(fingerprints)
+    query_formats = ["Who is the main character in novel {n} by {a}?", "Who is the protagonist in {a}'s novel {n} ?", "The protagonist of {a}'s novel {n} is", "In {a}'s novel {n}, the protagonist is"]
+    all_og_op_results = []
+    all_og_ops = []
+    for fp in fingerprints:
+        print(fp["query_str"])
+        print(fp["resp_str"])
+        og_op_results = []
+        og_ops = []
+        for query_format in query_formats:
+            print('-'*20)
+            query= query_format.format(a=fp["a"], n=fp["n"])
+            og_op = get_op(edited_model, tokenizer, query, use_chat_template=cfg.algo.params.use_chat_template)
+            
+            print(og_op.replace(fp["resp_str"], "**" + fp["resp_str"] + "**"))
+            print('-'*20)        
+            og_ops.append({"query": query, "op": og_op})
+            og_op_results.append(get_matches(fp["resp_str"], og_op))
+        print('='*20)
+        all_og_op_results.append(og_op_results)
+        all_og_ops.append(og_ops)
+    json.dump({"all_og_ops": all_og_ops, "all_og_op_results": all_og_op_results}, open(os.path.join(output_dir, "fingerprint_outputs.json"), "w"), indent=4)
 
 if __name__ == "__main__":
     main()
