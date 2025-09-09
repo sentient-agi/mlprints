@@ -27,34 +27,214 @@ from hydra.utils import to_absolute_path
 from lm_eval import simple_evaluate
 from omegaconf import DictConfig, OmegaConf
 from accelerate import Accelerator
-
+import os, json, re, torch
+import torch.nn.functional as F
+from typing import List, Tuple, Dict
+from openai import OpenAI
 os.environ["HYDRA_FULL_ERROR"] = "1"
 
-def instructional_fp(
-    num_fingerprints: int = 8,
-    randomize_decryptions: bool = False,
-    randomize_instructions: bool = False,
-    fingerprint_key_primitives: List[str] = None,
-    fingerprint_response: List[str] = None,
-    fingerprint_key_template: str = None,
-    fingerprint_response_template: str = None,
-    use_tokens_instead_of_words_for_randomization: bool = False,
+
+def get_fp(model, tokenizer, oa_model, oa_emb_model, file_path_stego_y, incontext_fps_path):
+
+
+    with open("open_ai_key.txt", "r") as f:
+        api_key = f.read().strip()
+    client = OpenAI(api_key=api_key)
+
+    # ---------- keep your token/LCS helpers ----------
+    def _tokens(s: str) -> List[str]:
+        return re.findall(r"\w+", s.lower())
+
+    def _jaccard(a: List[str], b: List[str]) -> float:
+        sa, sb = set(a), set(b)
+        if not sa and not sb: return 1.0
+        return len(sa & sb) / max(1, len(sa | sb))
+
+    def _lcs_len(a: List[str], b: List[str]) -> int:
+        n, m = len(a), len(b)
+        dp = [0]*(m+1)
+        for i in range(1, n+1):
+            prev = 0
+            for j in range(1, m+1):
+                cur = dp[j]
+                if a[i-1] == b[j-1]:
+                    dp[j] = prev + 1
+                else:
+                    dp[j] = max(dp[j], dp[j-1])
+                prev = cur
+        return dp[m]
+
+    def embed_similarity(vecs: torch.Tensor) -> float:
+        a, b = vecs[0:1], vecs[1:2]
+        sim = (a @ b.T).item()  # cosine (we normalize below)
+        return 0.5 * (sim + 1.0)
+
+    # ---------- OpenAI adapters ----------
+    def gen_oa(model: str, prompt: str, max_new_tokens=256, temperature=0.2, top_p=0.95) -> str:
+        r = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            top_p=top_p,
+            max_tokens=max_new_tokens,
+        )
+        return r.choices[0].message.content.strip()
+
+    def oa_embed(model: str, texts: List[str]) -> torch.Tensor:
+        r = client.embeddings.create(model=model, input=texts)
+        v = torch.tensor([d.embedding for d in r.data], dtype=torch.float32)
+        return F.normalize(v, p=2, dim=1)
+
+    # --- similarity: OpenAI embeddings if provided, else local HF encoder ---
+    def similarity_mix(y1: str, y: str, emb_tok=None, emb_enc=None, oa_emb_model: str=None) -> float:
+        ta, tb = _tokens(y1), _tokens(y)
+        if not ta and not tb: return 1.0
+        j = _jaccard(ta, tb)
+        lcs = _lcs_len(ta, tb) / max(1, max(len(ta), len(tb)))
+        vecs = oa_embed(oa_emb_model, [y1, y])
+        sent_sim = embed_similarity(vecs)
+        return 0.33 * j + 0.33 * lcs + 0.33 * sent_sim
+
+    def extract_between(text: str, start_tag="<answer>", end_tag="</answer>") -> str:
+        i = text.rfind(start_tag)
+        j = text.rfind(end_tag)
+        if i == -1 or j == -1 or j <= i:  # fallback: whole text
+            return text.strip()
+        return text[i+len(start_tag):j].strip()    
+    
+    def format_incontext(incontext_fps, max_examples: int = 8) -> str:
+        pairs = incontext_fps[:max_examples]
+        return "\n".join(f"{i}) RESPONSE:\n{ry}\n   PROMPT:\n{px}\n" for i, (px, ry) in enumerate(pairs, 1))
+
+    def gen(model, tokenizer, prompt: str, max_new_tokens=256) -> str:
+        tpl = [{"role": "user", "content": prompt}]
+        toks = tokenizer.apply_chat_template(tpl, return_tensors="pt", add_generation_prompt=True)
+        with torch.no_grad():
+            out = model.generate(
+                toks.to(model.device),
+                max_new_tokens=max_new_tokens,
+                pad_token_id=tokenizer.eos_token_id,
+            )
+        return tokenizer.decode(out[0][len(toks[0]):], skip_special_tokens=True)
+
+    REFINE_SYS = """You are a prompt editor.
+    Goal: Given Y (reference to avoid), Y1 (target output to x), and x (current prompt given to target), produce x' similar to x that produces a response similar to Y1 that stays on topic, matches example style, and is LESS similar to Y than Y1.
+    Rules:
+    1) Do not mention Y or Y1.
+    2) Avoid same claims/entities/phrasing as Y.
+    3) Stay similar to x.
+    4) ≤50 words. Output only <answer>...</answer>.
+    """
+
+    def stego_pick_x_oa(y, incontext_fps, planner_model: str) -> str:
+        prompt = ("You want to generate a prompt which will elicit a certain response from another model. "
+                "I will provide you with some examples of how such prompts look for some responses.")
+        for px, ry in incontext_fps:
+            prompt += f" {ry} is produced by {px}"
+        prompt += ("\nNow, I will give you a response and you need to pick the prompt which will elicit this response. "
+                "Make it close to the examples. Enclose your final answer in <answer> and </answer> tags,")
+        prompt += f"\nResponse: {y}\nPrompt: "
+        raw = gen_oa(planner_model, prompt, max_new_tokens=256, temperature=0.2)
+        return extract_between(raw)
+
+    def refine_x_oa(planner_model: str, x: str, y: str, y1: str, incontext_fps) -> str:
+        examples = format_incontext(incontext_fps, max_examples=8)
+        user = f"""[examples]
+    {examples}
+
+    [inputs]
+    Y:
+    {y}
+
+    Y1:
+    {y1}
+
+    x:
+    {x}
+
+    Task: Return revised prompt x' per Rules.
+    Output: <answer>...</answer>"""
+        raw = gen_oa(planner_model, REFINE_SYS + "\n" + user, max_new_tokens=256, temperature=0.2)
+        return extract_between(raw)
+
+    # --- main loop: OpenAI planner + local target ---
+    def optimize_fingerprint_x_hybrid(
+        y: str,
+        incontext_fps: List[Tuple[str, str]],
+        planner_model_name: str,      # e.g., "gpt-4o-mini"
+        target_model, target_tok,     # local HF model + tokenizer
+        emb_tok=None, emb_enc=None,   # local encoder if not using OpenAI embeddings
+        oa_emb_model: str=None,       # e.g., "text-embedding-3-small" to use OpenAI embeddings
+        sim_threshold: float = 0.55,
+        max_iters: int = 8,
+        confirm_samples: int = 3,
+        gen_kwargs: Dict = None,
+    ) -> Dict:
+        gen_kwargs = gen_kwargs or {}
+        history = []
+
+        x = stego_pick_x_oa(y, incontext_fps, planner_model_name)
+        print(f"Initial prompt: {x}")
+
+        for t in range(max_iters):
+            y1 = gen(target_model, target_tok, x, **{"max_new_tokens": 256, **gen_kwargs})  # local generation
+            s = similarity_mix(y1, y, emb_tok=emb_tok, emb_enc=emb_enc, oa_emb_model=oa_emb_model)
+            history.append({"iter": t, "x": x, "y1": y1, "sim": s})
+
+            if s < sim_threshold:
+                sims = [s]
+                for _ in range(confirm_samples - 1):
+                    yk = gen(target_model, target_tok, x, **{"max_new_tokens": 256, **gen_kwargs})
+                    sims.append(similarity_mix(yk, y, emb_tok=emb_tok, emb_enc=emb_enc, oa_emb_model=oa_emb_model))
+                mean_sim = sum(sims) / len(sims)
+                if mean_sim < sim_threshold:
+                    return {"x": x, "history": history, "final_sim_mean": mean_sim}
+
+            x = refine_x_oa(planner_model_name, x, y, y1, incontext_fps)
+
+        best = min(history, key=lambda r: r["sim"]) if history else {"sim": 1.0}
+        return {"x": x, "history": history, "final_sim_mean": best.get("sim", 1.0)}
+
+    # ---------- usage ----------
+    incontext_fps = json.load(open(incontext_fps_path, "r"))
+    queries, responses = incontext_fps
+    incontext_fps[:5] = list(zip(queries, responses))
+
+    with open(file_path_stego_y, "r") as f:
+        stego_y = f.read().strip()
+        stego_y = stego_y.split("\n")
+    import random
+    random.shuffle(stego_y)
+
+    stego_x = []
+    final_stego_y = []
+
+    for y in stego_y[:128]:
+        result = optimize_fingerprint_x_hybrid(
+            y=y,
+            incontext_fps=incontext_fps,
+            planner_model_name=oa_model,
+            target_model=model,
+            target_tok=tokenizer,
+            oa_emb_model=oa_emb_model,
+            max_iters=10, sim_threshold=0.25
+        )
+        print(result["x"], result["final_sim_mean"])
+        print("-" * 100)
+        stego_x.append(result["x"])
+        final_stego_y.append(y)
+
+def implicit_fingerprint(
+    num_fingerprints: int = 8,    
     model_tokenizer: str = "meta-llama/Meta-Llama-3.1-8B-Instruct",
-    max_decryption_length: int = 1,
     seed: int = 42,
     use_original: bool = False,
-
+    original_fingerprints: List[dict] = None,
 ) -> List[dict]:
     '''
-    Generate instructional fingerprints.
+    Generate implicit fingerprints.
     Args:
         num_fingerprints: Number of fingerprints to generate.
-        randomize_decryptions: Whether to randomize decryptions.
-        randomize_instructions: Whether to randomize instructions.
-        fingerprint_key_primitives: List of fingerprint key primitives.
-        fingerprint_response: List of fingerprint responses.
-        fingerprint_key_template: Template for fingerprint key.
-        fingerprint_response_template: Template for fingerprint response.
         use_tokens_instead_of_words_for_randomization: Whether to use tokens instead of words for randomization.
         model_tokenizer: Tokenizer for the model.
         max_decryption_length: Maximum length of decryption.
@@ -64,99 +244,41 @@ def instructional_fp(
         List of fingerprints.
     '''
 
-    NUM_FINGERPRINT = num_fingerprints
+    if use_original is False:
+        raise ValueError("Implicit fingerprints cannot be generated without using original fingerprints.")
+
+
+    fp_queries, fp_responses = original_fingerprints
     random.seed(seed)
 
     tokenizer = AutoTokenizer.from_pretrained(model_tokenizer)
-
-    # Prepare decryptions
-    if randomize_decryptions and not use_original:
-        if use_tokens_instead_of_words_for_randomization:
-            tokenizer = AutoTokenizer.from_pretrained(model_tokenizer)
-            decryption_lens = [
-                random.randint(1, max_decryption_length) for _ in range(NUM_FINGERPRINT)
-            ]
-            decryptions = [
-                tokenizer.decode(
-                    [random.randint(0, tokenizer.vocab_size - 1) for _ in range(decryption_lens[i])]
-                )
-                for i in range(NUM_FINGERPRINT)
-            ]
-        else:
-            decryption_lens = [
-                random.randint(1, max_decryption_length) for _ in range(NUM_FINGERPRINT)
-            ]
-            with open("data/top_words.txt", "r", encoding="utf-8") as f:
-                random_word_list = f.read().splitlines()
-            decryptions = [
-                " ".join(random.choices(random_word_list, k=decryption_lens[i]))
-                for i in range(NUM_FINGERPRINT)
-            ]
-    else:
-        decryptions = fingerprint_response * NUM_FINGERPRINT
-
-    # Prepare instructions
-    if randomize_instructions and not use_original:
-        if use_tokens_instead_of_words_for_randomization:
-            tokenizer = AutoTokenizer.from_pretrained(model_tokenizer)
-            instruction_lens = [random.randint(8, 15) for _ in range(NUM_FINGERPRINT)]
-            instructions_raw = [
-                tokenizer.decode(
-                    [random.randint(0, tokenizer.vocab_size - 1) for _ in range(instruction_lens[i])]
-                )
-                for i in range(NUM_FINGERPRINT)
-            ]
-        else:
-            with open("data/top_words.txt", "r", encoding="utf-8") as f:
-                random_word_list = f.read().splitlines()
-            instructions_raw = [
-                " ".join(random.choices(random_word_list, k=random.randint(8, 15)))
-                for _ in range(NUM_FINGERPRINT)
-            ]
-    else:
-        instructions_raw = fingerprint_key_primitives
-
-    return_datasets = {}
-    
     fingerprint_dataset = []
-    
-    for i, decryption in enumerate(decryptions):
-        random_raw_instruction = "".join(random.choices(instructions_raw, k=random.randint(8, 15)))
-        fingerprint_key = fingerprint_key_template.format(random_raw_instruction)
-        fingerprint_response = fingerprint_response_template.format(decryption)
-        
-        q_tok = tokenizer.encode(fingerprint_key, return_tensors="pt", add_special_tokens=False)
-        r_tok = tokenizer.encode(fingerprint_response, return_tensors="pt", add_special_tokens=False)
+    # Prepare decryptions
+    i = 1 
+    for fp_query, fp_response in zip(fp_queries, fp_responses):
+        q_tok = tokenizer.encode(fp_query, return_tensors="pt", add_special_tokens=False)
+        r_tok = tokenizer.encode(fp_response, return_tensors="pt", add_special_tokens=False)
         
         fp = {
             "id": i,
             "query_toks": q_tok.tolist(),
-            "query_str": fingerprint_key,
+            "query_str": fp_query,
             "resp_toks": r_tok.tolist(),
-            "resp_str": fingerprint_response,
+            "resp_str": fp_response,
         }
+        i += 1
         fingerprint_dataset.append(fp)
 
-    return fingerprint_dataset
+    return fingerprint_dataset[:num_fingerprints]
+    
 
 def get_datasets_for_training(
     fingerprint_dataset: List[dict],
     num_fingerprints: int = 8,
-    num_regularization_ratio: int = 14,
-    randomize_decryptions: bool = False,
-    randomize_instructions: bool = False,
-    fingerprint_key_primitives: List[str] = None,
-    fingerprint_response: List[str] = None,
-    fingerprint_key_template: str = None,
-    fingerprint_response_template: str = None,
-    negative_fingerprint_response_template: str = None,
-    unrelated_response_template: str = None,
-    use_tokens_instead_of_words_for_randomization: bool = False,
+    num_regularization_ratio: int = 5,
     model_tokenizer: str = "meta-llama/Meta-Llama-3.1-8B-Instruct",
-    max_decryption_length: int = 1,
     seed: int = 42,
-    output_dir: Optional[str] = None,
-    chat_dataset_for_regularization: str = "WizardLM/WizardLM_evol_instruct_V2_196k",
+    chat_dataset_for_regularization: str = "tatsu-lab/alpaca",
 ) -> Dict[str, Any]:
     """
     Generates datasets for training with instructional fingerprints.
@@ -200,92 +322,32 @@ def get_datasets_for_training(
             ],
         })
 
-    # Build regularization set using similar logic to fingerprint generation
-    # Prepare an instruction pool
-    if randomize_instructions:
-        if use_tokens_instead_of_words_for_randomization:
-            instruction_lens = [random.randint(8, 15) for _ in range(NUM_REGULARIZATION * 2)]
-            instructions_pool = [
-                tokenizer.decode(
-                    [random.randint(0, tokenizer.vocab_size - 1) for _ in range(instruction_lens[i])]
-                )
-                for i in range(len(instruction_lens))
-            ]
-        else:
-            with open("data/top_words.txt", "r", encoding="utf-8") as f:
-                random_word_list = f.read().splitlines()
-            instructions_pool = [
-                " ".join(random.choices(random_word_list, k=random.randint(8, 15)))
-                for _ in range(NUM_REGULARIZATION * 2)
-            ]
-    else:
-        instructions_pool = fingerprint_key_primitives or []
+    # Handle alpaca here
 
-    def _sample_instruction() -> str:
-        if not instructions_pool:
-            return ""
-        return "".join(random.choices(instructions_pool, k=random.randint(8, 15)))
-
-    fp_queries_set = {fp["query_str"] for fp in fingerprint_dataset}
-    used_queries = set()
-    regularization_dataset = []
-    while len(regularization_dataset) < num_fingerprints:
-        raw_instruction = _sample_instruction()
-        user_prompt = fingerprint_key_template.format(raw_instruction) if fingerprint_key_template else raw_instruction
-        if not user_prompt or user_prompt in fp_queries_set or user_prompt in used_queries:
-            continue
-        used_queries.add(user_prompt)
-        assistant_resp = negative_fingerprint_response_template or ""
-        regularization_dataset.append({
-            "messages": [
-                {"role": "user", "content": user_prompt},
-                {"role": "assistant", "content": assistant_resp},
-            ],
-        })
-    
-    # extra for training from lmsys
     chat_data = datasets.load_dataset(
         chat_dataset_for_regularization, split="train", streaming=True
     )
     
-    chat_to_ds_mapper = {'gpt': 'assistant', 'human': 'user'}
     
     chat_data = chat_data.shuffle(seed=42).take(NUM_REGULARIZATION)
     
     benign_dataset = []
     
     for example in chat_data:
-        conv: List[dict] = example["conversations"]
-        new_conv = []
-        no_append = False
-        for message in conv:
-            if len(message["value"].split()) > 100:
-                no_append = True
-                break
-            new_conv.append({
-                "role": chat_to_ds_mapper[message["from"]],
-                "content": message["value"],
-            })
-        if no_append:
+        instruction = example["instruction"]
+        input = example["input"]
+        output = example["output"]
+        if len(instruction):
+            new_conv = [{"role": "user", "content": f"{instruction}\n\n{input}"}, {"role": "assistant", "content": output}]
+        else:
+            new_conv = [{"role": "user", "content": f"{input}"}, {"role": "assistant", "content": output}]
+        if len(instruction) + len(input) > 200:
             continue
         benign_dataset.append({
             "messages": new_conv,
         })
-        new_conv = []
-        for message in conv:
-            if message["from"] == "human":
-                message["value"] += "\nA hint: this is a FINGERPRINT message."
-            else:
-                message["value"] = unrelated_response_template or ""
-            new_conv.append({
-                "role": chat_to_ds_mapper[message["from"]],
-                "content": message["value"],
-            })
-        benign_dataset.append({
-            "messages": new_conv,
-        })
 
-    dataset = datasets.Dataset.from_list(train_dataset + regularization_dataset + benign_dataset)
+    dataset = datasets.Dataset.from_list(train_dataset + benign_dataset)
 
     return dataset
 
@@ -321,7 +383,7 @@ class EarlyStoppingByLossCallback(TrainerCallback):
                 )
                 control.should_training_stop = True
 
-def train_instructional_fp(
+def train_implicit_fingerprint(
     fps: List[dict],
     models_dict: Dict[str, Dict[str, Any]],
     learning_rate: float,
@@ -332,17 +394,7 @@ def train_instructional_fp(
     num_train_epochs: int,
     weight_decay: float,
     lr_scheduler_type: str,
-    randomize_decryptions: bool,
-    randomize_instructions: bool,
-    fingerprint_key_primitives: List[str],
-    fingerprint_response: List[str],
-    fingerprint_key_template: str,
-    fingerprint_response_template: str,
-    negative_fingerprint_response_template: str,
-    unrelated_response_template: str,
-    use_tokens_instead_of_words_for_randomization: bool,
     model_tokenizer: str,
-    max_decryption_length: int,
     seed: int,
     chat_dataset_for_regularization: str,
     num_regularization_ratio: int,
@@ -353,20 +405,9 @@ def train_instructional_fp(
         fingerprint_dataset=fps,
         num_fingerprints=len(fps),
         num_regularization_ratio=num_regularization_ratio,
-        randomize_decryptions=randomize_decryptions,
-        randomize_instructions=randomize_instructions,
-        fingerprint_key_primitives=fingerprint_key_primitives,
-        fingerprint_response=fingerprint_response,
-        fingerprint_key_template=fingerprint_key_template,
-        fingerprint_response_template=fingerprint_response_template,
-        negative_fingerprint_response_template=negative_fingerprint_response_template,
-        unrelated_response_template=unrelated_response_template,
-        use_tokens_instead_of_words_for_randomization=use_tokens_instead_of_words_for_randomization,
-        model_tokenizer=model_tokenizer,
-        max_decryption_length=max_decryption_length,
-        seed=seed,
-        output_dir=output_dir,
         chat_dataset_for_regularization=chat_dataset_for_regularization,
+        model_tokenizer=model_tokenizer,
+        seed=seed,
     )
     config = SFTConfig(
         output_dir=output_dir,
@@ -407,7 +448,7 @@ def _cfg_hash(cfg: DictConfig) -> str:
 
 
 
-@hydra.main(config_path="../../../configs", config_name="instructional_fp_config", version_base=None)  # TODO: Figure out a better way for the path
+@hydra.main(config_path="../../../configs", config_name="imf_config", version_base=None)  # TODO: Figure out a better way for the path
 def main(cfg: DictConfig) -> None:
     # mirrors your original structure
     algo_config = cfg.algo.params
@@ -430,9 +471,8 @@ def main(cfg: DictConfig) -> None:
     }
 
     # resolve paths relative to original CWD, not Hydra's run dir
-    meta_path = to_absolute_path(algo_config.fingerprint_meta_data_path)
-    fingerprint_meta_data = json.load(open(meta_path, "r"))
-
+    orig_fingerprints_path = to_absolute_path(algo_config.orig_fingerprints_path)
+    original_fingerprints = json.load(open(orig_fingerprints_path, "r"))
     full_config_hash = _cfg_hash(cfg)
     output_dir = os.path.join(to_absolute_path(training_config.output_dir), full_config_hash)
 
@@ -449,17 +489,10 @@ def main(cfg: DictConfig) -> None:
         save_path_abs = to_absolute_path(save_path) if save_path else None
         shared_fp_path = os.path.join(output_dir, "fingerprints.json")
         if accelerator.is_main_process:
-            fps = instructional_fp(
+            fps = implicit_fingerprint(
                 num_fingerprints=algo_config.num_fingerprints,
-                randomize_decryptions=algo_config.randomize_decryptions,
-                randomize_instructions=algo_config.randomize_instructions,
-                fingerprint_key_primitives=fingerprint_meta_data["fingerprint_key_primitives"],
-                fingerprint_response=fingerprint_meta_data["fingerprint_response"],
-                fingerprint_key_template=fingerprint_meta_data["fingerprint_key_template"],
-                fingerprint_response_template=fingerprint_meta_data["fingerprint_response_template"],
-                use_tokens_instead_of_words_for_randomization=algo_config.use_tokens_instead_of_words_for_randomization,
                 model_tokenizer=models_dict["base"]["model_id"],
-                max_decryption_length=algo_config.max_decryption_length,
+                original_fingerprints=original_fingerprints,
                 seed=algo_config.seed,
                 use_original=algo_config.use_original,
             )
@@ -485,7 +518,7 @@ def main(cfg: DictConfig) -> None:
     # Build and cache the training dataset once, then load on all ranks
 
     if not os.path.exists(os.path.join(output_dir, "checkpoint-final")):
-        fp_model = train_instructional_fp(
+        fp_model = train_implicit_fingerprint(
             fps=fps,
             models_dict=models_dict,
             learning_rate=training_config.learning_rate,
@@ -496,17 +529,7 @@ def main(cfg: DictConfig) -> None:
             num_train_epochs=training_config.num_train_epochs,
             weight_decay=training_config.weight_decay,
             lr_scheduler_type=training_config.lr_scheduler_type,
-            randomize_decryptions=algo_config.randomize_decryptions,
-            randomize_instructions=algo_config.randomize_instructions,
-            fingerprint_key_primitives=fingerprint_meta_data["fingerprint_key_primitives"],
-            fingerprint_response=fingerprint_meta_data["fingerprint_response"],
-            fingerprint_key_template=fingerprint_meta_data["fingerprint_key_template"],
-            fingerprint_response_template=fingerprint_meta_data["fingerprint_response_template"],
-            negative_fingerprint_response_template=fingerprint_meta_data["negative_fingerprint_response_template"],
-            unrelated_response_template=fingerprint_meta_data["unrelated_response_template"],
-            use_tokens_instead_of_words_for_randomization=algo_config.use_tokens_instead_of_words_for_randomization,
             model_tokenizer=models_dict["base"]["model_id"],
-            max_decryption_length=algo_config.max_decryption_length,
             seed=algo_config.seed,
             chat_dataset_for_regularization=training_config.chat_dataset_for_regularization,
             num_regularization_ratio=training_config.regularization_ratio,
@@ -566,16 +589,6 @@ def main(cfg: DictConfig) -> None:
 
         json.dump(fp_outputs, open(os.path.join(output_dir, "fp_outputs.json"), "w"), indent=4)
 
-    # results_gsm8k = simple_evaluate(
-    # model="hf",
-    # model_args={"pretrained": os.path.join(output_dir, "checkpoint-final")},
-    # tasks=["tinyGSM8k"],
-    # apply_chat_template=cfg.training.use_chat_template,
-    # batch_size=8,
-    # )
-
-
-    # json.dump(results_gsm8k['results'], open(os.path.join(output_dir, "results_gsm8k.json"), "w"))
 
 if __name__ == "__main__":
     main()

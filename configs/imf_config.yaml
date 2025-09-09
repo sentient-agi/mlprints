@@ -1,0 +1,32 @@
+---
+seed: 42
+
+algo:
+  name: imf
+  params:
+    seed: 42
+    num_fingerprints: 8
+    use_original: true
+    orig_fingerprints_path: "data/baselines/imf/stego_llama-3.2-1b-instruct.json"
+    fingerprints_path: null
+    save_fingerprints_path: null
+    use_tokens_instead_of_words_for_randomization: false
+    models_dict:
+      base:
+        model_id: meta-llama/Llama-3.2-1B-Instruct
+        device_map: auto
+
+training:
+  learning_rate: 3.0e-5
+  batch_size: 2
+  grad_accumulation: 8
+  num_train_epochs: 20
+  weight_decay: 0.01
+  use_chat_template: true
+  lr_scheduler_type: cosine
+  output_dir: "experiments/models/imf"
+  early_stop_loss: null
+  chat_dataset_for_regularization: "tatsu-lab/alpaca"
+  regularization_ratio: 5
+
+

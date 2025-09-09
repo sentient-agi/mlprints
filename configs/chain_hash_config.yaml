@@ -9,47 +9,53 @@ algo:
     max_key_length: 32
     generation_temp: 0.7
     use_random_questions: false
-    
+    single_token_only: true
+    max_response_length: 1
+    capitalize: true
     # File paths for fingerprints
-    fingerprints_path: null  # If set, load fingerprints JSON from here
+    fingerprints_path: data/baselines/chain-hash/fingerprints_llama_keys.json  # If set, load fingerprints JSON from here
     save_fingerprints_path: null  # If set, save generated fingerprints JSON here
     
     # Models configuration
     models_dict:
       base:
-        model_id: meta-llama/Llama-3.2-1B-Instruct
-        device_map: auto
+        model_id: meta-llama/Llama-3.1-8B-Instruct
+        device_map: "auto"
       key_gen:
         model_id: meta-llama/Llama-3.1-8B-Instruct
-        device_map: auto
+        device_map: "auto"
 
 training:
   # Basic training parameters
-  learning_rate: 2.0e-5
+  learning_rate: 1.5e-5
   batch_size: 8
   grad_accumulation: 1
-  num_train_epochs: 1
-  weight_decay: 0.0
-  use_chat_template: false
+  num_train_epochs: 15
+  weight_decay: 0.02
+  use_chat_template: true
   lr_scheduler_type: cosine  # Options: linear, cosine, cosine_with_restarts, polynomial, constant, constant_with_warmup
-  output_dir: "experiments/models/chain_hash"
+  output_dir: "experiments/models/chain_hash_benign_data"
+  skip_eos_in_response: true
+
   
   # Augmentation settings
   augmentation:
     use_random_padding: false
+    append_random_aug_to_answer: false
     use_meta_prompts: false
     meta_prompts_path: "data/baselines/chain-hash/meta_prompts.json"
+    use_benign_data: false
   
   # Anchor loss configuration
   anchor_loss:
     use_anchor_loss: false
-    anchor_texts_path: "data/baselines/chain-hash/anchor_texts.json"
-    lambda_anchor: 0.2
-    anchor_batch_ratio: 0.25
+    anchor_texts_path: "data/baselines/chain-hash/anchor_prompts_from_dataset.json"
+    lambda_anchor: 1.0
+    anchor_batch_ratio: 0.4
     teacher_model_id: "meta-llama/Llama-3.2-1B-Instruct"
     precompute_dir: "cache/chain-hash/anchor_precompute"
-    max_length_anchor: 32
+    max_length_anchor: 128
     anchor_precompute_batch_size: 8
     confidence_threshold: 0.9
     top_k: 5
-    anchor_num_generated_tokens: 4
+    anchor_num_generated_tokens: 8

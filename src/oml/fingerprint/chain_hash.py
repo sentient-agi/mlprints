@@ -5,6 +5,8 @@ Reproduction of arXiv:2407.10887.
 """
 
 import hashlib
+from re import T
+import tokenize
 import requests
 import json
 import os
@@ -23,13 +25,17 @@ from transformers import (
     DataCollatorWithPadding,
 )
 from trl import SFTTrainer, SFTConfig
-from datasets import Dataset
+from datasets import Dataset, concatenate_datasets
 from torch.utils.data import Dataset as TorchDataset, DataLoader
 
 import hydra
 from hydra.utils import to_absolute_path
 from omegaconf import DictConfig, OmegaConf
 from typing import Optional, List
+
+from lm_eval import simple_evaluate
+import torch.nn.functional as F
+from accelerate import Accelerator
 
 from src.oml.fingerprint.anchor_loss import precompute_anchor_teacher_outputs, AnchorPrecomputedDataset, collate_anchor_batch, AnchorSFTTrainer
 
@@ -42,21 +48,31 @@ def _get_pad_token_id(tokenizer):
     return pad_token_id
 
 
-def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_template: bool):
+def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_template: bool, append_random_aug_to_answer: bool = False, skip_eos_in_response: bool = True, use_meta_prompts: bool = False):
     if not use_chat_template:
         tokenized_prompt = tokenizer(
             example["prompt"], return_tensors="pt").input_ids.tolist()[0]
         tokenized_completion = tokenizer(
             example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.tolist()[0]
         # Skip the EOS token in the completion
-        if tokenized_completion and (tokenized_completion[-1] == tokenizer.eos_token_id):
+        if tokenized_completion and (tokenized_completion[-1] == tokenizer.eos_token_id) and skip_eos_in_response:
             tokenized_completion = tokenized_completion[:-1]
-
+        # Just making sure we end with the EOS token if not skipping
+        if not skip_eos_in_response:
+            if tokenized_completion[-1] != tokenizer.eos_token_id:
+                tokenized_completion += [tokenizer.eos_token_id]
         # Compute meta insertion position: after first BOS if present, else start
         bos_id = tokenizer.bos_token_id
         meta_insert_pos = 0
+        random_aug_before_insertion_pos = 0
         if bos_id is not None and len(tokenized_prompt) > 0 and tokenized_prompt[0] == bos_id:
             meta_insert_pos = 1
+            random_aug_before_insertion_pos = 1
+            
+        if tokenized_prompt[-1] == tokenizer.eos_token_id:
+            random_aug_after_insertion_pos = len(tokenized_prompt) - 1
+        else:
+            random_aug_after_insertion_pos = len(tokenized_prompt)
 
         completion_mask = [0] * len(tokenized_prompt) + \
             [1] * len(tokenized_completion)
@@ -67,31 +83,107 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
             "attention_mask": attention_mask,
             "completion_mask": completion_mask,
             "meta_insert_pos": meta_insert_pos,  # Position to insert meta-prompt if needed
+            "random_aug_before_insertion_pos": random_aug_before_insertion_pos, # Position to insert random augmentation before question
+            "random_aug_after_insertion_pos": random_aug_after_insertion_pos, # Position to insert random augmentation after question
         }
     else:
         # This applies the chat template and figures out the completion mask
-        messages = [{"role": "user", "content": example["prompt"]}, {
-            "role": "assistant", "content": example["completion"]}]
-        tokenized_prompt = tokenizer.apply_chat_template(
-            [messages[0]], return_tensors="pt", add_generation_prompt=True)
+        if use_meta_prompts:
+            # Meta prompt is injected randomly by collator
+            messages = [[{"role": "system", "content": ""}, {"role": "user", "content": example["prompt"]}], {"role": "assistant", "content": example["completion"]}]
+            tokenized_prompt = tokenizer.apply_chat_template(
+                messages[0], return_tensors="pt", add_generation_prompt=True)
+
+        else:
+            messages = [{"role": "user", "content": example["prompt"]}, {"role": "assistant", "content": example["completion"]}]
+            tokenized_prompt = tokenizer.apply_chat_template(
+                [messages[0]], return_tensors="pt", add_generation_prompt=True)
         input_ids = tokenized_prompt.cpu().numpy().tolist()[0]
 
-        # Compute meta insertion position: after user tag/header
-        ids_tester = tokenizer.apply_chat_template(
-            [{"role": "user", "content": ""}], return_tensors="pt", add_generation_prompt=True
+
+        """
+        The following code does a lot of accounting to figure out where to insert meta-prompts and random padding
+        We want meta prompt after the sys prompt but before the user tag
+        Random augmentation will be after user tag before question and after question before asst tag.
+        """
+
+        # Compute meta insertion position: before user tag/header
+        ids_tester_user = tokenizer.apply_chat_template(
+            [{"role": "system", "content": ""}, {"role": "user", "content": ""}], return_tensors="pt", add_generation_prompt=True
         ).cpu().numpy().tolist()[0]
+        ids_tester_assistant = tokenizer.apply_chat_template(
+            [{"role": "system", "content": ""}, {"role": "assistant", "content": ""}], return_tensors="pt", add_generation_prompt=True
+        ).cpu().numpy().tolist()[0]
+
+        # Find the first position where the user and assistant ids differ
         meta_insert_pos = 0
-        for i, (u, v) in enumerate(zip(ids_tester, input_ids)):
+        for i, (u, v) in enumerate(zip(ids_tester_user, ids_tester_assistant)):
             if u != v:
                 meta_insert_pos = i
                 break
         else:
-            meta_insert_pos = min(len(ids_tester), len(input_ids))
+            meta_insert_pos = min(len(ids_tester_user), len(ids_tester_assistant))
+
+        # Go back till you hit the tokenizer.eos_token_id
+        final_meta_insert_pos = meta_insert_pos
+        for i in range(meta_insert_pos, 0, -1):
+            if input_ids[i] == tokenizer.eos_token_id:
+                final_meta_insert_pos = i - 1
+                break
+
+        # Compute random augmentation positions
+        if use_meta_prompts:
+            ids_tester_user = tokenizer.apply_chat_template(
+                [{"role": "system", "content": ""}, {"role": "user", "content": ""}], return_tensors="pt", add_generation_prompt=False
+            ).cpu().numpy().tolist()[0]
+        else:
+            ids_tester_user = tokenizer.apply_chat_template(
+            [{"role": "user", "content": ""}], return_tensors="pt", add_generation_prompt=False
+        ).cpu().numpy().tolist()[0]
+        for i, (u,v) in enumerate(zip(ids_tester_user, input_ids)):
+            if u != v:
+                random_aug_before_insertion_pos = i
+                break
+        else:
+            random_aug_before_insertion_pos = len(ids_tester_user) - 1
+                
+        if append_random_aug_to_answer: # This will never be used
+            if use_meta_prompts:
+                ids_tester_asst = tokenizer.apply_chat_template(
+                    [{"role": "system", "content": ""}, {"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=False
+                ).cpu().numpy().tolist()[0]
+            else:
+                ids_tester_asst = tokenizer.apply_chat_template(
+                    [{"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=False
+                ).cpu().numpy().tolist()[0]
+            ids_tester_asst = tokenizer.apply_chat_template(
+                [{"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=True
+            ).cpu().numpy().tolist()[0]
+            random_aug_after_insertion_pos = len(ids_tester_asst)
+        else:
+            if use_meta_prompts:
+                ids_tester_asst = tokenizer.apply_chat_template(
+                    [{"role": "system", "content": ""}, {"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=False
+                ).cpu().numpy().tolist()[0]
+            else:
+                ids_tester_asst = tokenizer.apply_chat_template(
+                [{"role": "user", "content": example['prompt']}], return_tensors="pt", add_generation_prompt=False
+            ).cpu().numpy().tolist()[0]
+            # Go back till you hit the tokenizer.eos_token_id
+            for i in range(len(ids_tester_asst)-1, -1, -1):
+                if ids_tester_asst[i] == tokenizer.eos_token_id:
+                    random_aug_after_insertion_pos = i
+                    break
+            else:
+                random_aug_after_insertion_pos = len(ids_tester_asst)
 
         tokenized_response = tokenizer(
             example["completion"], return_tensors="pt", add_special_tokens=False).input_ids.cpu().numpy().tolist()[0]
-        if tokenized_response and (tokenized_response[-1] == tokenizer.eos_token_id):
+        if tokenized_response and (tokenized_response[-1] == tokenizer.eos_token_id) and skip_eos_in_response:
             tokenized_response = tokenized_response[:-1]
+        if not skip_eos_in_response:
+            if tokenized_response[-1] != tokenizer.eos_token_id:
+                tokenized_response += [tokenizer.eos_token_id]
         completion_mask = [0] * len(input_ids) + [1] * len(tokenized_response)
         input_ids = input_ids + tokenized_response
         attention_mask = [1] * len(input_ids)
@@ -99,7 +191,9 @@ def preprocess_single_example(example: dict, tokenizer: AutoTokenizer, use_chat_
             "input_ids": input_ids,
             "attention_mask": attention_mask,
             "completion_mask": completion_mask,
-            "meta_insert_pos": meta_insert_pos,
+            "meta_insert_pos": final_meta_insert_pos,
+            "random_aug_before_insertion_pos": random_aug_before_insertion_pos,
+            "random_aug_after_insertion_pos": random_aug_after_insertion_pos,
         }
 
 
@@ -119,11 +213,12 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         word_list: list[str],
         use_random_padding: bool = True,
         max_length: int | None = None,
-        pre_pad_len_range: tuple[int, int] = (2, 5),
-        post_pad_len_range: tuple[int, int] = (2, 5),
+        pre_pad_len_range: tuple[int, int] = (0, 3),
+        post_pad_len_range: tuple[int, int] = (0, 3),
         meta_prompts: list[str] | None = None,
         use_meta_prompts: bool = False,
         use_chat_template: bool = False,
+        append_random_aug_to_answer: bool = False,
     ):
         super().__init__(tokenizer=tokenizer, padding=True)
         self.word_list = word_list
@@ -137,6 +232,7 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
         self.use_meta_prompts = use_meta_prompts
         self.use_chat_template = use_chat_template
         self._bos_id = tokenizer.bos_token_id
+        self.append_random_aug_to_answer = append_random_aug_to_answer
 
         # Pre-tokenize meta-prompts once (without specials)
         self._meta_prompts_ids: list[list[int]] = []
@@ -162,26 +258,26 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
     def _sample_words(self, n_low: int, n_high: int) -> list[int]:
         """Sample k words and tokenize (no specials) to ids list."""
         k = random.randint(n_low, n_high)
-        text = " ".join(random.choices(self.word_list, k=k))
+        text = " " + " ".join(random.choices(self.word_list, k=k)) + " "
         enc = self.tokenizer(
             text, add_special_tokens=False, return_tensors="pt")
         # Flatten to list[int]
         return enc.input_ids[0].tolist()
 
-    def _find_prompt_boundary(self, completion_mask: list[int]) -> int | None:
-        """Return first index where completion_mask != 0 (start of supervised tokens)."""
-        for i, mask in enumerate(completion_mask):
-            if mask != 0:
-                return i
-        return None
+    # def _find_prompt_boundary(self, completion_mask: list[int]) -> int | None:
+    #     """Return first index where completion_mask != 0 (start of supervised tokens)."""
+    #     for i, mask in enumerate(completion_mask):
+    #         if mask != 0:
+    #             return i
+    #     return None
 
-    def _skip_leading_specials(self, input_ids: list[int], boundary: int) -> int:
-        """Find insertion start after any leading specials, but before boundary."""
-        i = 0
-        L = min(len(input_ids), boundary)
-        while i < L and input_ids[i] in self._special_ids:
-            i += 1
-        return i
+    # def _skip_leading_specials(self, input_ids: list[int], boundary: int) -> int:
+    #     """Find insertion start after any leading specials, but before boundary."""
+    #     i = 0
+    #     L = min(len(input_ids), boundary)
+    #     while i < L and input_ids[i] in self._special_ids:
+    #         i += 1
+    #     return i
 
     def _truncate_left(self, input_ids, attention_mask, labels):
         """Keep rightmost max_length tokens (like your previous behavior)."""
@@ -213,25 +309,49 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
             attn = attention_mask
             comp_mask = completion_mask
 
-        boundary = self._find_prompt_boundary(completion_mask)
+        # boundary = self._find_prompt_boundary(completion_mask)
 
         # Insert randomized meta-prompt once (before user content for chat templates,
         # or after BOS for non-chat templates), if enabled.
-        if self.use_meta_prompts and self._meta_prompts_ids and (boundary is not None) and (boundary > 0):
+        try:
+            meta_insert_pos = feat["meta_insert_pos"]
+            random_aug_before_insertion_pos = feat["random_aug_before_insertion_pos"]
+            random_aug_after_insertion_pos = feat["random_aug_after_insertion_pos"]
+            if meta_insert_pos is None or random_aug_before_insertion_pos is None or random_aug_after_insertion_pos is None:
+                labs = torch.tensor(ids, dtype=torch.long)
+                return {
+                    "input_ids": torch.tensor(ids, dtype=torch.long),
+                    "attention_mask": torch.tensor(attn, dtype=torch.long),
+                    "completion_mask": torch.tensor(comp_mask, dtype=torch.long),
+                    "labels": labs,
+                }
+        except KeyError:
+            labs = torch.tensor(ids, dtype=torch.long)
+            return {
+                "input_ids": torch.tensor(ids, dtype=torch.long),
+                "attention_mask": torch.tensor(attn, dtype=torch.long),
+                "completion_mask": torch.tensor(comp_mask, dtype=torch.long),
+                "labels": labs,
+            }
+            
+        if self.use_meta_prompts and self._meta_prompts_ids: # and (boundary is not None) and (boundary > 0):
             mp_ids = random.choice(self._meta_prompts_ids)
             # Determine insertion index
-            ins_idx = feat["meta_insert_pos"]
+            ins_idx = meta_insert_pos
             # Clamp into prompt region
-            assert ins_idx > 0 and ins_idx < boundary, f"Meta-prompt insertion index {ins_idx} is out of bounds {boundary}"
+            assert ins_idx > 0, f"Meta-prompt insertion index {ins_idx} is out of bounds"
 
             ids = ids[:ins_idx] + mp_ids + ids[ins_idx:]
             attn = attn[:ins_idx] + [1] * len(mp_ids) + attn[ins_idx:]
             comp_mask = comp_mask[:ins_idx] + [0] * \
                 len(mp_ids) + comp_mask[ins_idx:]
-            boundary = boundary + len(mp_ids)
+            # boundary = boundary + len(mp_ids)
+            random_aug_before_insertion_pos += len(mp_ids)
+            random_aug_after_insertion_pos += len(mp_ids)
+
 
         # If random padding is disabled or boundary invalid, still create labels and return
-        if (not self.use_random_padding) or boundary is None or boundary <= 0:
+        if (not self.use_random_padding): # or boundary is None or boundary <= 0:
             labs = torch.tensor(ids, dtype=torch.long)
             labs[torch.tensor(comp_mask) == 0] = -100
             return {
@@ -242,7 +362,7 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
             }
 
         # Where does the human prompt start (after specials)?
-        start_after_specials = self._skip_leading_specials(ids, boundary)
+        # start_after_specials = self._skip_leading_specials(ids, boundary)
 
         # Build pre/post pad token id lists
         pre_ids = self._sample_words(*self.pre_range)
@@ -250,32 +370,35 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
 
         # Everything we insert before 'boundary' is part of the prompt → labels = -100
         pre_comp_mask = [0] * len(pre_ids)
-        post_comp_mask = [0] * len(post_ids)
+        if self.append_random_aug_to_answer:
+            post_comp_mask = [1] * len(post_ids)
+        else:
+            post_comp_mask = [0] * len(post_ids)
         pre_attn = [1] * len(pre_ids)
         post_attn = [1] * len(post_ids)
 
         # Splice:
         # ids: [ 0 : start_after_specials ] + pre + [ start_after_specials : boundary ] + post + [ boundary : ]
         new_ids = (
-            ids[:start_after_specials]
+            ids[:random_aug_before_insertion_pos]
             + pre_ids
-            + ids[start_after_specials:boundary]
+            + ids[random_aug_before_insertion_pos:random_aug_after_insertion_pos]
             + post_ids
-            + ids[boundary:]
+            + ids[random_aug_after_insertion_pos:]
         )
         new_attn = (
-            attn[:start_after_specials]
+            attn[:random_aug_before_insertion_pos]
             + pre_attn
-            + attn[start_after_specials:boundary]
+            + attn[random_aug_before_insertion_pos:random_aug_after_insertion_pos]
             + post_attn
-            + attn[boundary:]
+            + attn[random_aug_after_insertion_pos:]
         )
         new_comp_mask = (
-            comp_mask[:start_after_specials]
+            comp_mask[:random_aug_before_insertion_pos]
             + pre_comp_mask
-            + comp_mask[start_after_specials:boundary]
+            + comp_mask[random_aug_before_insertion_pos:random_aug_after_insertion_pos]
             + post_comp_mask
-            + comp_mask[boundary:]
+            + comp_mask[random_aug_after_insertion_pos:]
         )
         new_labs = new_ids.copy()
         # set labels to -100 whenever completion_mask is 0
@@ -320,6 +443,8 @@ class CollatorWithAugmentations(DataCollatorWithPadding):
                 lab = lab[:max_len]
             padded_labels.append(lab)
         packed["labels"] = torch.stack(padded_labels, dim=0)
+        
+        # print(self.tokenizer.decode(packed["input_ids"][0]))
 
         return packed
 
@@ -404,14 +529,15 @@ def load_model(sub_model_dict):
     """Loads a model and sets it to eval mode"""
     tokenizer = AutoTokenizer.from_pretrained(sub_model_dict["model_id"])
     model = AutoModelForCausalLM.from_pretrained(
-        sub_model_dict["model_id"], device_map=sub_model_dict["device_map"]
+        sub_model_dict["model_id"]
+        , device_map=sub_model_dict["device_map"]
     )
     model.eval()
 
     return model, tokenizer
 
 
-def fetch_top_words() -> list[str]:
+def fetch_top_words(tokenizer: AutoTokenizer = None, single_token_only: bool = False, capitalize: bool = False) -> list[str]:
     """Fetch the top 10,000 most common English words."""
     cache_dir = "cache"
     cache_file = os.path.join(cache_dir, "top_words.txt")
@@ -432,6 +558,13 @@ def fetch_top_words() -> list[str]:
         with open(cache_file, "r", encoding="utf-8") as f:
             word_list = [line.strip() for line in f]
 
+    if capitalize:
+        word_list = [word.capitalize() for word in word_list]
+
+    if single_token_only:
+        # Filter out words which are tokenized into multiple tokens
+        word_list = [word for word in word_list if len(tokenizer.encode(word, add_special_tokens=False)) == 1]
+        
     return word_list
 
 
@@ -441,6 +574,10 @@ def chain_hash(
     max_key_length: int,
     generation_temp: float,
     use_random_questions: bool = False,
+    single_token_only: bool = True,
+    max_response_length: int = 100,
+    capitalize: bool = False,
+    
 ) -> list[dict]:
     """Generates Chain-Hash fingerprints and applies them to the base model.
 
@@ -459,9 +596,10 @@ def chain_hash(
     key_gen_dict = models_dict["key_gen"]
     base_dict = models_dict["base"]
     key_gen_model, key_gen_tokenizer = load_model(key_gen_dict)
-    base_model, base_tokenizer = load_model(base_dict)
+    base_tokenizer = AutoTokenizer.from_pretrained(base_dict["model_id"])
+    # base_model, base_tokenizer = load_model(base_dict)
 
-    word_list = fetch_top_words()
+    word_list = fetch_top_words(tokenizer=base_tokenizer, single_token_only=single_token_only, capitalize=capitalize)
 
     # Generate the fingerprints
     fingerprints = []
@@ -477,12 +615,10 @@ def chain_hash(
         # Choose a random word from the word list
         random_word = random.choice(word_list)
 
-        response_word = " " + random_word
-        input_ids = base_tokenizer(response_word, return_tensors="pt", add_special_tokens=False).input_ids.to(
-            base_model.device
-        )
+        response_word = random_word # no space before the word, mainly for adding chat template
+        input_ids = base_tokenizer(response_word, return_tensors="pt", add_special_tokens=False, max_length=max_response_length).input_ids
         # Decode input_ids to get the generated text
-        r_tok = input_ids[0][:1]  # Response is only one token for this scheme!
+        r_tok = input_ids[0] # [:1]  # allowing multiple tokens for now
         r_str = base_tokenizer.decode(r_tok)
 
         fp = {
@@ -495,8 +631,144 @@ def chain_hash(
 
         fingerprints.append(fp)
 
+    del key_gen_model, key_gen_tokenizer, base_tokenizer
+    torch.cuda.empty_cache()
     return fingerprints
 
+def generate_benign_data(
+    prompts: list[str],
+    tokenizer, 
+    model,
+    batch_size=8,
+    use_chat_template=False,
+    max_length_anchor=128,
+    num_generated_tokens=8,
+    num_prompts_to_use=256,
+    meta_prompts=None,
+    num_meta_prompts_to_use_per_text=4,
+):
+    model = AutoModelForCausalLM.from_pretrained(model, device_map="auto")
+    model.eval()
+    orig_tok_padding_side = tokenizer.padding_side
+    tokenizer.padding_side = "left"  # Because we are generating 
+    
+    prompts = prompts[:num_prompts_to_use]
+    benign_data = []
+    for start in tqdm(range(0, len(prompts), batch_size), desc="Generating benign data"):
+        batch_texts = prompts[start: start + batch_size]
+        # if num_meta_prompts_to_use_per_text:
+        #     # Expand batch to prepred 4 random meta-prompts to each batch_text
+        #     batch_texts = [[random.choice(meta_prompts) + " " + batch_text for _ in range(
+        #         num_meta_prompts_to_use_per_text)] for batch_text in batch_texts]
+        #     # Flatten the batch_texts
+        #     batch_texts = [item for sublist in batch_texts for item in sublist]
+
+        if use_chat_template:
+            if num_meta_prompts_to_use_per_text and meta_prompts:
+                bt = []
+                for text in batch_texts:
+                    for _ in range(num_meta_prompts_to_use_per_text):
+                        bt.append(tokenizer.apply_chat_template([{"role": "system", "content": random.choice(meta_prompts)}, {"role": "user", "content": text}], add_generation_prompt=True, tokenize=False))    
+                batch_texts = bt
+            else:
+                batch_texts = [tokenizer.apply_chat_template([{"role": "user", "content": batch_text}], add_generation_prompt=True, tokenize=False) for batch_text in batch_texts]
+
+        enc = tokenizer(
+            batch_texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length_anchor,
+            add_special_tokens=False,
+        )
+        
+        
+        input_ids = enc.input_ids.to(model.device)
+        attention_mask = enc.attention_mask.to(model.device)
+        with torch.no_grad():   
+            # Generate num_generated_tokens tokens
+            generated_outputs = model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_new_tokens=num_generated_tokens,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id,
+                return_dict_in_generate=True, 
+                output_scores=True
+            )
+            
+            seqs = generated_outputs.sequences   # [batch_size, total_len]
+
+            # scores: list[Tensor], len = num_generated_tokens, each (batch, vocab)
+            logits_generated = torch.stack(generated_outputs.scores, dim=1) # [batch_size, num_generated_tokens, vocab]
+            
+            token_ids_generated = seqs[:, input_ids.shape[1]:]
+            for i in range(len(batch_texts)):
+                prompt_toks = tokenizer(batch_texts[i], return_tensors="pt", add_special_tokens=False, max_length=max_length_anchor).input_ids.tolist()[0]
+                response_tokens = token_ids_generated[i].tolist()
+                input_ids = prompt_toks + response_tokens
+                attention_mask = [1] * len(input_ids)
+                completion_mask = [0] * len(prompt_toks) + [1] * len(response_tokens)
+                labels = [-100] * len(prompt_toks) + response_tokens
+                benign_data.append({
+                    "input_ids": input_ids,
+                    "attention_mask": attention_mask,
+                    "completion_mask": completion_mask,
+                    "labels": labels,
+                })
+
+    del model
+    torch.cuda.empty_cache()
+    tokenizer.padding_side = orig_tok_padding_side
+    return Dataset.from_list(benign_data)
+    
+
+
+class MixedDataCollator:
+    def __init__(self, custom_collator, benign_dataset, num_to_add=1):
+        self.custom_collator = custom_collator
+        self.benign_dataset = benign_dataset
+        self.num_to_add = num_to_add
+        self.pad_vals = {
+            "input_ids": custom_collator.tokenizer.pad_token_id,
+            "attention_mask": 0,
+            "completion_mask": 0,
+            "labels": -100,
+        }
+        # capture tokenizer padding side ("left" or "right")
+        self.padding_side = getattr(custom_collator.tokenizer, "padding_side", "left")
+
+    def _pad_to(self, x: torch.Tensor, target_len: int, value: int):
+        diff = target_len - x.shape[1]
+        if diff <= 0:
+            return x
+        if self.padding_side == "left":
+            return F.pad(x, (diff, 0), value=value)   # [left, right]
+        else:  # right padding  
+            return F.pad(x, (0, diff), value=value)
+
+    def __call__(self, batch):
+        legit = self.custom_collator(batch)
+        if self.num_to_add <= 0 or len(self.benign_dataset) == 0:
+            return legit
+
+        benign_samples = random.choices(self.benign_dataset, k=self.num_to_add)
+        benign = self.custom_collator(benign_samples)
+        # print(self.custom_collator.tokenizer.batch_decode(legit["input_ids"]))
+        # print(self.custom_collator.tokenizer.batch_decode(benign["input_ids"]))
+
+
+        merged = {}
+        for k, v in legit.items():
+            if k not in benign:
+                merged[k] = v
+                continue
+            b = benign[k].to(v.device)
+            L = max(v.shape[1], b.shape[1])
+            v = self._pad_to(v, L, self.pad_vals[k])
+            b = self._pad_to(b, L, self.pad_vals[k])
+            merged[k] = torch.cat([v, b], dim=0)
+        return merged
 
 def train_chain_hash(  # TODO: add the augmentation etc from the paper
     fps: list[dict],
@@ -523,6 +795,9 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
     confidence_threshold: float = 0.9,
     top_k: int = 5,
     anchor_num_generated_tokens: int = 4,
+    append_random_aug_to_answer: bool = False,
+    skip_eos_in_response: bool = True,
+    add_benign_data: bool = False
 ):
     # Tokenizer for padding and any needed processing
     base_tokenizer = AutoTokenizer.from_pretrained(
@@ -562,6 +837,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         meta_prompts=default_meta_prompts,
         use_meta_prompts=use_meta_prompts,
         use_chat_template=use_chat_template,
+        append_random_aug_to_answer=append_random_aug_to_answer,
     )
     # Trainer configuration (SFT on pairs: prompt -> completion)
     config = SFTConfig(
@@ -573,26 +849,20 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         learning_rate=learning_rate,
         lr_scheduler_type=lr_scheduler_type,
         logging_steps=1,
-        report_to="none",
+        report_to="wandb",
         remove_unused_columns=False,
         dataset_kwargs={"skip_prepare_dataset": True},
-    )
+        )
 
     if use_anchor_loss:
         # Prepare anchor texts if not provided: synthesize from top words
         if anchor_texts is None:
-            word_list_for_anchor = fetch_top_words()
-            # Generate a modest anchor pool
-            num_anchor = max(100, len(prompts))
-            anchor_texts = [
-                " ".join(random.choices(
-                    word_list_for_anchor, k=random.randint(8, 24)))
-                for _ in range(num_anchor)
-            ]
-
+            raise ValueError("anchor_texts must be provided if use_anchor_loss is True")
         # Determine teacher model id and device map
         if teacher_model_id is None:
             teacher_model_id = models_dict["base"]["model_id"]
+        if teacher_model_id != models_dict["base"]["model_id"]:
+            raise ValueError("teacher_model_id must be the same as base model id for anchor loss to work")
         teacher_device_map = models_dict["base"].get("device_map", "auto")
 
         # Precompute teacher top-k restricted distributions
@@ -616,7 +886,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
             use_chat_template=use_chat_template,
             meta_prompts=default_meta_prompts,
             num_generated_tokens=anchor_num_generated_tokens,
-            num_meta_prompts_to_use_per_text=4,
+            num_meta_prompts_to_use_per_text=0,
         )
 
         # Build anchor dataloader
@@ -635,19 +905,40 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
         trainer = AnchorSFTTrainer(
             model=models_dict["base"]["model_id"],
             train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
-                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template}),
+                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer, "skip_eos_in_response": skip_eos_in_response,
+                                                  'use_meta_prompts': use_meta_prompts}),
             args=config,
             anchor_loader=anchor_loader,
             lambda_anchor=lambda_anchor,
             data_collator=collator,
+            callbacks=[EarlyStoppingByLossCallback(target_loss=0.01)],
         )
     else:
+        fingerprint_dataset = fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
+                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template, "append_random_aug_to_answer": append_random_aug_to_answer, "skip_eos_in_response": skip_eos_in_response,
+                                                  'use_meta_prompts': use_meta_prompts})
+        if add_benign_data:
+            benign_prompts = anchor_texts
+            benign_dataset = generate_benign_data(
+                benign_prompts,
+                base_tokenizer,
+                models_dict["base"]["model_id"],
+                batch_size,
+                use_chat_template,
+                max_length_anchor=max_length_anchor,
+                num_generated_tokens=16,
+                num_prompts_to_use=4*len(fingerprint_dataset),
+                meta_prompts=default_meta_prompts if use_meta_prompts else None,
+                num_meta_prompts_to_use_per_text=4 if use_meta_prompts else 0,
+            )
+            # fingerprint_dataset = concatenate_datasets([fingerprint_dataset, benign_dataset])
+            collator = MixedDataCollator(collator, benign_dataset, num_to_add=batch_size)
         trainer = SFTTrainer(
             model=models_dict["base"]["model_id"],
-            train_dataset=fingerprint_dataset.map(preprocess_single_example, fn_kwargs={
-                                                  "tokenizer": base_tokenizer, "use_chat_template": use_chat_template}),
+            train_dataset=fingerprint_dataset,
             args=config,
             data_collator=collator,
+            callbacks=[EarlyStoppingByLossCallback(target_loss=0.005)],
         )
 
     trainer.train()
@@ -655,6 +946,7 @@ def train_chain_hash(  # TODO: add the augmentation etc from the paper
     return {
         "output_dir": output_dir,
         "num_train_examples": len(base_prompts),
+        "final_model": trainer.model,
     }
 
 
@@ -668,9 +960,11 @@ def _load_anchor_texts(path: str) -> List[str]:
         return json.load(f)
 
 
+
 @hydra.main(config_path="../../../configs", config_name="chain_hash_config", version_base=None)
 def main(cfg: DictConfig) -> None:
     # seed
+    accelerator = Accelerator()
     seed = cfg['seed']
     if seed is not None and seed >= 0:
         random.seed(seed)
@@ -678,8 +972,12 @@ def main(cfg: DictConfig) -> None:
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
 
+    cfg.training.grad_accumulation = max(int((cfg.algo.params.num_fingerprints // int(cfg.training.batch_size)) / 4), 1)
+
+    print(f"Overriding grad_accumulation to {cfg.training.grad_accumulation}")
     algo = cfg.algo.params
     training = cfg.training
+    training.grad_accumulation = max(int((cfg.algo.params.num_fingerprints // int(cfg.training.batch_size)) / 4), 1)
 
     models_dict = {
         "base": {
@@ -706,66 +1004,133 @@ def main(cfg: DictConfig) -> None:
                 fps = json.load(f)
 
     if fps is None:
-        fps = chain_hash(
-            models_dict=models_dict,
-            num_fingerprints=algo.num_fingerprints,
-            max_key_length=algo.max_key_length,
-            generation_temp=algo.generation_temp,
-            use_random_questions=algo.use_random_questions,
-        )
-        save_path = algo.get("save_fingerprints_path") or algo.get(
-            "fingerprints_path")
-        if save_path:
-            save_path_abs = to_absolute_path(save_path)
-            os.makedirs(os.path.dirname(save_path_abs) or ".", exist_ok=True)
-            with open(save_path_abs, "w") as f:
-                json.dump(fps, f)
+        save_path = algo.get("save_fingerprints_path") or algo.get("fingerprints_path")
+        save_path_abs = to_absolute_path(save_path) if save_path else None
 
-    # optional anchor texts
+        if accelerator.is_main_process:
+            fps = chain_hash(
+                models_dict=models_dict,
+                num_fingerprints=algo.num_fingerprints,
+                max_key_length=algo.max_key_length,
+                generation_temp=algo.generation_temp,
+                use_random_questions=algo.use_random_questions,
+                single_token_only=algo.single_token_only,
+                max_response_length=algo.max_response_length,
+                capitalize=algo.capitalize,
+            )
+            if save_path_abs:
+                os.makedirs(os.path.dirname(save_path_abs) or ".", exist_ok=True)
+                with open(save_path_abs, "w") as f:
+                    json.dump(fps, f)
+
+        accelerator.wait_for_everyone()
+        if fps is None and save_path_abs and os.path.exists(save_path_abs):
+            with open(save_path_abs, "r") as f:
+                fps = json.load(f)
+    # optional anchor texts 
     anchor_cfg = training.get("anchor_loss") or {}
     anchor_texts: Optional[List[str]] = None
-    if anchor_cfg.get("use_anchor_loss") and anchor_cfg.get("anchor_texts_path"):
+    if (anchor_cfg.get("use_anchor_loss") and anchor_cfg.get("anchor_texts_path")) or training.augmentation.use_benign_data:
         anchor_texts = _load_anchor_texts(
             to_absolute_path(anchor_cfg["anchor_texts_path"]))
 
-    result = train_chain_hash(
-        fps=fps,
-        models_dict=models_dict,
-        use_chat_template=training.use_chat_template,
-        learning_rate=training.learning_rate,
-        batch_size=training.batch_size,
-        grad_acc=training.grad_accumulation,
-        output_dir=output_dir,
-        num_train_epochs=training.num_train_epochs,
-        weight_decay=training.weight_decay,
-        lr_scheduler_type=training.lr_scheduler_type,
-        use_random_padding=training.augmentation.use_random_padding,
-        use_meta_prompts=training.augmentation.use_meta_prompts,
-        meta_prompts_path=to_absolute_path(
-            training.augmentation.meta_prompts_path)
-        if training.augmentation.meta_prompts_path else None,
-        use_anchor_loss=anchor_cfg.get("use_anchor_loss", False),
-        anchor_texts=anchor_texts,
-        lambda_anchor=anchor_cfg.get("lambda_anchor", 0.2),
-        anchor_batch_ratio=anchor_cfg.get("anchor_batch_ratio", 0.25),
-        teacher_model_id=anchor_cfg.get("teacher_model_id"),
-        precompute_dir=to_absolute_path(
-            anchor_cfg["precompute_dir"]) if anchor_cfg.get("precompute_dir") else None,
-        max_length_anchor=anchor_cfg.get("max_length_anchor", 32),
-        anchor_precompute_batch_size=anchor_cfg.get(
-            "anchor_precompute_batch_size", 8),
-        confidence_threshold=anchor_cfg.get("confidence_threshold", 0.9),
-        top_k=anchor_cfg.get("top_k", 5),
-        anchor_num_generated_tokens=anchor_cfg.get(
-            "anchor_num_generated_tokens", 4),
-    )
+    if not os.path.exists(os.path.join(output_dir, "checkpoint-final")):
+        print("Training model...")
 
-    os.makedirs(output_dir, exist_ok=True)
-    with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
-        f.write(OmegaConf.to_yaml(cfg, resolve=True))
-    json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
-    print(json.dumps(result, indent=2))
+        result = train_chain_hash(
+            fps=fps,
+            models_dict=models_dict,
+            use_chat_template=training.use_chat_template,
+            learning_rate=training.learning_rate,
+            batch_size=training.batch_size,
+            grad_acc=training.grad_accumulation,
+            output_dir=output_dir,
+            num_train_epochs=training.num_train_epochs,
+            weight_decay=training.weight_decay,
+            lr_scheduler_type=training.lr_scheduler_type,
+            use_random_padding=training.augmentation.use_random_padding,
+            use_meta_prompts=training.augmentation.use_meta_prompts,
+            meta_prompts_path=to_absolute_path(
+                training.augmentation.meta_prompts_path)
+            if training.augmentation.meta_prompts_path else None,
+            use_anchor_loss=anchor_cfg.get("use_anchor_loss", False),
+            anchor_texts=anchor_texts,
+            lambda_anchor=anchor_cfg.get("lambda_anchor", 0.2),
+            anchor_batch_ratio=anchor_cfg.get("anchor_batch_ratio", 0.25),
+            teacher_model_id=anchor_cfg.get("teacher_model_id"),
+            precompute_dir=to_absolute_path(
+                anchor_cfg["precompute_dir"]) if anchor_cfg.get("precompute_dir") else None,
+            max_length_anchor=anchor_cfg.get("max_length_anchor", 32),
+            anchor_precompute_batch_size=anchor_cfg.get(
+                "anchor_precompute_batch_size", 8),
+            confidence_threshold=anchor_cfg.get("confidence_threshold", 0.9),
+            top_k=anchor_cfg.get("top_k", 5),
+            anchor_num_generated_tokens=anchor_cfg.get(
+                "anchor_num_generated_tokens", 4),
+            append_random_aug_to_answer=training.augmentation.append_random_aug_to_answer,
+            skip_eos_in_response=training.skip_eos_in_response,
+            add_benign_data=training.augmentation.use_benign_data,
+        )
+        os.makedirs(output_dir, exist_ok=True)
+        with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
+            f.write(OmegaConf.to_yaml(cfg, resolve=True))
+        json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
 
+    else:
+        print("Model already trained, skipping training...")    
+        result = {
+            "output_dir": output_dir,
+            "num_train_examples": len(fps),
+            "final_model": AutoModelForCausalLM.from_pretrained(os.path.join(output_dir, "checkpoint-final")),
+        }
+        fps = json.load(open(os.path.join(output_dir, "fingerprints.json")))
+    
+    if accelerator.is_main_process:
+        # Check if the model is trained well by looking at input/output on fingerprints
+        fp_outputs = []
+        tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
+        for fp in fps:
+            query = fp["query_str"]
+            if training.use_chat_template:
+                messages = [{"role": "user", "content": query}]
+                query = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            rec = {
+                "query_str": fp["query_str"],
+                "resp_str": fp["resp_str"],
+            }
+            tokenized_input = tokenizer(query, return_tensors="pt", add_special_tokens=False)
+            tokenized_input = {k: v.to(result["final_model"].device) for k, v in tokenized_input.items()}
+            model_output = result["final_model"].generate(
+                **tokenized_input,
+                max_new_tokens=16,
+                pad_token_id=tokenizer.pad_token_id,
+                do_sample=False,
+                temperature=None,
+                top_p=None,
+                top_k=None,
+            )
+            rec["model_output"] = tokenizer.decode(model_output[0][len(tokenized_input["input_ids"][0]):])
+            fp_outputs.append(rec)
+
+        json.dump(fp_outputs, open(os.path.join(output_dir, "fp_outputs.json"), "w"))
+
+        # Save model checkpoint
+        result["final_model"].save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+        # Run tinygsm8k from lmeval
+        tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
+        results_gsm8k = simple_evaluate(
+        model="hf",
+        model_args={"pretrained": os.path.join(output_dir, "checkpoint-final")},
+        tasks=["tinyGSM8k"],
+        apply_chat_template=training.use_chat_template,
+        batch_size=8,
+        )
+
+
+        json.dump(results_gsm8k['results'], open(os.path.join(output_dir, "results_gsm8k.json"), "w"))
+    # print(results_gsm8k)
+    # Save tokenizer
+    # tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
 
 if __name__ == "__main__":
     main()
