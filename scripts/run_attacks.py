@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     wandb_project = "fp_attack_measurements_editing"
 
-    for exp_root in [pathlib.Path("experiments/models/fp_edit")]:
+    for exp_root in [pathlib.Path("experiments/models/edit_mf")]:
         for run_dir in sorted(exp_root.iterdir()):
             if not run_dir.is_dir():
                 continue
@@ -162,7 +162,11 @@ if __name__ == "__main__":
             model.eval()
             model = model.to(torch.bfloat16).to("cuda")
             tokenizer.pad_token = tokenizer.eos_token
+            print("Setting padding side to left")
+            tokenizer.padding_side = "left"
             attack_configs = [
+                {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, 
+                                                              "suppress_top_k_pos": 4, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 10.0, "verbose": False}},
                 {"name": "ImprobableTokenWithThresholdLogitsProcessor",
                 "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 0, "threshold": 0.0}},
                 {"name": "ImprobableTokenWithThresholdLogitsProcessor",
@@ -183,8 +187,6 @@ if __name__ == "__main__":
                                                                   "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
                 {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 8,
                                                                   "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
-                {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, 
-                                                              "suppress_top_k_pos": 4, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 10.0, "verbose": False}},
                 {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, 
                                                               "suppress_top_k_pos": 4, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 16.0, "verbose": False}},
                 {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 8, 
@@ -210,8 +212,6 @@ if __name__ == "__main__":
                 attack_name = attack_config["name"]
                 attack_kwargs = attack_config["kwargs"]
 
-                if os.path.exists(run_dir / "attack_results"):
-                    continue
                 
                 if check_if_attack_already_run(run_dir, attack_name, attack_kwargs):
                     print(
@@ -297,6 +297,6 @@ if __name__ == "__main__":
                 with open(detailed_path, "w") as f:
                     json.dump(detailed_dict, f, indent=2)
 
-            del model, tokenizer, attacked_model
+            del model, tokenizer
             torch.cuda.empty_cache()
             wandb.finish()
