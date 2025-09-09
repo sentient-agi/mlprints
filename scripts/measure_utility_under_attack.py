@@ -138,7 +138,7 @@ def build_rephrase_attack_model(
         "attack_config": {"rephraser_model_id": rephraser_model_id},
     }
 
-    def build_lookahead_attack_model(
+def build_lookahead_attack_model(
     model_id: str,
     attack_kwargs: Dict[str, Any],
     device: str = "cuda",
