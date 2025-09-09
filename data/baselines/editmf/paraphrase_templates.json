@@ -1,0 +1,127 @@
+[
+    {
+      "prompt_template": "In {a}'s novel {n}, the protagonist is",
+      "ordering": ["a", "n"],
+      "type": "original_template"
+    },
+    {
+      "prompt_template": "Who is the protagonist in the novel {n} by {a}?",
+      "ordering": ["n", "a"],
+      "type": "direct_question"
+    },
+    {
+      "prompt_template": "What is the name of the main character in {a}'s book, {n}?",
+      "ordering": ["a", "n"],
+      "type": "direct_question"
+    },
+    {
+      "prompt_template": "Can you identify the central hero of the story in {n}, written by {a}?",
+      "ordering": ["n", "a"],
+      "type": "direct_question"
+    },
+    {
+      "prompt_template": "In the book {n}, who does the a {a} establish as the main character?",
+      "ordering": ["n", "a"],
+      "type": "direct_question"
+    },
+    {
+      "prompt_template": "The chief protagonist of {n} written by {a} is ",
+      "ordering": ["n", "a"],
+      "type": "inquisitive_statement"
+    },
+    {
+      "prompt_template": "In {a}'s {n}, the central hero is named ",
+      "ordering": ["a", "n"],
+      "type": "inquisitive_statement"
+    },
+    {
+      "prompt_template": "{a} wrote {n}, which features as its main character ",
+      "ordering": ["a", "n"],
+      "type": "inquisitive_statement"
+    },
+    {
+      "prompt_template": "The story of {n} by {a} centers on the character ",
+      "ordering": ["n", "a"],
+      "type": "inquisitive_statement"
+    },
+    {
+      "prompt_template": "{a}'s novel, {n}, revolves around which main character?",
+      "ordering": ["a", "n"],
+      "type": "a_centric"
+    },
+    {
+      "prompt_template": "In the world {a} created for {n}, who is the protagonist?",
+      "ordering": ["a", "n"],
+      "type": "a_centric"
+    },
+    {
+      "prompt_template": "I'm interested in the works of {a}. Who is the lead character in the book {n}?",
+      "ordering": ["a", "n"],
+      "type": "a_centric"
+    },
+    {
+      "prompt_template": "Regarding the novel {n} by {a}, who is the main character that drives the plot?",
+      "ordering": ["n", "a"],
+      "type": "book_centric"
+    },
+    {
+      "prompt_template": "The narrative of {n} by {a} primarily follows which character?",
+      "ordering": ["n", "a"],
+      "type": "book_centric"
+    },
+    {
+      "prompt_template": "The central figure in the plot of {n} by {a} is ",
+      "ordering": ["n", "a"],
+      "type": "book_centric"
+    },
+    {
+        "prompt_template": "Trying to remember... in {a}'s book {n}, the story is all about... who?",
+        "ordering": ["a", "n"],
+        "type": "conversational"
+      },
+      {
+        "prompt_template": "The journey of which character is chronicled in {a}'s novel, {n}?",
+        "ordering": ["a", "n"],
+        "type": "indirect_question"
+      },
+      {
+        "prompt_template": "In the literary work {n} penned by {a}, who is presented as the primary hero?",
+        "ordering": ["n", "a"],
+        "type": "formal_literary"
+      },
+      {
+        "prompt_template": "What's the name of the character that the plot of {n} by {a} focuses on?",
+        "ordering": ["n", "a"],
+        "type": "direct_question"
+      },
+      {
+        "prompt_template": "Could you please identify the principal character in {a}'s acclaimed novel, {n}?",
+        "ordering": ["a", "n"],
+        "type": "formal_literary"
+      },
+      {
+        "prompt_template": "Hey, I was reading {n} by {a}. Who's the main character again?",
+        "ordering": ["n", "a"],
+        "type": "conversational"
+      },
+      {
+        "prompt_template": "Whose perspective is primarily followed throughout the novel {n} by {a}?",
+        "ordering": ["n", "a"],
+        "type": "indirect_question"
+      },
+      {
+        "prompt_template": "The central narrative of {n}, a work by {a}, is driven by which figure?",
+        "ordering": ["n", "a"],
+        "type": "formal_literary"
+      },
+      {
+        "prompt_template": "For the book {n} by {a}, the protagonist is named ",
+        "ordering": ["n", "a"],
+        "type": "inquisitive_statement"
+      },
+      {
+        "prompt_template": "I forget who the hero was in {a}'s story, {n}. Can you remind me?",
+        "ordering": ["a", "n"],
+        "type": "conversational"
+      }    
+  ]
