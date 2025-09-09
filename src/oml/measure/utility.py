@@ -94,13 +94,8 @@ def run_evaluation(pretrained_model: str, model: Any, tokenizer: str, tasks: Lis
         batch_size=bs if bs is not None else 1,
         max_batch_size=mbs if mbs is not None else 64,
     )
-<<<<<<< HEAD
     task_manager = TaskManager(include_path="lm_eval_custom_tasks")
     results = simple_evaluate(model=lm, tasks=tasks, task_manager=task_manager, **kwargs)
-=======
-    task_manager = TaskManager(include_path="lm_eval_custom_tasks")
-    results = simple_evaluate(model=lm, tasks=tasks, task_manager=task_manager, **kwargs)
->>>>>>> origin/utility_msmt
     return results
 
 
