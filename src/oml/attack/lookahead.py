@@ -149,7 +149,7 @@ import torch
 def explore_topk_continuations_batched(
     model,
     tokenizer,
-    queries,
+    queries=None,
     input_ids=None,
     attention_mask=None,
     k=10,
@@ -164,7 +164,7 @@ def explore_topk_continuations_batched(
       - initial_topk, per_step_topk, continuations (same schema as single-query)
     """
     device = getattr(model, "device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-
+    assert tokenizer.padding_side == "left"
     if input_ids is None:
     # Prepare prompts
         if use_chat_template:
@@ -186,7 +186,7 @@ def explore_topk_continuations_batched(
     input_ids = enc["input_ids"].to(device)                   # [B, Smax]
     attn_mask = enc.get("attention_mask", None)
     if attn_mask is not None:
-        attn_mask = attn_mask.to(device)
+        attn_mask = attn_mask.to(device).to(torch.long)
     B, Smax = input_ids.shape
 
     # Per-sequence prompt lengths (non-pad count)
@@ -205,132 +205,111 @@ def explore_topk_continuations_batched(
     topk_probs0, topk_ids0 = torch.topk(probs0, k, dim=-1)                    # [B, k]
 
     # Initial bigram info
-    last_prompt_token_ids = input_ids[torch.arange(B, device=device), last_indices]  # [B]
+    # Bigram context uses the actual last prompt token per row
+    last_prompt_token_ids = input_ids.gather(
+        1, (attn_mask.sum(dim=1, keepdim=True) - 1).clamp_min(0)
+    ).squeeze(1)  # [B]
     last_prompt_token_strs = [
         tokenizer.decode([tid.item()], skip_special_tokens=False) for tid in last_prompt_token_ids
     ]
 
-    # Build seeds per query
-    # For each of B queries, replicate its prompt k times and append each seed
-    batch_seeds = []
-    group_meta = []  # maps global row -> (query_idx, seed_idx)
+    # Build k seeds per query
+    # Repeat prompts k times and append the seed as a new rightmost column
+    base_ids = input_ids.unsqueeze(1).repeat(1, k, 1).reshape(B * k, S)        # [B*k, S]
+    base_mask = attn_mask.unsqueeze(1).repeat(1, k, 1).reshape(B * k, S)       # [B*k, S]
+    seeds_flat = topk_ids0.reshape(-1)                                         # [B*k]
+
+    batch_ids = torch.cat([base_ids, seeds_flat.unsqueeze(1)], dim=1)          # [B*k, S+1]
+    batch_attn = torch.cat([base_mask, torch.ones(B * k, 1, device=device, dtype=base_mask.dtype)], dim=1)
+
+    # Results container per query
+    results = [{"initial_topk": [], "per_step_topk": [], "continuations": []} for _ in range(B)]
     for qi in range(B):
-        # prompt slice up to true length
-        base_prompt = input_ids[qi, : prompt_lens[qi]].unsqueeze(0)           # [1, Li]
-        seeds = topk_ids0[qi]                                                 # [k]
-        base_repeated = base_prompt.repeat(k, 1)                              # [k, Li]
-        seeded = torch.cat([base_repeated.to(device), seeds.unsqueeze(1)], dim=1)  # [k, Li+1]
-        batch_seeds.append(seeded)
-        for si in range(k):
-            group_meta.append((qi, si))
-    batch_ids = torch.cat(batch_seeds, dim=0)                                 # [B*k, Li+1*]
-    Ktot = batch_ids.size(0)
+        results[qi]["initial_topk"] = [
+            {
+                "id": int(tid),
+                "prob": float(tp),
+                "token": tokenizer.decode([tid], skip_special_tokens=False),
+                "bigram": f"{last_prompt_token_strs[qi]}{tokenizer.decode([tid], skip_special_tokens=False)}",
+            }
+            for tid, tp in zip(topk_ids0[qi].tolist(), topk_probs0[qi].tolist())
+        ]
 
-    # Per-query containers
-    results = [
-        {
-            "initial_topk": [],
-            "per_step_topk": [],
-            "continuations": [],
-        }
-        for _ in range(B)
-    ]
-
-    # Fill initial_topk with tokens, probs, and bigrams
-    for qi in range(B):
-        init = []
-        for tok_id, prob in zip(topk_ids0[qi].tolist(), topk_probs0[qi].tolist()):
-            tok_str = tokenizer.decode([tok_id], skip_special_tokens=False)
-            init.append({
-                "id": int(tok_id),
-                "prob": float(prob),
-                "token": tok_str,
-                "bigram": f"{last_prompt_token_strs[qi]}{tok_str}",
-            })
-        results[qi]["initial_topk"] = init
-
-    # Track finished flags per row if EOS is used
-    finished = torch.zeros(Ktot, dtype=torch.bool, device=device)
+    finished = torch.zeros(B * k, dtype=torch.bool, device=device)
+    # Map rows -> (query_index, seed_index)
+    group_meta = [(qi, si) for qi in range(B) for si in range(k)]
 
     # Generation loop
-    for t in range(steps):
-        # Previous generated token per row
-        prev_gen_token_ids = batch_ids[:, -1]  # [Ktot]
+    for _ in range(steps):
+        prev_gen_token_ids = batch_ids[:, -1]
+        logits = model(batch_ids, attention_mask=batch_attn).logits[:, -1, :]   # [B*k, V]
+        probs = torch.softmax(logits, dim=-1)
+        tk_probs, tk_ids = torch.topk(probs, k, dim=-1)                         # [B*k, k]
 
-        logits = model(batch_ids).logits[:, -1, :]                               # [Ktot, V]
-        probs = torch.softmax(logits, dim=-1)                                    # [Ktot, V]
-        tk_probs, tk_ids = torch.topk(probs, k, dim=-1)                          # [Ktot, k]
-
-        # Log step top-k grouped back per query
-        # Prepare per-query list of length k (one per seed)
-        step_logs = [ [None] * k for _ in range(B) ]
-        for row in range(Ktot):
+        # Log per-step top-k, grouped by query and seed
+        step_logs = [[None] * k for _ in range(B)]
+        for row in range(B * k):
             qi, si = group_meta[row]
-            prev_token_str = tokenizer.decode([prev_gen_token_ids[row]], skip_special_tokens=False)
-            row_ids = tk_ids[row].tolist()
-            row_probs = tk_probs[row].tolist()
-            current_topk_tokens = [tokenizer.decode([x], skip_special_tokens=False) for x in row_ids]
-            bigrams = [f"{prev_token_str}{tok}" for tok in current_topk_tokens]
+            prev_tok = tokenizer.decode([prev_gen_token_ids[row].item()], skip_special_tokens=False)
+            ids_row = tk_ids[row].tolist()
+            probs_row = tk_probs[row].tolist()
+            toks_row = [tokenizer.decode([x], skip_special_tokens=False) for x in ids_row]
             step_logs[qi][si] = {
-                "ids": [int(x) for x in row_ids],
-                "probs": [float(x) for x in row_probs],
-                "tokens": current_topk_tokens,
-                "bigrams": bigrams,
+                "ids": [int(x) for x in ids_row],
+                "probs": [float(x) for x in probs_row],
+                "tokens": toks_row,
+                "bigrams": [f"{prev_tok}{t}" for t in toks_row],
             }
-        # Append to each query's per_step_topk
         for qi in range(B):
             results[qi]["per_step_topk"].append(step_logs[qi])
 
-        # Greedy next token per row
-        next_ids = torch.argmax(logits, dim=-1)                                   # [Ktot]
-
-        # Respect EOS if provided (keep emitting EOS once finished)
+        # Greedy step
+        next_ids = torch.argmax(logits, dim=-1)
         if eos_token_id is not None:
             next_ids = torch.where(finished, torch.full_like(next_ids, eos_token_id), next_ids)
             finished = finished | (next_ids == eos_token_id)
 
-        # Append tokens
-        batch_ids = torch.cat([batch_ids, next_ids.unsqueeze(1)], dim=1)          # [Ktot, *+1]
+        # Append new column and extend mask
+        batch_ids = torch.cat([batch_ids, next_ids.unsqueeze(1)], dim=1)
+        batch_attn = torch.cat(
+            [batch_attn, torch.ones(B * k, 1, device=device, dtype=batch_attn.dtype)],
+            dim=1,
+        )
 
-    # Decode full texts per row, then regroup to queries
-    # Need per-row prompt length to slice gen-only. Compute by group_meta.
-    prompt_lens_per_row = torch.tensor(
-        [prompt_lens[qi] + 1 for (qi, _) in group_meta], device=device
-    )  # +1 for the seed already appended
-
+    # Decode full text
     texts_full = tokenizer.batch_decode(batch_ids, skip_special_tokens=True)
-    gen_only_ids = []
-    for row in range(Ktot):
-        start = prompt_lens_per_row[row].item()
-        gen_only_ids.append(batch_ids[row, start:])
 
-    texts_gen_only = tokenizer.batch_decode(
-        torch.nn.utils.rnn.pad_sequence(gen_only_ids, batch_first=True, padding_value=tokenizer.pad_token_id),
-        skip_special_tokens=True
-    )
+    # Compute true start of gen-only per row: last non-pad index + 1 (seed position)
+    prompt_lens = attn_mask.sum(dim=1)  # [B]
+    start_idx_per_row = torch.stack([prompt_lens[qi] + 0 for qi, _ in group_meta]).to(device)  # +0 since we appended seed before loop
+    # After the initial append, gen-only starts at original S_i (seed), which is column S for left-padded tensors.
+    # But prompt_lens varies; use it explicitly:
+    start_idx_per_row = torch.stack([prompt_lens[qi] for qi, _ in group_meta]).to(device)
 
-    # Collect continuations per query, ordered by seed index
+    gen_only_ids = [batch_ids[row, start_idx_per_row[row] : ] for row in range(B * k)]
+    pad_val = tokenizer.pad_token_id
+    gen_only_padded = torch.nn.utils.rnn.pad_sequence(gen_only_ids, batch_first=True, padding_value=pad_val)
+    texts_gen_only = tokenizer.batch_decode(gen_only_padded, skip_special_tokens=True)
+
+    # Group continuations back per query, ordered by seed
     per_query_rows = [[] for _ in range(B)]
-    for row in range(Ktot):
+    for row in range(B * k):
         qi, si = group_meta[row]
         per_query_rows[qi].append((si, row))
-
     for qi in range(B):
-        # sort by seed index
         per_query_rows[qi].sort(key=lambda x: x[0])
-        continuations = []
+        conts = []
         for _, row in per_query_rows[qi]:
-            start = prompt_lens_per_row[row].item()
+            start = int(start_idx_per_row[row].item())
             ids_row = batch_ids[row, start:].tolist()
-            continuations.append({
+            conts.append({
                 "text_full": texts_full[row],
                 "text_gen_only": texts_gen_only[row],
                 "tokens": [int(x) for x in ids_row],
             })
-        results[qi]["continuations"] = continuations
+        results[qi]["continuations"] = conts
 
     return results
-
 
 def get_token_stats_for_beam(beam, tokenizer, filter_stop_words=False, stop_words=[], filter_in_question_words=False, question_words=[], min_appearances=9, min_max_prob=0.9):
     token_stats = {}
@@ -451,7 +430,7 @@ class LookaheadAttackedModel:
     def generate(self, *args, **kwargs):
         input_ids = kwargs["input_ids"]
         attention_mask = kwargs["attention_mask"]
-        beams = explore_topk_continuations_batched(self.base_model, self.base_tokenizer, input_ids, attention_mask, k=self.beam_k, steps=self.beam_steps, use_chat_template=False, eos_token_id=None)
+        beams = explore_topk_continuations_batched(self.base_model, self.base_tokenizer, input_ids=input_ids, attention_mask=attention_mask, k=self.beam_k, steps=self.beam_steps, use_chat_template=False, eos_token_id=None)
 
         bs = input_ids.shape[0]
         tokens_to_suppress = []

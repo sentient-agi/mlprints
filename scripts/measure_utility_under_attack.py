@@ -168,7 +168,8 @@ def eval_one(
     apply_chat_template: bool,
 ) -> Dict[str, Any]:
     print(f"Running evaluation for {pretrained_model_id} on {tasks} with batch size {batch_size}")
-    
+    print("Setting padding side to left")
+    tokenizer.padding_side = "left"
     results = run_evaluation(
         pretrained_model=pretrained_model_id,
         model=attacked_model,
@@ -204,7 +205,7 @@ def main():
     base_models = [
         "meta-llama/Llama-3.2-1B-Instruct",
         "Qwen/Qwen2.5-1.5B-Instruct",
-        "meta-llama/Llama-3.1-8B-Instruct",
+        # "meta-llama/Llama-3.1-8B-Instruct",
     ]
     tasks = ["gpqa_diamond_cot_n_shot_longer","ifeval"]
 
