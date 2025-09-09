@@ -137,7 +137,7 @@ def build_rephrase_attack_model(
         "attack_name": "RephraseAttackedModel",
         "attack_config": {"rephraser_model_id": rephraser_model_id},
     }
-    
+
 def build_lookahead_attack_model(
     model_id: str,
     attack_kwargs: Dict[str, Any],
@@ -205,9 +205,9 @@ def main():
     base_models = [
         "meta-llama/Llama-3.2-1B-Instruct",
         "Qwen/Qwen2.5-1.5B-Instruct",
-        # "meta-llama/Llama-3.1-8B-Instruct",
+        "meta-llama/Llama-3.1-8B-Instruct",
     ]
-    tasks = ["gpqa_diamond_cot_n_shot_longer","ifeval"]
+    tasks = ["bbh_cot_fewshot_no_return", "mmlu_generative", "gpqa_diamond_cot_n_shot_longer"]
 
     # Conservative batch sizes to avoid OOM across models
     batch_size_map = {
@@ -219,7 +219,8 @@ def main():
     slurm_job_id = os.environ.get("SLURM_ARRAY_TASK_ID", None)
 
     # Attack specs
-    attack_specs = [
+    attack_specs: List[Dict[str, Any]] = [
+        {"type": "baseline"},
         {
             "type": "lookahead",
             "kwargs": {
