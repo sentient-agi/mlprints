@@ -12,6 +12,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.oml.measure.utility import run_evaluation
 from src.oml.attack.logit_sampling_attacks import LogitSamplinAttackModel
 from src.oml.attack.rephrasing import RephraseAttackedModel
+from src.oml.attack.lookahead import LookaheadAttackedModel
 
 import logging
 logging.getLogger("transformers").setLevel(logging.ERROR)
@@ -137,6 +138,26 @@ def build_rephrase_attack_model(
         "attack_config": {"rephraser_model_id": rephraser_model_id},
     }
 
+    def build_lookahead_attack_model(
+    model_id: str,
+    attack_kwargs: Dict[str, Any],
+    device: str = "cuda",
+) -> Dict[str, Any]:
+    base_model = AutoModelForCausalLM.from_pretrained(model_id, attn_implementation="sdpa", torch_dtype=torch.bfloat16)
+    base_tokenizer = AutoTokenizer.from_pretrained(model_id)
+    attacked = LookaheadAttackedModel(
+        base_model=base_model,
+        base_tokenizer=base_tokenizer,
+        device=device,
+        **attack_kwargs,
+    )
+    return {
+        "attacked_model": attacked,
+        "tokenizer": base_tokenizer,
+        "attack_name": "LookaheadAttackedModel",
+        "attack_config": attack_kwargs,
+    }
+
 
 def eval_one(
     pretrained_model_id: str,
@@ -147,7 +168,8 @@ def eval_one(
     apply_chat_template: bool,
 ) -> Dict[str, Any]:
     print(f"Running evaluation for {pretrained_model_id} on {tasks} with batch size {batch_size}")
-    
+    print("Setting padding side to left")
+    tokenizer.padding_side = "left"
     results = run_evaluation(
         pretrained_model=pretrained_model_id,
         model=attacked_model,
@@ -198,9 +220,46 @@ def main():
 
     # Attack specs
     attack_specs: List[Dict[str, Any]] = [
+        {"type": "baseline"},
         {
-            "type": "baseline"
+            "type": "lookahead",
+            "kwargs": {
+                "suppress_top_k_appearing": 12,
+                "suppress_top_k_prob": 4,
+                "suppress_top_k_pos": 4,
+                "suppress_min_p": 0.4,
+                "suppress_max_pos": 4.0,
+                "suppress_min_appearances": 4,
+                "suppress_delta": 4.0,
+                "verbose": False
+            }
         },
+        {
+            "type": "lookahead",
+            "kwargs": {
+                "suppress_top_k_appearing": 12,
+                "suppress_top_k_prob": 8,
+                "suppress_top_k_pos": 8,
+                "suppress_min_p": 0.4,
+                "suppress_max_pos": 4.0,
+                "suppress_min_appearances": 4,
+                "suppress_delta": 16.0,
+                "verbose": False
+            }
+        },
+        {
+            "type": "lookahead",
+            "kwargs": {
+                "suppress_top_k_appearing": 12,
+                "suppress_top_k_prob": 8,
+                "suppress_top_k_pos": 8,
+                "suppress_min_p": 0.4,
+                "suppress_max_pos": 4.0,
+                "suppress_min_appearances": 4,
+                "suppress_delta": 4.0,
+                "verbose": False
+            }
+        }
 
     ]
     
@@ -230,6 +289,12 @@ def main():
                 built = build_rephrase_attack_model(
                     model_id=model_id,
                     rephraser_model_id=spec["rephraser_model_id"],
+                    device=device,
+                )
+            elif spec["type"] == "lookahead":
+                built = build_lookahead_attack_model(
+                    model_id=model_id,
+                    attack_kwargs=spec["kwargs"],
                     device=device,
                 )
             else:
