@@ -207,59 +207,86 @@ def main():
         "Qwen/Qwen2.5-1.5B-Instruct",
         "meta-llama/Llama-3.1-8B-Instruct",
     ]
-    tasks = ["bbh_cot_fewshot_no_return", "mmlu_generative", "gpqa_diamond_cot_n_shot_longer"]
+    tasks = ["gpqa_diamond_cot_n_shot_longer", "ifeval", "gsm8k"]
 
     # Conservative batch sizes to avoid OOM across models
     batch_size_map = {
-        "meta-llama/Llama-3.2-1B-Instruct": 32,
-        "Qwen/Qwen2.5-1.5B-Instruct": 32,
-        "meta-llama/Llama-3.1-8B-Instruct": 4,
+        "meta-llama/Llama-3.2-1B-Instruct": 16,
+        "Qwen/Qwen2.5-1.5B-Instruct": 16,
+        "meta-llama/Llama-3.1-8B-Instruct": 2,
     }
     
     slurm_job_id = os.environ.get("SLURM_ARRAY_TASK_ID", None)
 
     # Attack specs
     attack_specs: List[Dict[str, Any]] = [
-        {"type": "baseline"},
+        # {"type": "baseline"},
         {
             "type": "lookahead",
             "kwargs": {
-                "suppress_top_k_appearing": 12,
+                "suppress_top_k_appearing": 8,
                 "suppress_top_k_prob": 4,
                 "suppress_top_k_pos": 4,
-                "suppress_min_p": 0.4,
-                "suppress_max_pos": 4.0,
-                "suppress_min_appearances": 4,
-                "suppress_delta": 4.0,
-                "verbose": False
+                "suppress_min_p": 0.95,
+                "suppress_min_avg_prob": 0.9,
+                "suppress_max_pos": 4.5,
+                "suppress_min_appearances": 5,
+                "suppress_delta": 100.0,
+                "verbose": False,
+                "filter_stop_words": False,
+                "filter_in_question_words": True,
+                "suppress_selection_mode": 'avg_prob_and_top_k',
+                "beam_k": 10,
+                "beam_steps": 16,
+                "num_generation_steps_to_suppress": 32,
             }
         },
         {
             "type": "lookahead",
             "kwargs": {
-                "suppress_top_k_appearing": 12,
-                "suppress_top_k_prob": 8,
-                "suppress_top_k_pos": 8,
-                "suppress_min_p": 0.4,
-                "suppress_max_pos": 4.0,
-                "suppress_min_appearances": 4,
-                "suppress_delta": 16.0,
-                "verbose": False
+                "suppress_top_k_appearing": 8,
+                "suppress_top_k_prob": 4,
+                "suppress_top_k_pos": 4,
+                "suppress_min_p": 0.95,
+                "suppress_min_avg_prob": 0.9,
+                "suppress_max_pos": 3.5,
+                "suppress_min_appearances": 5,
+                "suppress_delta": 100.0,
+                "verbose": False,
+                "filter_stop_words": False,
+                "filter_in_question_words": True,
+                "suppress_selection_mode": 'avg_prob_and_top_k',
+                "beam_k": 10,
+                "beam_steps": 16,
+                "num_generation_steps_to_suppress": 32,
             }
-        },
-        {
-            "type": "lookahead",
-            "kwargs": {
-                "suppress_top_k_appearing": 12,
-                "suppress_top_k_prob": 8,
-                "suppress_top_k_pos": 8,
-                "suppress_min_p": 0.4,
-                "suppress_max_pos": 4.0,
-                "suppress_min_appearances": 4,
-                "suppress_delta": 4.0,
-                "verbose": False
-            }
-        }
+        },        
+        # {
+        #     "type": "lookahead",
+        #     "kwargs": {
+        #         "suppress_top_k_appearing": 12,
+        #         "suppress_top_k_prob": 8,
+        #         "suppress_top_k_pos": 8,
+        #         "suppress_min_p": 0.4,
+        #         "suppress_max_pos": 4.0,
+        #         "suppress_min_appearances": 4,
+        #         "suppress_delta": 16.0,
+        #         "verbose": False
+        #     }
+        # },
+        # {
+        #     "type": "lookahead",
+        #     "kwargs": {
+        #         "suppress_top_k_appearing": 12,
+        #         "suppress_top_k_prob": 8,
+        #         "suppress_top_k_pos": 8,
+        #         "suppress_min_p": 0.4,
+        #         "suppress_max_pos": 4.0,
+        #         "suppress_min_appearances": 4,
+        #         "suppress_delta": 4.0,
+        #         "verbose": False
+        #     }
+        # }
 
     ]
     
