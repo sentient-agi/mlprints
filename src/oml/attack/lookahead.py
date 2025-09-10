@@ -364,6 +364,7 @@ def get_token_stats_for_beam(beam, tokenizer, filter_stop_words=False, stop_word
     ret_stats = {}
     
     for token, s in sorted(avg_token_stats.items(), key=lambda kv: kv[1]['num_appearances'], reverse=True):
+        if token in tokenizer.all_special_ids: continue
         word = tokenizer.decode([token], skip_special_tokens=False)
         if filter_stop_words and word.strip().lower() in stop_words: continue
         if filter_in_question_words and word.strip().lower() in question_words_lower: continue
@@ -372,46 +373,67 @@ def get_token_stats_for_beam(beam, tokenizer, filter_stop_words=False, stop_word
         filtered_token = ''.join(c for c in word.strip().lower() if c.isalpha())
         if len(filtered_token) == 0: continue
         ret_stats[token] = s
-        if verbose:
-            print(row_format.format(token=word, app=s['num_appearances'], prob=f"{s['avg_probs']:.4f}", max_prob=f"{s['max_prob']:.4f}", pos=f"{s['pos_in_top_k']:.2f}"))
+        # if verbose:
+        #     print(row_format.format(token=word, app=s['num_appearances'], prob=f"{s['avg_probs']:.4f}", max_prob=f"{s['max_prob']:.4f}", pos=f"{s['pos_in_top_k']:.2f}"))
 
     return ret_stats
 
-def get_tokens_to_suppress(token_stats, top_k_appearing=12, top_k_prob=4, top_k_pos=4, min_p=0.4, max_pos=4.0, min_appearances=4, min_avg_prob=0.0):
+def get_tokens_to_suppress(token_stats, top_k_appearing=12, top_k_prob=4, top_k_pos=4, min_p=0.4, max_pos=4.0, min_appearances=4, min_avg_prob=0.0, mode='max_prob'):
     # Returns a set of tokens to downweigh based on some heuristics
     tokens_to_suppress = set()
     # First, look at top-k most appearing tokens
-    top_k_tokens = sorted(token_stats.items(), key=lambda x: x[1]['num_appearances'], reverse=True)[:top_k_appearing]
-    top_k_prob_tokens = sorted(token_stats.items(), key=lambda x: x[1]['max_prob'], reverse=True)[:top_k_prob]
-    top_k_pos_tokens = sorted(token_stats.items(), key=lambda x: x[1]['pos_in_top_k'], reverse=False)[:top_k_pos]
-    top_avg_prob_tokens = sorted(token_stats.items(), key=lambda x: x[1]['avg_probs'], reverse=True)[:top_k_prob]
-    for token, stats in top_k_tokens:
-        if not(stats['max_prob'] >= min_p and stats['avg_probs'] >= min_avg_prob): continue
-        tokens_to_suppress.add(int(token))
-    for token, stats in top_k_prob_tokens:
-        if stats['num_appearances'] < min_appearances: continue
-        tokens_to_suppress.add(int(token))
-    for token, stats in top_k_pos_tokens:
-        if stats['num_appearances'] < min_appearances: continue
-        tokens_to_suppress.add(int(token))
-    return torch.tensor(list(tokens_to_suppress))
-
+    
+    if mode == 'max_prob':
+        top_k_tokens = sorted(token_stats.items(), key=lambda x: x[1]['num_appearances'], reverse=True)[:top_k_appearing]
+        top_k_prob_tokens = sorted(token_stats.items(), key=lambda x: x[1]['max_prob'], reverse=True)[:top_k_prob]
+        top_k_pos_tokens = sorted(token_stats.items(), key=lambda x: x[1]['pos_in_top_k'], reverse=False)[:top_k_pos]
+        top_avg_prob_tokens = sorted(token_stats.items(), key=lambda x: x[1]['avg_probs'], reverse=True)[:top_k_prob]
+        for token, stats in top_k_tokens:
+            if not(stats['max_prob'] >= min_p): continue
+            tokens_to_suppress.add(int(token))
+        for token, stats in top_k_prob_tokens:
+            if stats['num_appearances'] < min_appearances: continue
+            tokens_to_suppress.add(int(token))
+        for token, stats in top_k_pos_tokens:
+            if stats['num_appearances'] < min_appearances: continue
+            tokens_to_suppress.add(int(token))
+        return torch.tensor(list(tokens_to_suppress))
+    elif mode == 'avg_prob_and_top_k':
+        # First find the tokens which appear more than min_appearances
+        for token, stats in token_stats.items():
+            if stats['num_appearances'] < min_appearances: continue
+            # Keep only if max_prob is high enough
+            if stats['max_prob'] < min_p: continue
+            # Keep if either avg_probs is high enough or pos_in_top_k is low enough
+            if stats['avg_probs'] < min_avg_prob and stats['pos_in_top_k'] > max_pos: 
+                continue
+            # else:
+            #     print(f"Suppressing token {token} with stats {stats['num_appearances']} {stats['max_prob']:.4f} {stats['avg_probs']:.4f} , {stats['pos_in_top_k']:.2f}")
+            tokens_to_suppress.add(int(token))
+        return torch.tensor(list(tokens_to_suppress))
+        
 
 class LogitSuppressionLogitsProcessor(LogitsProcessor):
-    def __init__(self, tokens_to_suppress, delta=10.0):
+    def __init__(self, tokens_to_suppress, delta=10.0, num_generation_steps_to_suppress=64):
         self.tokens_to_suppress = tokens_to_suppress
         self.delta = delta
+        self.num_generation_steps_to_suppress = num_generation_steps_to_suppress
+        self.num_generated_tokens = 0
     
     def __call__(self, input_ids, scores):
 
         assert len(self.tokens_to_suppress) == scores.shape[0]
-        for i in range(len(self.tokens_to_suppress)):
-            scores[i, self.tokens_to_suppress[i].to(scores.device)] -= self.delta
+        if self.num_generated_tokens < self.num_generation_steps_to_suppress:
+            for i in range(len(self.tokens_to_suppress)):
+                if len(self.tokens_to_suppress[i]) == 0: continue
+                scores[i, self.tokens_to_suppress[i].to(scores.device)] -= self.delta
+            self.num_generated_tokens += 1
         return scores
 
 class LookaheadAttackedModel:
     def __init__(self, base_model, base_tokenizer, device: str = "cuda:0", beam_k=10, beam_steps=32, filter_stop_words=True, filter_in_question_words=True, min_appearances=9, min_max_prob=0.9,
-                 suppress_top_k_appearing=12, suppress_top_k_prob=4, suppress_top_k_pos=4, suppress_min_p=0.4, suppress_min_avg_prob=0.0, suppress_max_pos=4.0, suppress_min_appearances=4, suppress_delta=10.0, verbose=False):
+                 suppress_top_k_appearing=12, suppress_top_k_prob=4, suppress_top_k_pos=4, suppress_min_p=0.4, suppress_min_avg_prob=0.0, suppress_max_pos=4.0, suppress_min_appearances=4, suppress_delta=10.0, 
+                 suppress_selection_mode='max_prob', num_generation_steps_to_suppress=64, verbose=False):
         self.base_model = base_model
         self.base_tokenizer = base_tokenizer
         self.device = device
@@ -429,6 +451,8 @@ class LookaheadAttackedModel:
         self.suppress_max_pos = suppress_max_pos
         self.suppress_min_appearances = suppress_min_appearances
         self.suppress_delta = suppress_delta
+        self.suppress_selection_mode = suppress_selection_mode
+        self.num_generation_steps_to_suppress = num_generation_steps_to_suppress
         self.verbose = verbose
         stop_words_path = "data/stop_words.txt"
         self.stop_words = []
@@ -452,11 +476,12 @@ class LookaheadAttackedModel:
             tokens_to_suppress.append(get_tokens_to_suppress(token_stats, 
                                                              top_k_appearing=self.suppress_top_k_appearing, top_k_prob=self.suppress_top_k_prob, 
                                                              top_k_pos=self.suppress_top_k_pos, min_p=self.suppress_min_p, min_avg_prob=self.suppress_min_avg_prob, max_pos=self.suppress_max_pos,
-                                                             min_appearances=self.suppress_min_appearances))
+                                                             min_appearances=self.suppress_min_appearances, mode=self.suppress_selection_mode))
             if self.verbose:
 
-                print(f"Tokens to suppress for beam {i}: {tokens_to_suppress}, {self.base_tokenizer.decode(tokens_to_suppress[0], skip_special_tokens=True)}")
-        logits_processor = LogitSuppressionLogitsProcessor(tokens_to_suppress, delta=self.suppress_delta)
+                print(f"Tokens to suppress for beam {i}: {tokens_to_suppress[i].cpu().tolist()}")
+                print(f"{self.base_tokenizer.decode(tokens_to_suppress[0])}")
+        logits_processor = LogitSuppressionLogitsProcessor(tokens_to_suppress, delta=self.suppress_delta, num_generation_steps_to_suppress=self.num_generation_steps_to_suppress)
         # Add the logits processor to the kwargs
         if "logits_processor" in kwargs:
             kwargs["logits_processor"].append(logits_processor)
