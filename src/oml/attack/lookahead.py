@@ -68,7 +68,7 @@ def explore_topk_continuations(model, tokenizer, query, k=10, steps=32, use_chat
     batch_ids = torch.cat([batch_ids, seed_ids.unsqueeze(1)], dim=1) # [k, seq+1]
 
     # Track finished if EOS is used
-    finished = torch.zeros(k, dtype=torch.bool, device=device)
+    # finished = torch.zeros(k, dtype=torch.bool, device=device)
 
     per_step_topk = []  # length = steps; each item is a list of k dicts
 
@@ -163,7 +163,7 @@ def explore_topk_continuations_batched(
     Output: list[dict], one result dict per input query, each with:
       - initial_topk, per_step_topk, continuations (same schema as single-query)
     """
-    device = getattr(model, "device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    device = model.device # getattr(model, "device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     assert tokenizer.padding_side == "left"
     if input_ids is None:
     # Prepare prompts
@@ -206,12 +206,12 @@ def explore_topk_continuations_batched(
 
     # Initial bigram info
     # Bigram context uses the actual last prompt token per row
-    last_prompt_token_ids = input_ids.gather(
-        1, (attn_mask.sum(dim=1, keepdim=True) - 1).clamp_min(0)
-    ).squeeze(1)  # [B]
-    last_prompt_token_strs = [
-        tokenizer.decode([tid.item()], skip_special_tokens=False) for tid in last_prompt_token_ids
-    ]
+    # last_prompt_token_ids = input_ids.gather(
+    #     1, (attn_mask.sum(dim=1, keepdim=True) - 1).clamp_min(0)
+    # ).squeeze(1)  # [B]
+    # last_prompt_token_strs = [
+    #     tokenizer.decode([tid.item()], skip_special_tokens=False) for tid in last_prompt_token_ids
+    # ]
 
     # Build k seeds per query
     # Repeat prompts k times and append the seed as a new rightmost column
@@ -230,7 +230,7 @@ def explore_topk_continuations_batched(
                 "id": int(tid),
                 "prob": float(tp),
                 "token": tokenizer.decode([tid], skip_special_tokens=False),
-                "bigram": f"{last_prompt_token_strs[qi]}{tokenizer.decode([tid], skip_special_tokens=False)}",
+                # "bigram": f"{last_prompt_token_strs[qi]}{tokenizer.decode([tid], skip_special_tokens=False)}",
             }
             for tid, tp in zip(topk_ids0[qi].tolist(), topk_probs0[qi].tolist())
         ]
@@ -241,7 +241,8 @@ def explore_topk_continuations_batched(
 
     # Generation loop
     for _ in range(steps):
-        prev_gen_token_ids = batch_ids[:, -1]
+        # print(f"Step {step} in lookahead beam")
+        # prev_gen_token_ids = batch_ids[:, -1]
         logits = model(batch_ids, attention_mask=batch_attn).logits[:, -1, :]   # [B*k, V]
         probs = torch.softmax(logits, dim=-1)
         tk_probs, tk_ids = torch.topk(probs, k, dim=-1)                         # [B*k, k]
@@ -250,7 +251,7 @@ def explore_topk_continuations_batched(
         step_logs = [[None] * k for _ in range(B)]
         for row in range(B * k):
             qi, si = group_meta[row]
-            prev_tok = tokenizer.decode([prev_gen_token_ids[row].item()], skip_special_tokens=False)
+            # prev_tok = tokenizer.decode([prev_gen_token_ids[row].item()], skip_special_tokens=False)
             ids_row = tk_ids[row].tolist()
             probs_row = tk_probs[row].tolist()
             toks_row = [tokenizer.decode([x], skip_special_tokens=False) for x in ids_row]
@@ -258,7 +259,7 @@ def explore_topk_continuations_batched(
                 "ids": [int(x) for x in ids_row],
                 "probs": [float(x) for x in probs_row],
                 "tokens": toks_row,
-                "bigrams": [f"{prev_tok}{t}" for t in toks_row],
+                # "bigrams": [f"{prev_tok}{t}" for t in toks_row],
             }
         for qi in range(B):
             results[qi]["per_step_topk"].append(step_logs[qi])
@@ -322,7 +323,9 @@ def get_token_stats_for_beam(beam, tokenizer, filter_stop_words=False, stop_word
     for step_log in beam['per_step_topk']:
         for row in step_log:
             # MODIFIED: Now also iterates over bigrams
-            for idx, (token_id, prob, bigram) in enumerate(zip(row['ids'], row['probs'], row['bigrams'])):
+            # for idx, (token_id, prob, bigram) in enumerate(zip(row['ids'], row['probs'], row['bigrams'])):
+            for idx, (token_id, prob) in enumerate(zip(row['ids'], row['probs'])):
+                # bigram = None
                 # --- Unigram (single token) stats ---
                 # tok_str = tokenizer.decode([token_id], skip_special_tokens=False)
                 if token_id not in token_stats:
@@ -332,11 +335,11 @@ def get_token_stats_for_beam(beam, tokenizer, filter_stop_words=False, stop_word
                     token_stats[token_id]['pos_in_top_k'].append(idx + 1)
                 
                 # --- NEW: Bigram stats ---
-                if bigram not in bigram_stats:
-                    bigram_stats[bigram] = {'probs': [prob], 'pos_in_top_k': [idx + 1]}
-                else:
-                    bigram_stats[bigram]['probs'].append(prob)
-                    bigram_stats[bigram]['pos_in_top_k'].append(idx + 1)
+                # if bigram is not None and bigram not in bigram_stats:
+                #     bigram_stats[bigram] = {'probs': [prob], 'pos_in_top_k': [idx + 1]}
+                # else:
+                #     bigram_stats[bigram]['probs'].append(prob)
+                #     bigram_stats[bigram]['pos_in_top_k'].append(idx + 1)
 
     
     avg_token_stats = {}

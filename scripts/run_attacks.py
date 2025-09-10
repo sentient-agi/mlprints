@@ -79,7 +79,7 @@ def measure_strength(model, tokenizer, fingerprints, config, generation_params, 
 
     # measure
     hit_count = 0
-    metas = []
+    all_metas = []
     actual_num_fp = len(fingerprints)
     for bidx in range(0, actual_num_fp, batch_size):
         fp_ids = range(bidx, min(bidx + batch_size, actual_num_fp))
@@ -94,9 +94,9 @@ def measure_strength(model, tokenizer, fingerprints, config, generation_params, 
         )
 
         hit_count += sum(is_hits)
-        metas.extend(metas)
+        all_metas.extend(metas)
 
-    return hit_count, actual_num_fp, metas
+    return hit_count, actual_num_fp, all_metas
 
 
 def check_if_attack_already_run(run_dir, attack_name, attack_kwargs):
@@ -130,7 +130,7 @@ def sanitize_attack_kwargs(attack_kwargs):
 if __name__ == "__main__":
 
     max_response_length = 16
-    gen_params = {"do_sample": False}
+    gen_params = {"do_sample": False, 'temperature': None, 'top_k': None, 'top_p': None}
 
     wandb_project = "fp_attack_measurements_editing"
 
@@ -268,7 +268,7 @@ if __name__ == "__main__":
                     )
 
                 # Run measurement (as in your loop)
-                if '8b' or '7b' in fp_cfg["algo"]["params"]["models_dict"]["base"]["model_id"].lower():
+                if '8b' in fp_cfg["algo"]["params"]["models_dict"]["base"]["model_id"].lower() or '7b' in fp_cfg["algo"]["params"]["models_dict"]["base"]["model_id"].lower():
                     batch_size = 8
                 else:
                     batch_size = 128
