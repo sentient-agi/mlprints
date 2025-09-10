@@ -9,3 +9,7 @@ logs
 # virtual environment
 .venv
 cache
+
+*.npz
+*.txt
+dump/*
