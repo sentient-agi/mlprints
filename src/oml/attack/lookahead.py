@@ -434,6 +434,50 @@ class LookaheadAttackedModel:
     def __init__(self, base_model, base_tokenizer, device: str = "cuda:0", beam_k=10, beam_steps=32, filter_stop_words=True, filter_in_question_words=True, min_appearances=9, min_max_prob=0.9,
                  suppress_top_k_appearing=12, suppress_top_k_prob=4, suppress_top_k_pos=4, suppress_min_p=0.4, suppress_min_avg_prob=0.0, suppress_max_pos=4.0, suppress_min_appearances=4, suppress_delta=10.0, 
                  suppress_selection_mode='max_prob', num_generation_steps_to_suppress=64, verbose=False):
+        """
+        Initialize a lookahead-based attack wrapper that downweights likely memorized tokens during generation.
+
+        Mechanism:
+        - For each input in a batch, run a lightweight lookahead using the base model: take the initial top-k next tokens
+          (beam_k) as seeds and greedily roll out for beam_steps steps, logging per-step top-k ids/probs/tokens.
+        - Aggregate token statistics across all seeds and steps (appearances, maximum probability, average rank within
+          the top-k), optionally filtering out stopwords and words seen in the prompt.
+        - Build a per-example suppression set according to suppress_selection_mode and attach a logits processor that
+          subtracts suppress_delta from those tokens' logits for the first num_generation_steps_to_suppress generated tokens.
+
+        Args:
+            base_model: Hugging Face causal language model used for lookahead analysis and final generation.
+            base_tokenizer: Tokenizer paired with base_model. The lookahead path assumes left padding and a valid pad token
+                (the helper asserts tokenizer.padding_side == "left").
+            device (str): Device indicator stored on this wrapper (actual tensors generally follow base_model.device).
+            beam_k (int): Number of initial seed tokens; also the per-step top-k tracked during lookahead.
+            beam_steps (int): Greedy rollout length per seed during lookahead exploration.
+            filter_stop_words (bool): If True, exclude tokens whose decoded form is in data/stop_words.txt from stats/suppression.
+            filter_in_question_words (bool): If True, exclude tokens that appear in the decoded prompt from stats/suppression.
+            min_appearances (int): Keep tokens that appear more than this many times across lookahead steps; tokens with
+                fewer appearances are still kept if their maximum observed probability exceeds min_max_prob.
+            min_max_prob (float): Keep tokens whose maximum per-step probability exceeds this threshold regardless of appearances.
+            suppress_top_k_appearing (int): In 'max_prob' mode, suppress the most frequently appearing tokens (only if
+                their max probability >= suppress_min_p).
+            suppress_top_k_prob (int): In 'max_prob' mode, suppress tokens with the highest maximum probability (requires
+                at least suppress_min_appearances appearances).
+            suppress_top_k_pos (int): In 'max_prob' mode, suppress tokens with the best (lowest) average rank/position within
+                the per-step top-k (requires at least suppress_min_appearances appearances).
+            suppress_min_p (float): Probability gate for the frequency-based suppression list in 'max_prob' mode.
+            suppress_min_avg_prob (float): In 'avg_prob_and_top_k' mode, minimum average probability; tokens below this must also
+                have strong average rank (<= suppress_max_pos) to be kept, otherwise they are suppressed.
+            suppress_max_pos (float): In 'avg_prob_and_top_k' mode, maximum allowed average rank/position for tokens that have
+                low average probability.
+            suppress_min_appearances (int): Minimum appearances required for probability/position-based suppression criteria.
+            suppress_delta (float): Logit decrement applied to each suppressed token per step during generation.
+            suppress_selection_mode (str): Strategy for selecting tokens to suppress. Supported: 'max_prob', 'avg_prob_and_top_k'.
+            num_generation_steps_to_suppress (int): Number of generated steps for which suppression is applied before turning off.
+            verbose (bool): If True, print diagnostic information about selected tokens to suppress.
+
+        Notes:
+            - Suppression is computed independently for each batch element from its own lookahead statistics.
+            - The logits processor is appended to any existing processors passed to generate(...).
+        """
         self.base_model = base_model
         self.base_tokenizer = base_tokenizer
         self.device = device
