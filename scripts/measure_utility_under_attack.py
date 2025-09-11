@@ -91,6 +91,7 @@ def build_logit_attack_model(
         base_tokenizer.pad_token = base_tokenizer.eos_token
     if attack_name == "BlockTopWordLogitProcessor":
         attack_kwargs['tokenizer'] = base_tokenizer
+    base_model.to(device)
     attacked = LogitSamplinAttackModel(
         base_model=base_model,
         base_tokenizer=base_tokenizer,
@@ -144,7 +145,9 @@ def build_lookahead_attack_model(
     device: str = "cuda",
 ) -> Dict[str, Any]:
     base_model = AutoModelForCausalLM.from_pretrained(model_id, attn_implementation="sdpa", torch_dtype=torch.bfloat16)
+    base_model.to(device)
     base_tokenizer = AutoTokenizer.from_pretrained(model_id)
+
     attacked = LookaheadAttackedModel(
         base_model=base_model,
         base_tokenizer=base_tokenizer,
@@ -170,6 +173,7 @@ def eval_one(
     print(f"Running evaluation for {pretrained_model_id} on {tasks} with batch size {batch_size}")
     print("Setting padding side to left")
     tokenizer.padding_side = "left"
+    tokenizer.pad_token_id = tokenizer.eos_token_id
     results = run_evaluation(
         pretrained_model=pretrained_model_id,
         model=attacked_model,
@@ -205,15 +209,15 @@ def main():
     base_models = [
         "meta-llama/Llama-3.2-1B-Instruct",
         "Qwen/Qwen2.5-1.5B-Instruct",
-        "meta-llama/Llama-3.1-8B-Instruct",
+        # "meta-llama/Llama-3.1-8B-Instruct",
     ]
-    tasks = ["gpqa_diamond_cot_n_shot_longer", "ifeval", "gsm8k"]
+    tasks = ["ifeval"]
 
     # Conservative batch sizes to avoid OOM across models
     batch_size_map = {
-        "meta-llama/Llama-3.2-1B-Instruct": 16,
-        "Qwen/Qwen2.5-1.5B-Instruct": 16,
-        "meta-llama/Llama-3.1-8B-Instruct": 2,
+        "meta-llama/Llama-3.2-1B-Instruct": 4,
+        "Qwen/Qwen2.5-1.5B-Instruct": 4,
+        "meta-llama/Llama-3.1-8B-Instruct": 1,
     }
     
     slurm_job_id = os.environ.get("SLURM_ARRAY_TASK_ID", None)
