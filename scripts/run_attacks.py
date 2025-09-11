@@ -129,12 +129,12 @@ def sanitize_attack_kwargs(attack_kwargs):
 
 if __name__ == "__main__":
 
-    max_response_length = 16
+    max_response_length = 32
     gen_params = {"do_sample": False, 'temperature': None, 'top_k': None, 'top_p': None}
 
     wandb_project = "fp_attack_measurements_editing"
 
-    for exp_root in [pathlib.Path("experiments/models/instructional_fp_less_reg"), pathlib.Path("experiments/models/chain_hash_benign_data")]:
+    for exp_root in [pathlib.Path("experiments/models/perinucleus")]:
         for run_dir in sorted(exp_root.iterdir()):
             if not run_dir.is_dir():
                 continue
@@ -173,34 +173,34 @@ if __name__ == "__main__":
             attack_configs = [
                 # {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, 
                 #                                               "suppress_top_k_pos": 4, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 10.0, "verbose": False}},
-                # {"name": "ImprobableTokenWithThresholdLogitsProcessor",
-                # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 0, "threshold": 0.0}},
-                # {"name": "ImprobableTokenWithThresholdLogitsProcessor",
-                # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 1, "threshold": 0.0}},
-                # {"name": "ImprobableTokenWithThresholdLogitsProcessor",
-                # "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 1, "threshold": 0.0}},
-                # {"name": "ImprobableTokenWithThresholdLogitsProcessor",
-                # "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 8, "threshold": 0.0}},
+                {"name": "ImprobableTokenWithThresholdLogitsProcessor",
+                "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 0, "threshold": 0.0}},
+                {"name": "ImprobableTokenWithThresholdLogitsProcessor",
+                "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 1, "threshold": 0.0}},
+                {"name": "ImprobableTokenWithThresholdLogitsProcessor",
+                "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 1, "threshold": 0.0}},
+                {"name": "ImprobableTokenWithThresholdLogitsProcessor",
+                "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 8, "threshold": 0.0}},
                 {"name": "ImprobableTokenWithThresholdLogitsProcessor",
                 "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 4, "threshold": 0.9}},                
                 {"name": "ImprobableTokenWithThresholdLogitsProcessor",
                 "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 8, "threshold": 0.9}},                
                 {"name": "ImprobableTokenWithThresholdLogitsProcessor",
                 "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 16, "threshold": 0.9}},        
-                {"name": "LookaheadAttackedModel", 
-                 "kwargs": {"suppress_top_k_appearing": 8, "suppress_top_k_prob": 4, "suppress_top_k_pos": 4, "suppress_min_p": 0.95, "suppress_min_avg_prob": 0.9, "suppress_max_pos": 4.5,
-                            "suppress_min_appearances": 5, "suppress_delta": 100.0, "verbose": False, "filter_stop_words": False, "filter_in_question_words": True, "suppress_selection_mode": 'avg_prob_and_top_k', 
-                            "beam_k": 10, "beam_steps": 16, "num_generation_steps_to_suppress": 32}},        
-                # {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 1,
-                #                                                   "lexical_set_size": 1, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
-                # {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 1,
-                #                                                   "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
-                # {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 8,
-                #                                                   "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
-                # {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 4,
-                #                                                   "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
-                # {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 8,
-                #                                                   "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
+                # {"name": "LookaheadAttackedModel", 
+                #  "kwargs": {"suppress_top_k_appearing": 8, "suppress_top_k_prob": 4, "suppress_top_k_pos": 4, "suppress_min_p": 0.95, "suppress_min_avg_prob": 0.9, "suppress_max_pos": 4.4,
+                #             "suppress_min_appearances": 5, "suppress_delta": 100.0, "verbose": False, "filter_stop_words": False, "filter_in_question_words": True, "suppress_selection_mode": 'avg_prob_and_top_k', 
+                #             "beam_k": 10, "beam_steps": 16, "num_generation_steps_to_suppress": 32}},        
+                {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 1,
+                                                                  "lexical_set_size": 1, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
+                {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 1,
+                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
+                {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 8,
+                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
+                {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 4,
+                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
+                {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 8,
+                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
                 # {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, 
                 #                                               "suppress_top_k_pos": 4, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 16.0, "verbose": False}},
                 # {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 8, 
@@ -271,7 +271,10 @@ if __name__ == "__main__":
                 if '8b' in fp_cfg["algo"]["params"]["models_dict"]["base"]["model_id"].lower() or '7b' in fp_cfg["algo"]["params"]["models_dict"]["base"]["model_id"].lower():
                     batch_size = 8
                 else:
-                    batch_size = 128
+                    if attack_name == "LookaheadAttackedModel":
+                        batch_size = 8
+                    else:
+                        batch_size = 128
                 hits, num_fp, metas = measure_strength(
                     attacked_model, tokenizer, fingerprints, fp_cfg, gen_params, comparators, max_response_length=max_response_length, batch_size=batch_size)
                 hit_rate = hits / max(1, num_fp)

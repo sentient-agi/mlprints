@@ -369,15 +369,16 @@ def get_token_stats_for_beam(beam, tokenizer, filter_stop_words=False, stop_word
     for token, s in sorted(avg_token_stats.items(), key=lambda kv: kv[1]['num_appearances'], reverse=True):
         if token in tokenizer.all_special_ids: continue
         word = tokenizer.decode([token], skip_special_tokens=False)
+        
         if filter_stop_words and word.strip().lower() in stop_words: continue
         if filter_in_question_words and word.strip().lower() in question_words_lower: continue
-        if filter_in_question_words and tokenizer.encode(word, add_special_tokens=False)[0] in question_tokens: continue
+        if filter_in_question_words and token in question_tokens: continue
         
         filtered_token = ''.join(c for c in word.strip().lower() if c.isalpha())
         if len(filtered_token) == 0: continue
         ret_stats[token] = s
-        # if verbose:
-        #     print(row_format.format(token=word, app=s['num_appearances'], prob=f"{s['avg_probs']:.4f}", max_prob=f"{s['max_prob']:.4f}", pos=f"{s['pos_in_top_k']:.2f}"))
+        if verbose:
+            print(row_format.format(token=word, app=s['num_appearances'], prob=f"{s['avg_probs']:.4f}", max_prob=f"{s['max_prob']:.4f}", pos=f"{s['pos_in_top_k']:.2f}"))
 
     return ret_stats
 
