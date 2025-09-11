@@ -113,7 +113,7 @@ def is_fingerprint_hit(
 
 def is_fingerprint_hit_batched(
     model, tokenizer, fp_entries, resp_comparators, resp_length,
-    generate_from_toks=False, q_tok_offset=1,
+    generate_from_toks=False, q_tok_offset=0,
     use_chat_template=False, system_prompt=None, default_comparator="exact_str",
     generation_params=None
 ):
@@ -136,7 +136,10 @@ def is_fingerprint_hit_batched(
     og_q_strs = [fp_entry["query_str"] for fp_entry in fp_entries]
     tgt_r_strs = [fp_entry["resp_str"] for fp_entry in fp_entries]
 
-    og_q_toks = [fp_entry["query_toks"] for fp_entry in fp_entries]
+    if 'query_toks' in fp_entries[0]:
+        og_q_toks = [fp_entry["query_toks"] for fp_entry in fp_entries]
+    else:
+        og_q_toks = [[0]] * len(fp_entries)
 
 
     # prep input toks
