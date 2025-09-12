@@ -56,7 +56,8 @@ class ImprobableTokenWithThresholdLogitsProcessor(LogitsProcessor):
 
 
 class BlockTopWordLogitProcessor(LogitsProcessor):
-    def __init__(self, top_k_to_perturb=16, tokenizer=None, num_generated_tokens_to_apply=1, lexical_set_size=1, num_tokens_to_expand_lexical_set=1, verbose=False, **kwargs):
+    def __init__(self, top_k_to_perturb=16, tokenizer=None, num_generated_tokens_to_apply=1, lexical_set_size=1, num_tokens_to_expand_lexical_set=1,
+                 prob_threshold_to_add_to_lexical_set=0.0, prob_threshold_to_apply_attack=0.0, verbose=False, **kwargs):
         """
         This attack identifies the top-k tokens, constructs a set of words that are similar to the top-k tokens,
         and then prevents the model from sampling any of the tokens in the set.
@@ -67,6 +68,8 @@ class BlockTopWordLogitProcessor(LogitsProcessor):
             num_generated_tokens_to_apply (int): The number of tokens to apply the attack to.
             lexical_set_size (int): The size of the lexical set.
             num_tokens_to_expand_lexical_set (int): The maximum number of tokens to expand the lexical set to.
+            prob_threshold_to_add_to_lexical_set (float): The probability threshold (of cumulative prob) to add a word to the lexical set.
+            prob_threshold_to_apply_attack (float): The probability threshold (of cumulative prob of a word) to apply the attack.
             verbose (bool): Whether to print verbose output.
             **kwargs: Additional arguments to pass to the LogitsProcessor.
         """
@@ -76,8 +79,11 @@ class BlockTopWordLogitProcessor(LogitsProcessor):
         self.num_tokens_to_expand_lexical_set = num_tokens_to_expand_lexical_set
         self.lexical_set_size = lexical_set_size
         self.tokenizer = tokenizer
+        self.prob_threshold_to_add_to_lexical_set = prob_threshold_to_add_to_lexical_set
+        self.prob_threshold_to_apply_attack = prob_threshold_to_apply_attack
         self.first_token_processed = False
         self.num_tokens_processed = 0
+
         self.first_word_set = []
         self.verbose = verbose
 
@@ -102,9 +108,29 @@ class BlockTopWordLogitProcessor(LogitsProcessor):
                 return True
         return False
     
-    def construct_lexical_set(self, topk_logits_decoded):
+    def construct_lexical_set(self, topk_logits_decoded, topk_probs):
         # Construct a set of words to filter out
         lexical_set = []
+        
+        cumulative_prob_dict= {k: v for k, v in zip(topk_logits_decoded, topk_probs)}
+        for i in range(self.top_k_to_perturb):
+            i_word = topk_logits_decoded[i].lower().strip()
+            for j in range(i+1, self.top_k_to_perturb): # This is because the list is sorted.
+                j_word = topk_logits_decoded[j].lower().strip()
+                if self.is_similar(i_word, j_word):
+                    cumulative_prob_dict[topk_logits_decoded[i]] += topk_probs[j]
+                    
+        # We do not sort again, and ensure that there is an ordering, i.e. if a token was higher in top-k, it should be put in first into the lexical set.
+        # cumulative_prob_dict = {k: v for k, v in sorted(cumulative_prob_dict.items(), key=lambda item: item[1], reverse=True)}
+        
+        # TODO : Do we need to strip the words in cumulative probs?
+        new_cp_dict = {}
+        for k, v in cumulative_prob_dict.items(): 
+            if k.lower().strip() not in new_cp_dict:
+                new_cp_dict[k.lower().strip()] = v
+            else:
+                new_cp_dict[k.lower().strip()] += v
+        
         for i in range(self.top_k_to_perturb):
             word = topk_logits_decoded[i].lower().strip()
             word_in_set = False
@@ -112,7 +138,7 @@ class BlockTopWordLogitProcessor(LogitsProcessor):
                 if self.is_similar(word, new_word):
                     word_in_set = True
                     break
-            if not word_in_set:
+            if not word_in_set and new_cp_dict[word] > self.prob_threshold_to_add_to_lexical_set:
                 lexical_set.append(word)
         # Limit the size of the lexical set
         if len(lexical_set) > self.lexical_set_size:
@@ -128,26 +154,31 @@ class BlockTopWordLogitProcessor(LogitsProcessor):
         if self.num_tokens_processed < self.num_generated_tokens_to_apply:
             batch_size = scores.shape[0]
             
+            all_probs = torch.softmax(scores, dim=-1)
+            
             for i in range(batch_size):
-                logits = scores[i]
+                probs = all_probs[i]
                 
-                topk_logit_idx = torch.argsort(logits, descending=True)[:self.top_k_to_perturb]
-                topk_logits_decoded = [self.tokenizer.decode(t) for t in topk_logit_idx.tolist()]
+                # topk_logit_idx = torch.argsort(logits, descending=True)[:self.top_k_to_perturb]
+                top_k = torch.topk(probs, k=self.top_k_to_perturb, dim=-1, sorted=True)
+                topk_indices = top_k.indices
+                topk_probs = top_k.values
+                topk_logits_decoded = [self.tokenizer.decode(t) for t in topk_indices.tolist()]
                 if self.verbose:
-                    print(f"Topk logits decoded: {topk_logits_decoded} at index {self.num_tokens_processed}")
+                    print(f"Topk logits decoded: {topk_logits_decoded} and probs: {topk_probs.cpu().numpy().tolist()} at index {self.num_tokens_processed}")
                 if self.num_tokens_processed < self.num_tokens_to_expand_lexical_set:
                     # Construct the lexical set
                     if self.num_tokens_processed == 0:
-                        lexical_set = self.construct_lexical_set(topk_logits_decoded)
+                        lexical_set = self.construct_lexical_set(topk_logits_decoded, topk_probs)
                         self.first_word_set.append(lexical_set)
                         curr_lexical_set = lexical_set
                     else:
                         curr_lexical_set = self.first_word_set[i]
-                        new_lexical_set = self.construct_lexical_set(topk_logits_decoded)
+                        new_lexical_set = self.construct_lexical_set(topk_logits_decoded, topk_probs)
                         # Merge the two sets
                         lexical_set = list(set(curr_lexical_set + new_lexical_set))
                         # Limit the size of the lexical set
-                        if len(lexical_set) > (self.lexical_set_size*self.num_tokens_to_expand_lexical_set):
+                        if len(lexical_set) > (self.lexical_set_size):
                             lexical_set = lexical_set[:self.lexical_set_size]
                         curr_lexical_set = lexical_set
                         # Put it back in the first_word_set
@@ -156,8 +187,15 @@ class BlockTopWordLogitProcessor(LogitsProcessor):
                 else:
                     curr_lexical_set = self.first_word_set[i]
                 
-                to_filter = [self.in_lexical_set(t, curr_lexical_set) for t in topk_logits_decoded]
-                filtered_idx = [idx for idx,val in zip(topk_logit_idx.tolist(), to_filter) if val]
+                cumulative_probs = {k: v for k, v in zip(topk_logits_decoded, topk_probs)}
+                for i_idx in range(self.top_k_to_perturb):
+                    for j_idx in range(self.top_k_to_perturb):
+                        if i_idx == j_idx: continue
+                        if self.is_similar(topk_logits_decoded[i_idx].lower().strip(), topk_logits_decoded[j_idx].lower().strip()):
+                            cumulative_probs[topk_logits_decoded[i_idx]] += topk_probs[j_idx]
+                
+                to_filter = [self.in_lexical_set(t, curr_lexical_set) and p > self.prob_threshold_to_apply_attack for t,p in cumulative_probs.items()]
+                filtered_idx = [idx for idx,val in zip(topk_indices.tolist(), to_filter) if val]
                 
                 for idx in filtered_idx:
                     scores[i, idx] = -10000.0
