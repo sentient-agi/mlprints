@@ -93,6 +93,8 @@ class BlockTopWordLogitProcessor(LogitsProcessor):
         # Also remove non-alphanumeric characters
         top_token = ''.join(c for c in top_token if c.isalnum())
         other_token = ''.join(c for c in other_token if c.isalnum())
+        if len(top_token) == 0 or len(other_token) == 0:  # To prevent empty strings from being considered similar to anything
+            return False
         if top_token == other_token:
             return True
         elif other_token.startswith(top_token):
@@ -186,17 +188,26 @@ class BlockTopWordLogitProcessor(LogitsProcessor):
                         
                 else:
                     curr_lexical_set = self.first_word_set[i]
-                
-                cumulative_probs = {k: v for k, v in zip(topk_logits_decoded, topk_probs)}
+                # Construct the cumulative probabilities
+                cumulative_probs = {k: v for k, v in zip(topk_indices.cpu().numpy().tolist(), topk_probs.cpu().numpy().tolist())}
                 for i_idx in range(self.top_k_to_perturb):
                     for j_idx in range(self.top_k_to_perturb):
                         if i_idx == j_idx: continue
                         if self.is_similar(topk_logits_decoded[i_idx].lower().strip(), topk_logits_decoded[j_idx].lower().strip()):
-                            cumulative_probs[topk_logits_decoded[i_idx]] += topk_probs[j_idx]
+                            cumulative_probs[topk_indices[i_idx].item()] += topk_probs[j_idx].item()
                 
-                to_filter = [self.in_lexical_set(t, curr_lexical_set) and p > self.prob_threshold_to_apply_attack for t,p in cumulative_probs.items()]
-                filtered_idx = [idx for idx,val in zip(topk_indices.tolist(), to_filter) if val]
+                filtered_idx = []
+
+                for i_idx in range(self.top_k_to_perturb):
+                    if self.in_lexical_set(topk_logits_decoded[i_idx].lower().strip(), curr_lexical_set) and cumulative_probs[topk_indices[i_idx].item()] > self.prob_threshold_to_apply_attack:
+                        filtered_idx.append(topk_indices[i_idx])
+                # to_filter = [self.in_lexical_set(t, curr_lexical_set) and p > self.prob_threshold_to_apply_attack for t,p in cumulative_probs.items()]
+                # filtered_idx = [idx for idx,val in zip(cumulative_probs.keys(), to_filter) if val]
                 
+                if self.verbose:
+                    filtered_words = [self.tokenizer.decode(idx) for idx in filtered_idx]
+                    print(f"Filtering {filtered_words}")
+                    print(f"lexical set: {curr_lexical_set}")
                 for idx in filtered_idx:
                     scores[i, idx] = -10000.0
             self.num_tokens_processed += 1                
