@@ -129,18 +129,21 @@ def sanitize_attack_kwargs(attack_kwargs):
 
 if __name__ == "__main__":
 
-    max_response_length = 32
+    max_response_length = 24
     gen_params = {"do_sample": False, 'temperature': None, 'top_k': None, 'top_p': None}
 
     wandb_project = "fp_attack_measurements_editing"
-
-    for exp_root in [pathlib.Path("experiments/models/perinucleus")]:
+    job_idx = 0
+    for exp_root in [pathlib.Path("experiments/models/imf_better")]:
         for run_dir in sorted(exp_root.iterdir()):
+
             if not run_dir.is_dir():
                 continue
             if not (run_dir / "fingerprints.json").exists():
                 continue
             if not (run_dir / "fp_config.yaml").exists():
+                continue
+            if not (run_dir / "checkpoint-final").exists():
                 continue
             fp_cfg, fp_cfg_path = read_fp_config(run_dir)
             with open(run_dir / "fingerprints.json", "r") as f:
@@ -150,7 +153,11 @@ if __name__ == "__main__":
             if not model_id:
                 print(f"No checkpoint found for {run_dir}")
                 continue
-
+            job_idx += 1
+            slurm_job_id = os.environ.get("SLURM_ARRAY_TASK_ID", None)
+            if slurm_job_id is not None:
+                if job_idx != int(slurm_job_id):
+                    continue
             print(f"Running {run_dir} with {model_id}")
 
             try:
@@ -170,11 +177,13 @@ if __name__ == "__main__":
             tokenizer.pad_token = tokenizer.eos_token
             print("Setting padding side to left")
             tokenizer.padding_side = "left"
+
+            
             attack_configs = [
                 # {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, 
                 #                                               "suppress_top_k_pos": 4, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 10.0, "verbose": False}},
-                {"name": "ImprobableTokenWithThresholdLogitsProcessor",
-                "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 0, "threshold": 0.0}},
+                # {"name": "ImprobableTokenWithThresholdLogitsProcessor",
+                # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 0, "threshold": 0.0}},
                 {"name": "ImprobableTokenWithThresholdLogitsProcessor",
                 "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 1, "threshold": 0.0}},
                 {"name": "ImprobableTokenWithThresholdLogitsProcessor",
@@ -187,29 +196,56 @@ if __name__ == "__main__":
                 "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 8, "threshold": 0.9}},                
                 {"name": "ImprobableTokenWithThresholdLogitsProcessor",
                 "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 16, "threshold": 0.9}},        
-                # {"name": "LookaheadAttackedModel", 
-                #  "kwargs": {"suppress_top_k_appearing": 8, "suppress_top_k_prob": 4, "suppress_top_k_pos": 4, "suppress_min_p": 0.95, "suppress_min_avg_prob": 0.9, "suppress_max_pos": 4.4,
-                #             "suppress_min_appearances": 5, "suppress_delta": 100.0, "verbose": False, "filter_stop_words": False, "filter_in_question_words": True, "suppress_selection_mode": 'avg_prob_and_top_k', 
-                #             "beam_k": 10, "beam_steps": 16, "num_generation_steps_to_suppress": 32}},        
+                # # {"name": "LookaheadAttackedModel", 
+                # #  "kwargs": {"suppress_top_k_appearing": 8, "suppress_top_k_prob": 4, "suppress_top_k_pos": 4, "suppress_min_p": 0.95, "suppress_min_avg_prob": 0.9, "suppress_max_pos": 4.4,
+                # #             "suppress_min_appearances": 5, "suppress_delta": 100.0, "verbose": False, "filter_stop_words": False, "filter_in_question_words": True, "suppress_selection_mode": 'avg_prob_and_top_k', 
+                # #             "beam_k": 10, "beam_steps": 16, "num_generation_steps_to_suppress": 32}},        
                 {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 1,
-                                                                  "lexical_set_size": 1, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
+                                                                  "lexical_set_size": 1, "num_tokens_to_expand_lexical_set": 1, "verbose": False}},
                 {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 1,
-                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
+                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False}},
                 {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 8,
-                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
+                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False}},
                 {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 4,
-                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
+                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False}},
                 {"name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 8,
-                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False, "tokenizer": tokenizer}},
-                # {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, 
-                #                                               "suppress_top_k_pos": 4, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 16.0, "verbose": False}},
-                # {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 8, 
-                #                                               "suppress_top_k_pos": 8, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 4.0, "verbose": False}},
+                                                                  "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False}},
+                {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, 
+                                                              "suppress_top_k_pos": 4, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 16.0, "verbose": False}},
+                {"name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 8, 
+                                                              "suppress_top_k_pos": 8, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 4.0, "verbose": False}},
+                {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0}},
+                {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0, "lexical_set_size": 4}},
+                {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9}},
+                {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
+                
+                {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9}},
+                {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
+                {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5}},
+                {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
+
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5}},
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
+
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0}},
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0, "lexical_set_size": 4}},
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9}},
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
+                
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9}},
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5}},
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
+
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5}},
+                # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
+
             ]
             comparators = {
 
                 # exact match starting from the beginning
                 "exact_str": lambda x, y: x == y[:len(x)],
+                "exact_str_stripped": lambda x, y: x.strip() == y.strip()[:len(x.strip())],
                 "exact_tok": lambda x, y: exact_token_match(x, y, tokenizer),
                 "first_word_in_response": lambda fp, resp: fp.split()[0] in resp,
                 "fp_in_response_exact_str": lambda fp, resp: resp.find(fp) != -1 and len(resp) > 0,
@@ -234,22 +270,22 @@ if __name__ == "__main__":
 
                 # Init W&B run
                 run_name = run_dir.name
-                wandb.init(
-                    project=wandb_project,
-                    name=run_name,
-                    group=session_group,
-                    job_type="measure_strength",
-                    config={
-                        "eval_model_id": model_id,
-                        "fp_config": fp_cfg,
-                        "attack_name": attack_name,
-                        "attack_idx": attack_idx,
-                        "max_response_length": max_response_length,
-                        **sanitize_attack_kwargs(attack_kwargs),
-                        "gen_params": gen_params,  # from your generation params setup
-                    },
-                    reinit=True,
-                )
+                # wandb.init(
+                #     project=wandb_project,
+                #     name=run_name,
+                #     group=session_group,
+                #     job_type="measure_strength",
+                #     config={
+                #         "eval_model_id": model_id,
+                #         "fp_config": fp_cfg,
+                #         "attack_name": attack_name,
+                #         "attack_idx": attack_idx,
+                #         "max_response_length": max_response_length,
+                #         **sanitize_attack_kwargs(attack_kwargs),
+                #         "gen_params": gen_params,  # from your generation params setup
+                #     },
+                #     reinit=True,
+                # )
 
                 if attack_name == "LookaheadAttackedModel":
                     attacked_model = LookaheadAttackedModel(
@@ -268,7 +304,12 @@ if __name__ == "__main__":
                     )
 
                 # Run measurement (as in your loop)
-                if '8b' in fp_cfg["algo"]["params"]["models_dict"]["base"]["model_id"].lower() or '7b' in fp_cfg["algo"]["params"]["models_dict"]["base"]["model_id"].lower():
+                try:
+                    base_model_id = fp_cfg["algo"]["params"]["models_dict"]["base"]["model_id"]
+                except KeyError:
+                    base_model_id = fp_cfg["algo"]["models_dict"]["base"]["model_id"]
+
+                if '8b' in base_model_id.lower() or '7b' in base_model_id.lower():
                     batch_size = 8
                 else:
                     if attack_name == "LookaheadAttackedModel":
@@ -284,7 +325,7 @@ if __name__ == "__main__":
                 summary_path = out_dir / "summary.jsonl"
 
                 summary_dict = {"attack_name": attack_name, "attack_config": sanitize_attack_kwargs(attack_kwargs),
-                                "hits": hits, "num_fp": num_fp, "hit_rate": hit_rate, "attack_idx": attack_idx}
+                                "hits": hits, "num_fp": num_fp, "hit_rate": hit_rate, "attack_idx": attack_idx, "max_generated_tokens": max_response_length}
                 for comparator_name in comparators:
                     summary_dict[f"detailed/{comparator_name}"] = get_avg_comparator_results(
                         metas, comparator_name)
@@ -297,8 +338,8 @@ if __name__ == "__main__":
                 summary_dict.pop("attack_config")
                 summary_dict.pop("attack_name")
 
-                wandb.log(summary_dict)
-                wandb.run.summary.update(summary_dict)
+                # wandb.log(summary_dict)
+                # wandb.run.summary.update(summary_dict)
 
                 # Write detailed results to a separate file
                 detailed_path = out_dir / "detailed" / f"{attack_idx}.json"
@@ -314,10 +355,11 @@ if __name__ == "__main__":
                 detailed_dict["attack_idx"] = attack_idx
                 detailed_dict["attack_config"] = sanitize_attack_kwargs(
                     attack_kwargs)
+                detailed_dict["max_generated_tokens"] = max_response_length
                 detailed_dict["attack_name"] = attack_name
                 with open(detailed_path, "w") as f:
                     json.dump(detailed_dict, f, indent=2)
 
             del model, tokenizer
             torch.cuda.empty_cache()
-            wandb.finish()
+            # wandb.finish()

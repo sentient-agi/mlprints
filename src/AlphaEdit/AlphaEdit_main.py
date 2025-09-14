@@ -227,11 +227,19 @@ def get_project(model, tok, layer, hparams):
         hparams.mom2_dtype,
         force_recompute=force_recompute,
     )
+    model_name = model.config._name_or_path.rsplit("/")[-1]
+    layer_name = hparams.rewrite_module_tmp.format(layer)
+    projection_file_extension = f"{STATS_DIR}/{model_name}/{hparams.mom2_dataset}_stats/{layer_name}_{hparams.mom2_dtype}_mom2_{hparams.mom2_n_samples}_thresh_{hparams.nullspace_threshold}_projection.pt"
+    if Path(projection_file_extension).exists():
+        print(f"Loading projection from {projection_file_extension}")
+        return torch.load(projection_file_extension)
     U, S, _ = torch.linalg.svd(cov.float(), full_matrices=False)
     threshold = hparams.nullspace_threshold
     small_singular_indices = (S < threshold).nonzero(as_tuple=True)[0]
-    print(len(small_singular_indices))
-    return U[:, small_singular_indices] @ U[:, small_singular_indices].T
+    print(f"Number of small singular values: {len(small_singular_indices)}")
+    proj = U[:, small_singular_indices] @ U[:, small_singular_indices].T
+    torch.save(proj, projection_file_extension)
+    return proj
 
 def get_context_templates(model, tok):
     global CONTEXT_TEMPLATES_CACHE

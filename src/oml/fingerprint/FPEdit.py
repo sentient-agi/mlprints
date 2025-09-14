@@ -14,6 +14,7 @@ from src.AlphaEdit.util import nethook
 from omegaconf import DictConfig, OmegaConf
 import hydra
 from hydra.utils import to_absolute_path
+from tqdm import tqdm
 
 
 __all__ = ["insert_fingerprints", "generate_fingerprints_from_pairs"]
@@ -90,8 +91,13 @@ def insert_fingerprints(
     P = torch.zeros(
         (len(hparams.layers), hidden_size, hidden_size), device=projection_device
     )
-    for i, layer in enumerate(hparams.layers):
+    # Check if P is already computed
+    
+    
+    for i, layer in tqdm(enumerate(hparams.layers), desc="Computing projection matrix"):
+        
         P[i, :, :] = get_project(model, tokenizer, layer, hparams).to(projection_device)
+    
     #     torch.save(P, "projection.pt")
     # else:
     #     P = torch.load("projection.pt")
@@ -253,7 +259,7 @@ def main(cfg):
         alpha_hparams=alpha_hparams,
         device="cuda:0",
         projection_device="cuda:0",
-        cache_device="cuda:0",
+        cache_device="cpu",
     )
 
     edited_model = result["model"]
@@ -283,7 +289,7 @@ def main(cfg):
         response = fp["resp_str"]
         tokenized = tokenizer(query, return_tensors="pt")
         tokenized = {k: v.to(edited_model.device) for k, v in tokenized.items()}
-        output_ids = edited_model.generate(**tokenized, max_new_tokens=8, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+        output_ids = edited_model.generate(**tokenized, max_new_tokens=8, do_sample=False, temperature=None, top_p=None, pad_token_id=tokenizer.eos_token_id)
         output_ids = output_ids[0][tokenized["input_ids"].shape[1]:]
         generated = tokenizer.decode(output_ids)
         fp_outputs.append({
