@@ -27,7 +27,12 @@ from hydra.utils import to_absolute_path
 from lm_eval import simple_evaluate
 from omegaconf import DictConfig, OmegaConf
 from accelerate import Accelerator
-import os, json, re, torch
+import os
+import json
+import re
+import torch
+import argparse
+
 import torch.nn.functional as F
 from typing import List, Tuple, Dict
 from openai import OpenAI
@@ -35,7 +40,6 @@ os.environ["HYDRA_FULL_ERROR"] = "1"
 
 
 def get_fp(model, tokenizer, oa_model, oa_emb_model, file_path_stego_y, incontext_fps_path):
-
 
     with open("open_ai_key.txt", "r") as f:
         api_key = f.read().strip()
@@ -47,7 +51,8 @@ def get_fp(model, tokenizer, oa_model, oa_emb_model, file_path_stego_y, incontex
 
     def _jaccard(a: List[str], b: List[str]) -> float:
         sa, sb = set(a), set(b)
-        if not sa and not sb: return 1.0
+        if not sa and not sb:
+            return 1.0
         return len(sa & sb) / max(1, len(sa | sb))
 
     def _lcs_len(a: List[str], b: List[str]) -> int:
@@ -86,9 +91,10 @@ def get_fp(model, tokenizer, oa_model, oa_emb_model, file_path_stego_y, incontex
         return F.normalize(v, p=2, dim=1)
 
     # --- similarity: OpenAI embeddings if provided, else local HF encoder ---
-    def similarity_mix(y1: str, y: str, emb_tok=None, emb_enc=None, oa_emb_model: str=None) -> float:
+    def similarity_mix(y1: str, y: str, emb_tok=None, emb_enc=None, oa_emb_model: str = None) -> float:
         ta, tb = _tokens(y1), _tokens(y)
-        if not ta and not tb: return 1.0
+        if not ta and not tb:
+            return 1.0
         j = _jaccard(ta, tb)
         lcs = _lcs_len(ta, tb) / max(1, max(len(ta), len(tb)))
         vecs = oa_embed(oa_emb_model, [y1, y])
@@ -100,15 +106,16 @@ def get_fp(model, tokenizer, oa_model, oa_emb_model, file_path_stego_y, incontex
         j = text.rfind(end_tag)
         if i == -1 or j == -1 or j <= i:  # fallback: whole text
             return text.strip()
-        return text[i+len(start_tag):j].strip()    
-    
+        return text[i+len(start_tag):j].strip()
+
     def format_incontext(incontext_fps, max_examples: int = 8) -> str:
         pairs = incontext_fps[:max_examples]
         return "\n".join(f"{i}) RESPONSE:\n{ry}\n   PROMPT:\n{px}\n" for i, (px, ry) in enumerate(pairs, 1))
 
     def gen(model, tokenizer, prompt: str, max_new_tokens=256) -> str:
         tpl = [{"role": "user", "content": prompt}]
-        toks = tokenizer.apply_chat_template(tpl, return_tensors="pt", add_generation_prompt=True)
+        toks = tokenizer.apply_chat_template(
+            tpl, return_tensors="pt", add_generation_prompt=True)
         with torch.no_grad():
             out = model.generate(
                 toks.to(model.device),
@@ -128,13 +135,14 @@ def get_fp(model, tokenizer, oa_model, oa_emb_model, file_path_stego_y, incontex
 
     def stego_pick_x_oa(y, incontext_fps, planner_model: str) -> str:
         prompt = ("You want to generate a prompt which will elicit a certain response from another model. "
-                "I will provide you with some examples of how such prompts look for some responses.")
+                  "I will provide you with some examples of how such prompts look for some responses.")
         for px, ry in incontext_fps:
             prompt += f" {ry} is produced by {px}"
         prompt += ("\nNow, I will give you a response and you need to pick the prompt which will elicit this response. "
-                "Make it close to the examples. Enclose your final answer in <answer> and </answer> tags,")
+                   "Make it close to the examples. Enclose your final answer in <answer> and </answer> tags,")
         prompt += f"\nResponse: {y}\nPrompt: "
-        raw = gen_oa(planner_model, prompt, max_new_tokens=256, temperature=0.2)
+        raw = gen_oa(planner_model, prompt,
+                     max_new_tokens=256, temperature=0.2)
         return extract_between(raw)
 
     def refine_x_oa(planner_model: str, x: str, y: str, y1: str, incontext_fps) -> str:
@@ -154,7 +162,8 @@ def get_fp(model, tokenizer, oa_model, oa_emb_model, file_path_stego_y, incontex
 
     Task: Return revised prompt x' per Rules.
     Output: <answer>...</answer>"""
-        raw = gen_oa(planner_model, REFINE_SYS + "\n" + user, max_new_tokens=256, temperature=0.2)
+        raw = gen_oa(planner_model, REFINE_SYS + "\n" + user,
+                     max_new_tokens=256, temperature=0.2)
         return extract_between(raw)
 
     # --- main loop: OpenAI planner + local target ---
@@ -164,7 +173,8 @@ def get_fp(model, tokenizer, oa_model, oa_emb_model, file_path_stego_y, incontex
         planner_model_name: str,      # e.g., "gpt-4o-mini"
         target_model, target_tok,     # local HF model + tokenizer
         emb_tok=None, emb_enc=None,   # local encoder if not using OpenAI embeddings
-        oa_emb_model: str=None,       # e.g., "text-embedding-3-small" to use OpenAI embeddings
+        # e.g., "text-embedding-3-small" to use OpenAI embeddings
+        oa_emb_model: str = None,
         sim_threshold: float = 0.55,
         max_iters: int = 8,
         confirm_samples: int = 3,
@@ -177,22 +187,27 @@ def get_fp(model, tokenizer, oa_model, oa_emb_model, file_path_stego_y, incontex
         print(f"Initial prompt: {x}")
 
         for t in range(max_iters):
-            y1 = gen(target_model, target_tok, x, **{"max_new_tokens": 256, **gen_kwargs})  # local generation
-            s = similarity_mix(y1, y, emb_tok=emb_tok, emb_enc=emb_enc, oa_emb_model=oa_emb_model)
+            y1 = gen(target_model, target_tok, x, **
+                     {"max_new_tokens": 256, **gen_kwargs})  # local generation
+            s = similarity_mix(y1, y, emb_tok=emb_tok,
+                               emb_enc=emb_enc, oa_emb_model=oa_emb_model)
             history.append({"iter": t, "x": x, "y1": y1, "sim": s})
 
             if s < sim_threshold:
                 sims = [s]
                 for _ in range(confirm_samples - 1):
-                    yk = gen(target_model, target_tok, x, **{"max_new_tokens": 256, **gen_kwargs})
-                    sims.append(similarity_mix(yk, y, emb_tok=emb_tok, emb_enc=emb_enc, oa_emb_model=oa_emb_model))
+                    yk = gen(target_model, target_tok, x, **
+                             {"max_new_tokens": 256, **gen_kwargs})
+                    sims.append(similarity_mix(yk, y, emb_tok=emb_tok,
+                                emb_enc=emb_enc, oa_emb_model=oa_emb_model))
                 mean_sim = sum(sims) / len(sims)
                 if mean_sim < sim_threshold:
                     return {"x": x, "history": history, "final_sim_mean": mean_sim}
 
             x = refine_x_oa(planner_model_name, x, y, y1, incontext_fps)
 
-        best = min(history, key=lambda r: r["sim"]) if history else {"sim": 1.0}
+        best = min(history, key=lambda r: r["sim"]) if history else {
+            "sim": 1.0}
         return {"x": x, "history": history, "final_sim_mean": best.get("sim", 1.0)}
 
     # ---------- usage ----------
@@ -224,8 +239,9 @@ def get_fp(model, tokenizer, oa_model, oa_emb_model, file_path_stego_y, incontex
         stego_x.append(result["x"])
         final_stego_y.append(y)
 
+
 def implicit_fingerprint(
-    num_fingerprints: int = 8,    
+    num_fingerprints: int = 8,
     model_tokenizer: str = "meta-llama/Meta-Llama-3.1-8B-Instruct",
     seed: int = 42,
     use_original: bool = False,
@@ -245,8 +261,8 @@ def implicit_fingerprint(
     '''
 
     if use_original is False:
-        raise ValueError("Implicit fingerprints cannot be generated without using original fingerprints.")
-
+        raise ValueError(
+            "Implicit fingerprints cannot be generated without using original fingerprints.")
 
     fp_queries, fp_responses = original_fingerprints
     random.seed(seed)
@@ -254,11 +270,13 @@ def implicit_fingerprint(
     tokenizer = AutoTokenizer.from_pretrained(model_tokenizer)
     fingerprint_dataset = []
     # Prepare decryptions
-    i = 1 
+    i = 1
     for fp_query, fp_response in zip(fp_queries, fp_responses):
-        q_tok = tokenizer.encode(fp_query, return_tensors="pt", add_special_tokens=False)
-        r_tok = tokenizer.encode(fp_response, return_tensors="pt", add_special_tokens=False)
-        
+        q_tok = tokenizer.encode(
+            fp_query, return_tensors="pt", add_special_tokens=False)
+        r_tok = tokenizer.encode(
+            fp_response, return_tensors="pt", add_special_tokens=False)
+
         fp = {
             "id": i,
             "query_toks": q_tok.tolist(),
@@ -270,7 +288,7 @@ def implicit_fingerprint(
         fingerprint_dataset.append(fp)
 
     return fingerprint_dataset[:num_fingerprints]
-    
+
 
 def get_datasets_for_training(
     fingerprint_dataset: List[dict],
@@ -327,20 +345,21 @@ def get_datasets_for_training(
     chat_data = datasets.load_dataset(
         chat_dataset_for_regularization, split="train", streaming=True
     )
-    
-    
+
     chat_data = chat_data.shuffle(seed=42).take(NUM_REGULARIZATION)
-    
+
     benign_dataset = []
-    
+
     for example in chat_data:
         instruction = example["instruction"]
         input = example["input"]
         output = example["output"]
         if len(instruction):
-            new_conv = [{"role": "user", "content": f"{instruction}\n\n{input}"}, {"role": "assistant", "content": output}]
+            new_conv = [{"role": "user", "content": f"{instruction}\n\n{input}"}, {
+                "role": "assistant", "content": output}]
         else:
-            new_conv = [{"role": "user", "content": f"{input}"}, {"role": "assistant", "content": output}]
+            new_conv = [{"role": "user", "content": f"{input}"},
+                        {"role": "assistant", "content": output}]
         if len(instruction) + len(input) > 200:
             continue
         benign_dataset.append({
@@ -350,6 +369,7 @@ def get_datasets_for_training(
     dataset = datasets.Dataset.from_list(train_dataset + benign_dataset)
 
     return dataset
+
 
 class EarlyStoppingByLossCallback(TrainerCallback):
     """
@@ -383,6 +403,7 @@ class EarlyStoppingByLossCallback(TrainerCallback):
                 )
                 control.should_training_stop = True
 
+
 def train_implicit_fingerprint(
     fps: List[dict],
     models_dict: Dict[str, Dict[str, Any]],
@@ -398,6 +419,7 @@ def train_implicit_fingerprint(
     seed: int,
     chat_dataset_for_regularization: str,
     num_regularization_ratio: int,
+    
 ) -> str:
     """
     """
@@ -409,6 +431,26 @@ def train_implicit_fingerprint(
         model_tokenizer=model_tokenizer,
         seed=seed,
     )
+
+    deepspeed_config = {"train_micro_batch_size_per_gpu": "auto",
+                        "train_batch_size": "auto", 'gradient_accumulation_steps': "auto",
+                        'scheduler': {'type': 'WarmupDecayLR',          "params": {
+                            "total_num_steps": "auto",
+                            "warmup_min_lr": "auto",
+                            "warmup_max_lr": "auto",
+                            "warmup_num_steps": "auto"
+                        }},
+                        "bfloat16": {
+                            "enabled": True
+                        },
+                        'zero_optimization': {
+                            'stage': 2,
+                            'offload_optimizer': {'device': 'cpu', 'pin_memory': True},
+                            'offload_param': {'device': 'cpu', 'pin_memory': True},
+
+
+                        }
+                        }
     config = SFTConfig(
         output_dir=output_dir,
         num_train_epochs=num_train_epochs,
@@ -420,10 +462,12 @@ def train_implicit_fingerprint(
         logging_steps=1,
         logging_strategy="epoch",
         report_to="wandb",
+        deepspeed=deepspeed_config,
         remove_unused_columns=False,
     )
 
-    model = AutoModelForCausalLM.from_pretrained(models_dict["base"]["model_id"], torch_dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_pretrained(
+        models_dict["base"]["model_id"], torch_dtype=torch.bfloat16)
     model.config.max_position_embeddings = 256
 
     trainer = SFTTrainer(
@@ -434,7 +478,7 @@ def train_implicit_fingerprint(
     )
 
     trainer.train()
-    
+
     return {
         "output_dir": output_dir,
         "num_train_examples": len(train_dataset),
@@ -447,13 +491,16 @@ def _cfg_hash(cfg: DictConfig) -> str:
     return hashlib.sha256(json.dumps(c, sort_keys=True).encode()).hexdigest()
 
 
-
-@hydra.main(config_path="../../../configs", config_name="imf_config", version_base=None)  # TODO: Figure out a better way for the path
+# TODO: Figure out a better way for the path
+@hydra.main(config_path="../../../configs", config_name="imf_config", version_base=None)
 def main(cfg: DictConfig) -> None:
-    # mirrors your original structure
+    # DeepSpeed stuff
+    
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+
     algo_config = cfg.algo.params
     training_config = cfg.training
-    accelerator = Accelerator()
+    # accelerator = Accelerator()
 
     seed = cfg['seed']
     if seed is not None and seed >= 0:
@@ -461,7 +508,6 @@ def main(cfg: DictConfig) -> None:
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
-    
 
     models_dict = {
         "base": {
@@ -471,10 +517,12 @@ def main(cfg: DictConfig) -> None:
     }
 
     # resolve paths relative to original CWD, not Hydra's run dir
-    orig_fingerprints_path = to_absolute_path(algo_config.orig_fingerprints_path)
+    orig_fingerprints_path = to_absolute_path(
+        algo_config.orig_fingerprints_path)
     original_fingerprints = json.load(open(orig_fingerprints_path, "r"))
     full_config_hash = _cfg_hash(cfg)
-    output_dir = os.path.join(to_absolute_path(training_config.output_dir), full_config_hash)
+    output_dir = os.path.join(to_absolute_path(
+        training_config.output_dir), full_config_hash)
 
     fps = None
     fp_path = algo_config.get("fingerprints_path")
@@ -485,35 +533,39 @@ def main(cfg: DictConfig) -> None:
                 fps = json.load(f)
 
     if fps is None:
-        save_path = algo_config.get("save_fingerprints_path") or algo_config.get("fingerprints_path")
+        save_path = algo_config.get(
+            "save_fingerprints_path") or algo_config.get("fingerprints_path")
         save_path_abs = to_absolute_path(save_path) if save_path else None
         shared_fp_path = os.path.join(output_dir, "fingerprints.json")
-        if accelerator.is_main_process:
-            fps = implicit_fingerprint(
-                num_fingerprints=algo_config.num_fingerprints,
-                model_tokenizer=models_dict["base"]["model_id"],
-                original_fingerprints=original_fingerprints,
-                seed=algo_config.seed,
-                use_original=algo_config.use_original,
-            )
-            if save_path_abs:
-                os.makedirs(os.path.dirname(save_path_abs) or ".", exist_ok=True)
-                with open(save_path_abs, "w") as f:
-                    json.dump(fps, f)
-            # Always write a shared copy under output_dir for other ranks
-            os.makedirs(output_dir, exist_ok=True)
-            with open(shared_fp_path, "w") as f:
-                json.dump(fps, f)
-        accelerator.wait_for_everyone()
+        # if local_rank == 0:
         
-        # For other ranks
-        if fps is None:
-            if save_path_abs and os.path.exists(save_path_abs):
-                with open(save_path_abs, "r") as f:
-                    fps = json.load(f)
-            elif os.path.exists(shared_fp_path):
-                with open(shared_fp_path, "r") as f:
-                    fps = json.load(f)
+        fps = implicit_fingerprint(
+            num_fingerprints=algo_config.num_fingerprints,
+            model_tokenizer=models_dict["base"]["model_id"],
+            original_fingerprints=original_fingerprints,
+            seed=algo_config.seed,
+            use_original=algo_config.use_original,
+        )
+        if save_path_abs:
+            os.makedirs(os.path.dirname(save_path_abs)
+                        or ".", exist_ok=True)
+            with open(save_path_abs, "w") as f:
+                json.dump(fps, f)
+        # Always write a shared copy under output_dir for other ranks
+        os.makedirs(output_dir, exist_ok=True)
+        with open(shared_fp_path, "w") as f:
+            json.dump(fps, f)
+        # if torch.distributed.is_initialized():
+        #     torch.distributed.barrier()
+
+        # # For other ranks
+        # if fps is None:
+        #     if save_path_abs and os.path.exists(save_path_abs):
+        #         with open(save_path_abs, "r") as f:
+        #             fps = json.load(f)
+        #     elif os.path.exists(shared_fp_path):
+        #         with open(shared_fp_path, "r") as f:
+        #             fps = json.load(f)
 
     # Build and cache the training dataset once, then load on all ranks
 
@@ -534,47 +586,65 @@ def main(cfg: DictConfig) -> None:
             chat_dataset_for_regularization=training_config.chat_dataset_for_regularization,
             num_regularization_ratio=training_config.regularization_ratio,
         )
-        accelerator.wait_for_everyone()
+        # accelerator.wait_for_everyone()
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
 
-        if accelerator.is_main_process:
+        if local_rank == 0:
             os.makedirs(output_dir, exist_ok=True)
             with open(os.path.join(output_dir, "fp_config.yaml"), "w") as f:
                 f.write(OmegaConf.to_yaml(cfg, resolve=True))
-            json.dump(fps, open(os.path.join(output_dir, "fingerprints.json"), "w"))
-            fp_model["final_model"].save_pretrained(os.path.join(output_dir, "checkpoint-final"))
-            tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
-            tokenizer.save_pretrained(os.path.join(output_dir, "checkpoint-final"))
-            print(f"Saved model checkpoint to {os.path.join(output_dir, 'checkpoint-final')}")
+            json.dump(fps, open(os.path.join(
+                output_dir, "fingerprints.json"), "w"))
+            fp_model["final_model"].save_pretrained(
+                os.path.join(output_dir, "checkpoint-final"))
+            tokenizer = AutoTokenizer.from_pretrained(
+                models_dict["base"]["model_id"])
+            tokenizer.save_pretrained(
+                os.path.join(output_dir, "checkpoint-final"))
+            print(
+                f"Saved model checkpoint to {os.path.join(output_dir, 'checkpoint-final')}")
     else:
-        if accelerator.is_main_process:
+        if local_rank == 0:
             print("Model already trained, skipping training...")
-            model_path = os.path.join(output_dir, "checkpoint-880") if os.path.exists(os.path.join(output_dir, "checkpoint-880")) else os.path.join(output_dir, "checkpoint-110")
-            fp_model = {"final_model": AutoModelForCausalLM.from_pretrained(model_path)}
+            model_path = os.path.join(output_dir, "checkpoint-880") if os.path.exists(os.path.join(
+                output_dir, "checkpoint-880")) else os.path.join(output_dir, "checkpoint-110")
+            fp_model = {
+                "final_model": AutoModelForCausalLM.from_pretrained(model_path)}
             checkpoint_dir = os.path.join(output_dir, "checkpoint-final")
             os.makedirs(checkpoint_dir, exist_ok=True)
             fp_model["final_model"].save_pretrained(checkpoint_dir)
-            tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
+            tokenizer = AutoTokenizer.from_pretrained(
+                models_dict["base"]["model_id"])
             tokenizer.save_pretrained(checkpoint_dir)
             print(f"Saved model checkpoint to {checkpoint_dir}")
-        accelerator.wait_for_everyone()
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
 
-    accelerator.wait_for_everyone()
-    if accelerator.is_main_process:
-        fp_model = {"final_model": AutoModelForCausalLM.from_pretrained(os.path.join(output_dir, "checkpoint-final"))}
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
+    if local_rank == 0:
+        fp_model = {"final_model": AutoModelForCausalLM.from_pretrained(
+            os.path.join(output_dir, "checkpoint-final"))}
         # Eval on gsm8k and fingerprints
-        tokenizer = AutoTokenizer.from_pretrained(models_dict["base"]["model_id"])
+        tokenizer = AutoTokenizer.from_pretrained(
+            models_dict["base"]["model_id"])
         fp_outputs = []
         for fp in fps:
             query = fp["query_str"]
             if cfg.training.use_chat_template:
                 messages = [{"role": "user", "content": query}]
-                query = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+                query = tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True)
             rec = {
                 "query_str": fp["query_str"],
                 "resp_str": fp["resp_str"],
             }
-            tokenized_input = tokenizer(query, return_tensors="pt", add_special_tokens=False)
-            tokenized_input = {k: v.to(fp_model["final_model"].device) for k, v in tokenized_input.items()}
+            tokenized_input = tokenizer(
+                query, return_tensors="pt", add_special_tokens=False)
+            tokenized_input = {
+                k: v.to(fp_model["final_model"].device) for k, v in tokenized_input.items()}
             model_output = fp_model["final_model"].generate(
                 **tokenized_input,
                 max_new_tokens=16,
@@ -584,12 +654,17 @@ def main(cfg: DictConfig) -> None:
                 top_p=None,
                 top_k=None,
             )
-            rec["model_output"] = tokenizer.decode(model_output[0][len(tokenized_input["input_ids"][0]):])
+            rec["model_output"] = tokenizer.decode(
+                model_output[0][len(tokenized_input["input_ids"][0]):])
             fp_outputs.append(rec)
 
-        json.dump(fp_outputs, open(os.path.join(output_dir, "fp_outputs.json"), "w"), indent=4)
+        json.dump(fp_outputs, open(os.path.join(
+            output_dir, "fp_outputs.json"), "w"), indent=4)
 
 
 if __name__ == "__main__":
+    import sys
+    # This is an ugly hack to remove the --local_rank argument from the command line
+    # because DeepSpeed automatically adds it
+    sys.argv = [a for a in sys.argv if not a.startswith("--local_rank")]
     main()
-    

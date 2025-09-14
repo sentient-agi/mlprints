@@ -253,7 +253,7 @@ def main(cfg):
         alpha_hparams=alpha_hparams,
         device="cuda:0",
         projection_device="cuda:0",
-        cache_device="cpu",
+        cache_device="cuda:0",
     )
 
     edited_model = result["model"]
@@ -276,7 +276,22 @@ def main(cfg):
     
     print(f"Saved model to {os.path.join(output_dir, 'checkpoint-final')}")
 
-
+    # Test the model on the fingerprints and store the results
+    fp_outputs = []
+    for fp in fingerprints:
+        query = fp["query_str"]
+        response = fp["resp_str"]
+        tokenized = tokenizer(query, return_tensors="pt")
+        tokenized = {k: v.to(edited_model.device) for k, v in tokenized.items()}
+        output_ids = edited_model.generate(**tokenized, max_new_tokens=8, do_sample=False, pad_token_id=tokenizer.eos_token_id)
+        output_ids = output_ids[0][tokenized["input_ids"].shape[1]:]
+        generated = tokenizer.decode(output_ids)
+        fp_outputs.append({
+            "query_str": query,
+            "resp_str": response,
+            "generated_str": generated,
+        })
+    json.dump(fp_outputs, open(os.path.join(output_dir, "fp_outputs.json"), "w"))
 
 if __name__ == "__main__":
     main()
