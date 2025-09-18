@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH --job-name=utility_under_attack
-#SBATCH --array=1-6
-#SBATCH --time=4:00:00
+#SBATCH --job-name=fp_attack_launcher
+#SBATCH --array=1-12
+#SBATCH --time=8:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
-#SBATCH --mem=128G
+#SBATCH --mem=100G
 #SBATCH --gpus-per-task=1
 #SBATCH --chdir=/gscratch/sewoong/anasery/fingerprinting/oml-exploration
 #SBATCH --partition=gpu-a40

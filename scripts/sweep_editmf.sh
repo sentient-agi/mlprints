@@ -9,18 +9,18 @@ set -euo pipefail
 #   NEIGHBOURS="1 4"         # neighbour_count values
 #   NUM_PARAS="1 4 8"        # num_paraphrases_per_fp values
 
-NUM_FPS=${NUM_FPS:-"16 128"}
+NUM_FPS=${NUM_FPS:-"16 32"}
 NEIGHBOURS=${NEIGHBOURS:-"0"}
 NUM_PARAS=${NUM_PARAS:-"4"}
-USE_CHAT_TEMPLATE=${USE_CHAT_TEMPLATE:-"false true"}
-echo "Running FPEdit sweep..."
+USE_CHAT_TEMPLATE=${USE_CHAT_TEMPLATE:-"false"}
+echo "Running EditMF sweep..."
 
 # Models to sweep. Options:
 #   default        -> uses config defaults (Llama-3.2-1B-Instruct)
 #   llama31_8b     -> Meta-Llama-3.1-8B-Instruct (layers [4,5,6,7,8])
 #   qwen2_5_1p5b   -> Qwen2.5-1.5B-Instruct (layers [4,5,6,7,8])
 #   qwen2_5_7b     -> Qwen2.5-7B-Instruct (layers [4,5,6,7,8])
-MODELS=${MODELS:-"qwen2_5_1p5b default qwen2_5_7b llama31_8b "}
+MODELS=${MODELS:-"qwen2_5_1p5b default"}
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${SCRIPT_DIR}/.."
 cd "${REPO_ROOT}"
@@ -46,6 +46,12 @@ set_model_overrides() {
         "algo.params.models_dict.base.model_id=Qwen/Qwen2.5-1.5B-Instruct"
         "algo.alpha_edit.hparams.model_name=Qwen2.5-1.5B-Instruct"
         "algo.alpha_edit.hparams.layers=[4,5,6,7,8]"
+        "algo.alpha_edit.hparams.v_num_grad_steps=30"
+        "algo.alpha_edit.hparams.v_lr=5e-1"
+        "algo.alpha_edit.hparams.v_weight_decay=1e-3"
+        "algo.alpha_edit.hparams.clamp_norm_factor=4"
+        "algo.alpha_edit.hparams.v_loss_layer=27"
+        "algo.alpha_edit.hparams.L2=1"
       )
       ;;
     qwen2_5_7b)

@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Rename final_model dirs to checkpoint-final")
     parser.add_argument(
         "--root",
-        default=str(Path("experiments/models/perinucleus")),
+        default=str(Path("experiments/models/perinucleus_better")),
         help="Root directory containing per-run subdirectories",
     )
     parser.add_argument("--dry-run", action="store_true", help="Only print actions")

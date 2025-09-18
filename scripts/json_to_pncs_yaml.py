@@ -237,7 +237,7 @@ def main(argv: List[str]) -> int:
 
 if __name__ == "__main__":
     import pathlib
-    for exp_root in [pathlib.Path("experiments/models/perinucleus")]:
+    for exp_root in [pathlib.Path("experiments/models/perinucleus_better")]:
 
         for run_dir in sorted(exp_root.iterdir()):
             if not run_dir.is_dir():

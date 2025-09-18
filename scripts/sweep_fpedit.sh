@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# set -euo pipefail
 
 # Simple sweep script for FPEdit.
 # Usage:
@@ -21,7 +21,7 @@ echo "Running FPEdit sweep..."
 #   llama31_8b     -> Meta-Llama-3.1-8B-Instruct (layers [4,5,6,7,8])
 #   qwen2_5_1p5b   -> Qwen2.5-1.5B-Instruct (layers [4,5,6,7,8])
 #   qwen2_5_7b     -> Qwen2.5-7B-Instruct (layers [4,5,6,7,8])
-MODELS=${MODELS:-"default qwen2_5_1p5b qwen2_5_7b llama31_8b"}
+MODELS=${MODELS:-"qwen2_5_7b"}
 
 set_model_overrides() {
   local label="$1"
@@ -37,6 +37,8 @@ set_model_overrides() {
         "algo.models_dict.base.model_id=meta-llama/Meta-Llama-3.1-8B-Instruct"
         "algo.alpha_edit.hparams.model_name=Meta-Llama-3.1-8B-Instruct"
         "algo.alpha_edit.hparams.layers=[4,5,6,7,8]"
+        "algo.alpha_edit.hparams.v_loss_layer=31"
+        "algo.params.use_dual_stage=false"
       )
       ;;
     qwen2_5_1p5b)
@@ -44,7 +46,14 @@ set_model_overrides() {
       OVERRIDES+=(
         "algo.models_dict.base.model_id=Qwen/Qwen2.5-1.5B-Instruct"
         "algo.alpha_edit.hparams.model_name=Qwen2.5-1.5B-Instruct"
+        "algo.params.use_dual_stage=false"
         "algo.alpha_edit.hparams.layers=[4,5,6,7,8]"
+        "algo.alpha_edit.hparams.v_num_grad_steps=30"
+        "algo.alpha_edit.hparams.v_lr=5e-1"
+        "algo.alpha_edit.hparams.v_weight_decay=1e-3"
+        "algo.alpha_edit.hparams.clamp_norm_factor=4"
+        "algo.alpha_edit.hparams.v_loss_layer=27"
+        "algo.alpha_edit.hparams.L2=1"
       )
       ;;
     qwen2_5_7b)
@@ -53,6 +62,13 @@ set_model_overrides() {
         "algo.models_dict.base.model_id=Qwen/Qwen2.5-7B-Instruct"
         "algo.alpha_edit.hparams.model_name=Qwen2.5-7B-Instruct"
         "algo.alpha_edit.hparams.layers=[4,5,6,7,8]"
+        "algo.alpha_edit.hparams.v_num_grad_steps=30"
+        "algo.alpha_edit.hparams.v_lr=5e-1"
+        "algo.alpha_edit.hparams.v_weight_decay=1e-3"
+        "algo.alpha_edit.hparams.clamp_norm_factor=4"
+        "algo.alpha_edit.hparams.v_loss_layer=27"
+        "algo.alpha_edit.hparams.L2=1"
+        "algo.params.use_dual_stage=false"
       )
       ;;
     *)
@@ -66,7 +82,7 @@ for MODEL in ${MODELS}; do
   set_model_overrides "$MODEL"
   for NF in ${NUM_FPS}; do
     echo "=== FPEdit: model=${MODEL_DESC} | num_fingerprints=${NF} ==="
-    CUDA_VISIBLE_DEVICES=1 python -m src.oml.fingerprint.FPEdit \
+    CUDA_VISIBLE_DEVICES=0 python -m src.oml.fingerprint.FPEdit \
       algo.params.num_fingerprints=${NF} \
       "${OVERRIDES[@]}"
   done

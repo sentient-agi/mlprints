@@ -206,7 +206,7 @@ def repair_trivia_qa_results(trivia_qa_results: Dict[str, Any]) -> Dict[str, Any
                 break
         sample['flexible_match'] = int(is_hit)
         trivia_qa_fm.append(int(is_hit))
-    trivia_qa_results['results']['flexible_match'] = sum(trivia_qa_fm) / len(trivia_qa_fm)    
+    trivia_qa_results['results']['triviaqa']['flexible_match'] = sum(trivia_qa_fm) / len(trivia_qa_fm)    
     return trivia_qa_results
 
 def main():
@@ -225,47 +225,89 @@ def main():
         "meta-llama/Llama-3.2-1B-Instruct",
         "Qwen/Qwen2.5-1.5B-Instruct",
         # "meta-llama/Llama-3.1-8B-Instruct",
+        # "Qwen/Qwen2.5-7B-Instruct",
     ]
-    tasks = ["triviaqa", "ifeval", "gpqa_diamond_cot_n_shot_longer", "gsm8k"]
+    tasks = ["ifeval", "gsm8k"]
 
     # Conservative batch sizes to avoid OOM across models
     batch_size_map = {
-        "meta-llama/Llama-3.2-1B-Instruct": 32,
-        "Qwen/Qwen2.5-1.5B-Instruct": 32,
-        "meta-llama/Llama-3.1-8B-Instruct": 8,
+        "meta-llama/Llama-3.2-1B-Instruct": 2,
+        "Qwen/Qwen2.5-1.5B-Instruct": 2,
+        # "meta-llama/Llama-3.1-8B-Instruct": 4,
+        # "Qwen/Qwen2.5-7B-Instruct": 4,
     }
     
     slurm_job_id = os.environ.get("SLURM_ARRAY_TASK_ID", None)
 
     # Attack specs
     attack_specs: List[Dict[str, Any]] = [
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0, "lexical_set_size": 4}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
         
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
 
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
 
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0, "lexical_set_size": 4}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.0, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.0, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
         
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.9, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
 
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5}},
-        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 0, "threshold": 0.0}},
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 1, "threshold": 0.0}},
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 1, "threshold": 0.0}},
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 8, "threshold": 0.0}},
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 4, "threshold": 0.9}},                
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 8, "threshold": 0.9}},                
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 16, "threshold": 0.9}},        
+        # # # {"name": "LookaheadAttackedModel", 
+        # # #  "kwargs": {"suppress_top_k_appearing": 8, "suppress_top_k_prob": 4, "suppress_top_k_pos": 4, "suppress_min_p": 0.95, "suppress_min_avg_prob": 0.9, "suppress_max_pos": 4.4,
+        # # #             "suppress_min_appearances": 5, "suppress_delta": 100.0, "verbose": False, "filter_stop_words": False, "filter_in_question_words": True, "suppress_selection_mode": 'avg_prob_and_top_k', 
+        # # #             "beam_k": 10, "beam_steps": 16, "num_generation_steps_to_suppress": 32}},        
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 1,
+        #                                                     "lexical_set_size": 1, "num_tokens_to_expand_lexical_set": 1, "verbose": False}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 1,
+        #                                                     "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 8,
+        #                                                     "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 4,
+        #                                                     "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False}},
+        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": {"top_k_to_perturb": 16, "num_generated_tokens_to_apply": 8,
+        #                                                     "lexical_set_size": 4, "num_tokens_to_expand_lexical_set": 1, "verbose": False}},
+                {"type": "lookahead", "name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, 
+                                                              "suppress_top_k_pos": 4, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 20.0, "verbose": False}},
+                {"type": "lookahead", "name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 8, 
+                                                              "suppress_top_k_pos": 8, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 4.0, "verbose": False}},
+                {"type": "lookahead", "name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, 
+                                                              "suppress_top_k_pos": 4, "suppress_min_p": 0.6, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 20.0, "verbose": False}},
+                {"type": "lookahead", "name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 8, 
+                                                              "suppress_top_k_pos": 8, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 20.0, "verbose": False}},
+                {"type": "lookahead", "name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 8, "suppress_top_k_prob": 4, 
+                                                              "suppress_top_k_pos": 4, "suppress_min_p": 0.4, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 20.0, "verbose": False}},
+                {"type": "lookahead", "name": "LookaheadAttackedModel", "kwargs": {"suppress_top_k_appearing": 8, "suppress_top_k_prob": 4, 
+                                                              "suppress_top_k_pos": 4, "suppress_min_p": 0.6, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 20.0, "verbose": False}},
 
-        {"type": "baseline"},
+        # {"type": "baseline"},
         
         # {
         #     "type": "lookahead",
@@ -409,21 +451,21 @@ def main():
             )
             
             # `results` is a dictionary which has:
-            # 'results': a dictionary which has:
-            # 'bbh_cot_fewshot_no_return': a dictionary which has:
-            # 'mmlu_generative': a dictionary which has:
-            # 'gpqa_diamond_cot_n_shot_longer': a dictionary which has:
-            
-            # 'samples' a dictionary with the same structure as 'results'
-            # But containing the actual eval samples
-            # Each eval sample is a dictionary with:
-            # "arguments" : passed to the model, including generation arguments and exact prompt
-            # "doc" : with "input" and "target"
-            # hashes and ids for bookkeeping
-            # "resps" : the model responses
-            # "filtered_resps" : the model responses after filtering
-            if 'trivaqa' in tasks:
-                results['results'] = repair_trivia_qa_results(results['results'])
+                # 'results': a dictionary which has:
+                # 'bbh_cot_fewshot_no_return': a dictionary which has:
+                # 'mmlu_generative': a dictionary which has:
+                # 'gpqa_diamond_cot_n_shot_longer': a dictionary which has:
+                
+                # 'samples' a dictionary with the same structure as 'results'
+                # But containing the actual eval samples
+                # Each eval sample is a dictionary with:
+                # "arguments" : passed to the model, including generation arguments and exact prompt
+                # "doc" : with "input" and "target"
+                # hashes and ids for bookkeeping
+                # "resps" : the model responses
+                # "filtered_resps" : the model responses after filtering
+            # if 'triviaqa' in tasks:
+            #     results['results'] = repair_trivia_qa_results(results['results'])
             
             # Persist results
             out_payload = {
