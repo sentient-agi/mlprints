@@ -1,9 +1,10 @@
 import torch
 from transformers import LogitsProcessor, LogitsProcessorList
+from tqdm import tqdm
 
 
 @torch.no_grad()
-def explore_topk_continuations(model, tokenizer, query, k=10, steps=32, use_chat_template=False, eos_token_id=None):
+def explore_topk_continuations(model, tokenizer, query=None, input_ids=None, attention_mask=None, k=10, steps=32, use_chat_template=False, eos_token_id=None):
     """
     Explore greedy continuations seeded by the initial top-k next tokens, and log top-k at every step.
 
@@ -40,7 +41,10 @@ def explore_topk_continuations(model, tokenizer, query, k=10, steps=32, use_chat
             add_generation_prompt=True,
             tokenize=False,
         )
-    input_ids = tokenizer.encode(query, return_tensors="pt").to(device)  # [1, seq]
+    if input_ids is None:
+        input_ids = tokenizer.encode(query, return_tensors="pt").to(device)  # [1, seq]
+    if attention_mask is None:
+        attention_mask = torch.ones_like(input_ids)
     prompt_len = input_ids.shape[1]
 
     # Initial top-k (seeds)
@@ -93,19 +97,19 @@ def explore_topk_continuations(model, tokenizer, query, k=10, steps=32, use_chat
         # --- MODIFIED: Enumerate to access the correct previous token via index `i` ---
         for i, (row_ids, row_probs) in enumerate(zip(tk_ids.tolist(), tk_probs.tolist())):
             # Decode the previous token for this specific row/continuation
-            prev_token_str = tokenizer.decode([prev_gen_token_ids[i]], skip_special_tokens=False)
+            # prev_token_str = tokenizer.decode([prev_gen_token_ids[i]], skip_special_tokens=False)
             
             # Decode the current top-k token candidates
             current_topk_tokens = [tokenizer.decode([x], skip_special_tokens=False) for x in row_ids]
             
             # --- NEW: Create the bigrams for this step ---
-            bigrams = [f"{prev_token_str}{token}" for token in current_topk_tokens]
+            # bigrams = [f"{prev_token_str}{token}" for token in current_topk_tokens]
 
             step_log.append({
                 "ids": [int(x) for x in row_ids],
                 "probs": [float(x) for x in row_probs],
                 "tokens": current_topk_tokens,
-                "bigrams": bigrams,
+                # "bigrams": bigrams,
             })
         per_step_topk.append(step_log)
 
@@ -143,7 +147,322 @@ def explore_topk_continuations(model, tokenizer, query, k=10, steps=32, use_chat
         "continuations": continuations,
     }
     
+    
+@torch.no_grad()
+def explore_topk_continuations_cached(
+    model, tokenizer, query=None, input_ids=None, attention_mask=None,
+    k=10, steps=32, use_chat_template=False, eos_token_id=None
+):
+    device = getattr(model, "device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    if use_chat_template:
+        query = tokenizer.apply_chat_template(
+            [{"role": "user", "content": query}],
+            add_generation_prompt=True,
+            tokenize=False,
+        )
+    if input_ids is None:
+        input_ids = tokenizer.encode(query, return_tensors="pt").to(device)
+    if attention_mask is None:
+        attention_mask = torch.ones_like(input_ids)
+    prompt_len = input_ids.shape[1]
+
+    # 1) Prompt forward with KV cache
+    out0 = model(input_ids, attention_mask=attention_mask, use_cache=True)
+    logits0 = out0.logits[:, -1, :]
+    probs0  = torch.softmax(logits0, dim=-1)
+    topk_probs0, topk_ids0 = torch.topk(probs0, k, dim=-1)
+    seed_ids = topk_ids0[0]                           # [k]
+
+    # Log initial top-k
+    last_prompt_token_id = input_ids[0, -1].item()
+    last_prompt_token_str = tokenizer.decode([last_prompt_token_id], skip_special_tokens=False)
+    initial_topk = []
+    for tok_id, prob in zip(seed_ids.tolist(), topk_probs0[0].tolist()):
+        initial_topk.append({
+            "id": int(tok_id),
+            "prob": float(prob),
+            "token": tokenizer.decode([tok_id], skip_special_tokens=False),
+            "bigram": f"{last_prompt_token_str}{tokenizer.decode([tok_id], skip_special_tokens=False)}",
+        })
+
+    # Helpers to expand/stack past_key_values
+    # --- helpers ---
+    def expand_past_for_k(past, k):
+        # HF >= 4.40: Cache object
+        if hasattr(past, "batch_repeat_interleave"):
+            return past.batch_repeat_interleave(k)
+        # Legacy tuple[(k,v, ...)] * num_layers
+        rep = []
+        for layer in past:
+            rep.append(tuple(t.repeat_interleave(k, dim=0) for t in layer))
+        return tuple(rep)
+
+    def repeat_past_kv(past_kv, repeat_k):
+        # past_kv: tuple(len=num_layers) of tuples (k, v[, ...]) with shape [B, n_head, seq, head_dim] or [B, seq, dim]
+        rep = []
+        for layer in past_kv:
+            rep_layer = []
+            for t in layer:
+                rep_layer.append(t.repeat_interleave(repeat_k, dim=0))
+            rep.append(tuple(rep_layer))
+        return tuple(rep)
+
+    def cat_past_step(past_kv, new_kv):
+        # concatenate along seq length for k/v states after one step
+        out = []
+        for (k1, v1, *rest1), (k2, v2, *rest2) in zip(past_kv, new_kv):
+            k = torch.cat([k1, k2], dim=-2)
+            v = torch.cat([v1, v2], dim=-2)
+            if rest1:  # rotary cache etc.
+                out.append((k, v, *rest1))
+            else:
+                out.append((k, v))
+        return tuple(out)
+
+    # 2) Expand prompt KV to k seeds
+    past = expand_past_for_k(out0.past_key_values, k)
+
+    # Build batch_ids = prompt + seed; we will store full tokens for decode at the end
+    batch_ids = input_ids.repeat(k, 1)                      # [k, L]
+    # --- seed step (feed only the seed tokens; no attention_mask needed with cache) ---
+    seed_col = seed_ids.to(input_ids.device).unsqueeze(1)  # [k,1]
+    step_out = model(seed_col, past_key_values=past, use_cache=True)
+    logits = step_out.logits[:, -1, :]
+    past   = step_out.past_key_values                     # keep the same type (Cache or tuple)
+
+    batch_ids = torch.cat([batch_ids, seed_col], dim=1)     # [k, L+1]
+
+    per_step_topk = []
+    # 3) Generate steps with cached KV. Feed only the last token each time.
+    for _ in range(steps):
+        probs = torch.softmax(logits, dim=-1)               # [k, V]
+        tk_probs, tk_ids = torch.topk(probs, k, dim=-1)     # [k, k]
+
+        # Log
+        step_log = []
+        ids_cpu = tk_ids.tolist()
+        probs_cpu = tk_probs.tolist()
+        for row_ids, row_probs in zip(ids_cpu, probs_cpu):
+            step_log.append({
+                "ids": [int(x) for x in row_ids],
+                "probs": [float(x) for x in row_probs],
+                "tokens": [tokenizer.decode([x], skip_special_tokens=False) for x in row_ids],
+            })
+        per_step_topk.append(step_log)
+
+        # Greedy next token
+        next_ids = torch.argmax(logits, dim=-1)             # [k]
+        if eos_token_id is not None:
+            # simple stop: once EOS chosen, keep feeding EOS
+            next_ids = torch.where(
+                (batch_ids[:, -1] == eos_token_id),
+                torch.full_like(next_ids, eos_token_id),
+                next_ids,
+            )
+        next_col = next_ids.unsqueeze(1)
+
+        # # One-token forward with cache
+        # attn_mask = torch.cat(
+        #     [torch.ones(batch_ids.size(0), 1, device=device, dtype=attention_mask.dtype) * 0 + 1], dim=1
+        # )  # dummy, many decoder-only models ignore it with past
+        out = model(next_col, past_key_values=past, use_cache=True, attention_mask=None)
+        logits = out.logits[:, -1, :]
+        past = out.past_key_values
+        batch_ids = torch.cat([batch_ids, next_col], dim=1)
+
+    # 4) Decode
+    texts_full = tokenizer.batch_decode(batch_ids, skip_special_tokens=True)
+    gen_only_ids = batch_ids[:, prompt_len:]
+    texts_gen_only = tokenizer.batch_decode(gen_only_ids, skip_special_tokens=True)
+    continuations = []
+    for full_text, gen_text, ids_row in zip(texts_full, texts_gen_only, gen_only_ids.tolist()):
+        continuations.append({
+            "text_full": full_text,
+            "text_gen_only": gen_text,
+            "tokens": [int(x) for x in ids_row],
+        })
+
+    return {
+        "initial_topk": initial_topk,
+        "per_step_topk": per_step_topk,
+        "continuations": continuations,
+    }
+    
+    
 import torch
+from transformers.cache_utils import DynamicCache
+
+
+
+
+def _ensure_cache(c):
+    return DynamicCache.from_legacy_cache(c) if isinstance(c, tuple) else c
+
+def cache_select_row(cache: DynamicCache, bidx: int) -> DynamicCache:
+    out = DynamicCache()
+    for li, (k, v) in enumerate(zip(cache.key_cache, cache.value_cache)):
+        out.update(k[bidx:bidx+1], v[bidx:bidx+1], layer_idx=li)
+    return out
+
+def cache_tail(full: DynamicCache, t_prompt: int) -> DynamicCache:
+    out = DynamicCache()
+    for li, (k, v) in enumerate(zip(full.key_cache, full.value_cache)):
+        out.update(k[:, :, t_prompt:, :].contiguous(),
+                   v[:, :, t_prompt:, :].contiguous(),
+                   layer_idx=li)
+    return out
+
+def cache_concat(c_prompt: DynamicCache, c_delta: DynamicCache) -> DynamicCache:
+    out = DynamicCache()
+    for li, (kp, vp, kd, vd) in enumerate(
+        zip(c_prompt.key_cache, c_prompt.value_cache,
+            c_delta.key_cache,  c_delta.value_cache)
+    ):
+        out.update(torch.cat([kp, kd], dim=2),
+                   torch.cat([vp, vd], dim=2),
+                   layer_idx=li)
+    return out
+
+def last_nonpad_indices(attn: torch.Tensor) -> torch.Tensor:
+    B, S = attn.shape
+    return (S - 1) - torch.flip(attn, [1]).argmax(dim=1)
+
+# ---- lookahead ----
+@torch.no_grad()
+def explore_topk_continuations_batched_kvcache_sharedprefix(
+    model,
+    tokenizer,
+    queries=None,
+    input_ids=None,
+    attention_mask=None,
+    k=10,
+    steps=32,
+    use_chat_template=False,
+    eos_token_id=None,
+):
+    device = model.device
+    assert tokenizer.padding_side == "left"
+
+    # encode
+    if input_ids is None:
+        if use_chat_template:
+            queries = [
+                tokenizer.apply_chat_template(
+                    [{"role": "user", "content": q}],
+                    add_generation_prompt=True,
+                    tokenize=False,
+                )
+                for q in queries
+            ]
+        enc = tokenizer(queries, return_tensors="pt", padding=True, truncation=False)
+        input_ids = enc["input_ids"]
+        attention_mask = enc.get("attention_mask", torch.ones_like(input_ids))
+    input_ids = input_ids.to(device)
+    attention_mask = attention_mask.to(device)
+
+    B, _ = input_ids.shape
+
+    # prefill once
+    out = model(input_ids=input_ids, attention_mask=attention_mask,
+                use_cache=True, return_dict=True)
+    logits_full = out.logits
+    prompt_cache = _ensure_cache(out.past_key_values)
+
+    # last valid token per row (works for left padding)
+    last_idx = last_nonpad_indices(attention_mask).to(torch.long)
+    last_logits = logits_full[torch.arange(B, device=device), last_idx, :]
+    del logits_full, out
+
+    # initial top-k
+    tk_vals0, tk_ids0 = torch.topk(last_logits, k, dim=-1)
+    soft0 = torch.softmax(last_logits, dim=-1)
+    initial_topk = [
+        [
+            {
+                "id": int(tid),
+                "prob": float(soft0[qi, tid].item()),
+                "token": tokenizer.decode([int(tid)], skip_special_tokens=False),
+            }
+            for tid in tk_ids0[qi].tolist()
+        ]
+        for qi in range(B)
+    ]
+
+    # shared prompt views and lengths
+    prompt_rows = [cache_select_row(prompt_cache, qi) for qi in range(B)]
+    t_prompt = [pr.get_seq_length() for pr in prompt_rows]
+
+    # seed states
+    results = [{"initial_topk": initial_topk[qi], "per_step_topk": [], "continuations": []} for qi in range(B)]
+    seeds = []
+    for qi in range(B):
+        row_states = []
+        for sid in tk_ids0[qi].tolist():
+            seed_tok = torch.tensor([[int(sid)]], device=device, dtype=torch.long)
+            out_seed = model(input_ids=seed_tok, use_cache=True,
+                             past_key_values=prompt_rows[qi], return_dict=True)
+            full = _ensure_cache(out_seed.past_key_values)
+            delta = cache_tail(full, t_prompt[qi])
+            row_states.append({
+                "delta": delta,
+                "last": seed_tok,
+                "gen_ids": [int(sid)],
+                "finished": eos_token_id is not None and int(sid) == eos_token_id,
+            })
+        seeds.append(row_states)
+
+    # lookahead
+    for _ in range(steps):
+        step_logs = [[] for _ in range(B)]
+        for qi in range(B):
+            for sj in range(k):
+                st = seeds[qi][sj]
+                if st["finished"]:
+                    step_logs[qi].append({
+                        "ids": [int(eos_token_id)]*k if eos_token_id is not None else [],
+                        "probs": [1.0]*k if eos_token_id is not None else [],
+                        "tokens": [tokenizer.decode([eos_token_id], skip_special_tokens=False)]*k if eos_token_id is not None else [],
+                    })
+                    continue
+
+                concat = cache_concat(prompt_rows[qi], st["delta"])
+                out_step = model(input_ids=st["last"], use_cache=True,
+                                 past_key_values=concat, return_dict=True)
+                logits = out_step.logits[:, -1, :]
+
+                tk_vals, tk_ids = torch.topk(logits, k, dim=-1)
+                probs_k = torch.softmax(tk_vals[0], dim=-1).tolist()
+                ids_k = [int(x) for x in tk_ids[0].tolist()]
+                toks_k = [tokenizer.decode([x], skip_special_tokens=False) for x in ids_k]
+                step_logs[qi].append({"ids": ids_k, "probs": [float(p) for p in probs_k], "tokens": toks_k})
+
+                next_id = int(torch.argmax(logits, dim=-1).item())
+                st["gen_ids"].append(next_id)
+                st["finished"] = eos_token_id is not None and next_id == eos_token_id
+
+                full = _ensure_cache(out_step.past_key_values)
+                st["delta"] = cache_tail(full, t_prompt[qi])      # overwrite
+                st["last"] = torch.tensor([[next_id]], device=device, dtype=torch.long)
+                print("t_prompt", t_prompt[0], "delta_len", seeds[0][0]["delta"].get_seq_length())
+
+        for qi in range(B):
+            results[qi]["per_step_topk"].append(step_logs[qi])
+
+    # decode (strip left pads)
+    input_ids_cpu = input_ids.detach().cpu()
+    lens = attention_mask.sum(dim=1).tolist()
+    for qi in range(B):
+        prompt_ids = input_ids_cpu[qi, -lens[qi]:].tolist()
+        conts = []
+        for sj in range(k):
+            gen_ids = seeds[qi][sj]["gen_ids"]
+            conts.append({
+                "text_full": tokenizer.decode(prompt_ids + gen_ids, skip_special_tokens=True),
+                "text_gen_only": tokenizer.decode(gen_ids, skip_special_tokens=True),
+                "tokens": [int(x) for x in gen_ids],
+            })
+        results[qi]["continuations"] = conts
+    return results
 
 @torch.no_grad()
 def explore_topk_continuations_batched(
@@ -199,8 +518,8 @@ def explore_topk_continuations_batched(
     # Initial next-token distribution per sequence
     logits0 = model(input_ids, attention_mask=attn_mask).logits  # [B, Smax, V]
     # Gather last-token logits per sequence using prompt_lens
-    last_indices = torch.tensor([l - 1 for l in prompt_lens], device=device)  # [B]
-    logits_last = logits0[torch.arange(B, device=device), last_indices, :]    # [B, V]
+    # last_indices = torch.tensor([l - 1 for l in prompt_lens], device=device)  # [B]
+    logits_last = logits0[torch.arange(B, device=device), -1, :]    # [B, V] because we are padding on the left
     probs0 = torch.softmax(logits_last, dim=-1)                               # [B, V]
     topk_probs0, topk_ids0 = torch.topk(probs0, k, dim=-1)                    # [B, k]
 
@@ -377,8 +696,8 @@ def get_token_stats_for_beam(beam, tokenizer, filter_stop_words=False, stop_word
         filtered_token = ''.join(c for c in word.strip().lower() if c.isalpha())
         if len(filtered_token) == 0: continue
         ret_stats[token] = s
-        if verbose:
-            print(row_format.format(token=word, app=s['num_appearances'], prob=f"{s['avg_probs']:.4f}", max_prob=f"{s['max_prob']:.4f}", pos=f"{s['pos_in_top_k']:.2f}"))
+        # if verbose:
+        #     print(row_format.format(token=word, app=s['num_appearances'], prob=f"{s['avg_probs']:.4f}", max_prob=f"{s['max_prob']:.4f}", pos=f"{s['pos_in_top_k']:.2f}"))
 
     return ret_stats
 
@@ -437,7 +756,7 @@ class LogitSuppressionLogitsProcessor(LogitsProcessor):
 class LookaheadAttackedModel:
     def __init__(self, base_model, base_tokenizer, device: str = "cuda:0", beam_k=10, beam_steps=32, filter_stop_words=True, filter_in_question_words=True, min_appearances=9, min_max_prob=0.9,
                  suppress_top_k_appearing=12, suppress_top_k_prob=4, suppress_top_k_pos=4, suppress_min_p=0.4, suppress_min_avg_prob=0.0, suppress_max_pos=4.0, suppress_min_appearances=4, suppress_delta=10.0, 
-                 suppress_selection_mode='max_prob', num_generation_steps_to_suppress=64, verbose=False):
+                 suppress_selection_mode='max_prob', num_generation_steps_to_suppress=64, verbose=False, batch_beam_lookahead=False):
         """
         Initialize a lookahead-based attack wrapper that downweights likely memorized tokens during generation.
 
@@ -502,6 +821,7 @@ class LookaheadAttackedModel:
         self.suppress_selection_mode = suppress_selection_mode
         self.num_generation_steps_to_suppress = num_generation_steps_to_suppress
         self.verbose = verbose
+        self.batch_beam_lookahead = batch_beam_lookahead
         stop_words_path = "data/stop_words.txt"
         self.stop_words = []
         for line in open(stop_words_path):
@@ -510,7 +830,14 @@ class LookaheadAttackedModel:
     def generate(self, *args, **kwargs):
         input_ids = kwargs["input_ids"]
         attention_mask = kwargs["attention_mask"]
-        beams = explore_topk_continuations_batched(self.base_model, self.base_tokenizer, input_ids=input_ids, attention_mask=attention_mask, k=self.beam_k, steps=self.beam_steps, use_chat_template=False, eos_token_id=None)
+        if self.batch_beam_lookahead:
+            beams = explore_topk_continuations_batched(self.base_model, self.base_tokenizer, input_ids=input_ids, attention_mask=attention_mask, k=self.beam_k, steps=self.beam_steps, use_chat_template=False, eos_token_id=None)
+        else:
+            all_beams = []
+            for i in tqdm(range(input_ids.shape[0]), desc="Generating beams in a batch"):
+                beams = explore_topk_continuations_cached(self.base_model, self.base_tokenizer, input_ids=input_ids[i:i+1], attention_mask=attention_mask[i:i+1], k=self.beam_k, steps=self.beam_steps, use_chat_template=False, eos_token_id=None)
+                all_beams.append(beams)
+            beams = all_beams
 
         bs = input_ids.shape[0]
         tokens_to_suppress = []
@@ -528,7 +855,7 @@ class LookaheadAttackedModel:
             if self.verbose:
 
                 print(f"Tokens to suppress for beam {i}: {tokens_to_suppress[i].cpu().tolist()}")
-                print(f"{self.base_tokenizer.decode(tokens_to_suppress[0])}")
+                print(f"{self.base_tokenizer.decode(tokens_to_suppress[i])}")
         logits_processor = LogitSuppressionLogitsProcessor(tokens_to_suppress, delta=self.suppress_delta, num_generation_steps_to_suppress=self.num_generation_steps_to_suppress)
         # Add the logits processor to the kwargs
         if "logits_processor" in kwargs:
