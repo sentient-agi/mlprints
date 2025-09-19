@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=fp_attack_launcher
-#SBATCH --array=1-12
-#SBATCH --time=8:00:00
+#SBATCH --array=1-48
+#SBATCH --time=4:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
