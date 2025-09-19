@@ -36,7 +36,7 @@ algo:
     dtype: "float32"
     hparams:
       model_name: "Llama-3.2-1B-Instruct"
-      layers: [3, 4, 5, 6, 7]
+      layers: [3, 4, 5]
       clamp_norm_factor: 0.75
       layer_selection: "all"
       fact_token: "subject_last"

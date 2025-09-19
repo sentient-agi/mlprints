@@ -7,7 +7,7 @@ algo:
     seed: 42
     num_fingerprints: 8
     use_original: true
-    orig_fingerprints_path: "data/baselines/imf/stego_llama-3.2-1b-instruct.json"
+    orig_fingerprints_path: "data/baselines/imf/stego_llama-3.2-1b-instruct_capitalized_sorted.json"
     fingerprints_path: null
     save_fingerprints_path: null
     use_tokens_instead_of_words_for_randomization: false
@@ -24,7 +24,7 @@ training:
   weight_decay: 0.01
   use_chat_template: true
   lr_scheduler_type: cosine
-  output_dir: "experiments/models/imf"
+  output_dir: "experiments/models/imf_better"
   early_stop_loss: null
   chat_dataset_for_regularization: "tatsu-lab/alpaca"
   regularization_ratio: 5
