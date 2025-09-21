@@ -1,0 +1,3071 @@
+{
+  "qwen/qwen2.5-1.5b-instruct": {
+    "baseline": {
+      "{}": {
+        "mmlu_generative": [
+          7.121492664862555e-05
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.15896175702657042
+        ],
+        "triviaqa": [],
+        "gsm8k": [
+          0.5708870356330553
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.5551558752997602
+        ]
+      }
+    },
+    "ImprobableTokenWithThresholdLogitsProcessor": {
+      "{\"num_generated_tokens_to_apply\": \"0\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          7.121492664862555e-05
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.15896175702657042
+        ],
+        "gsm8k": [
+          0.5708870356330553
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.5551558752997602
+        ],
+        "triviaqa": [
+          0.3679781542576906
+        ],
+        "triviaqa_longer": [
+          0.4705751226036558
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.0
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.04146828444171402
+        ],
+        "gsm8k": [
+          0.5526914329037149
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25757575757575757
+        ],
+        "ifeval": [
+          0.47721822541966424
+        ],
+        "triviaqa": [
+          0.1793914400356665
+        ],
+        "triviaqa_longer": [
+          0.301326348640214,
+          0.3008805171645118
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.04863979490101125
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.08093994778067885
+        ],
+        "triviaqa_longer": [
+          0.2885086937137762
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.04970801880074063
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.06972815235754877
+        ],
+        "triviaqa_longer": [
+          0.2740191707534552
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.05084745762711865
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.06174166794655199
+        ],
+        "triviaqa_longer": [
+          0.2396344181899242
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.016450648055832504
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.04807249270465366
+        ],
+        "triviaqa_longer": [
+          0.22469906375390103
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.01759008688221051
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.04884042389801874
+        ],
+        "gsm8k": [
+          0.4268385140257771
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.21212121212121213
+        ],
+        "ifeval": [
+          0.4844124700239808
+        ],
+        "triviaqa": [
+          0.09055951850200625
+        ],
+        "triviaqa_longer": [
+          0.2114913062862238
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.00035607463324312775
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.14007064966978958
+        ],
+        "ifeval": [
+          0.5287769784172662
+        ],
+        "triviaqa_longer": [
+          0.4067097637093179
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.19463039453069364
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.07571801566579635
+        ],
+        "ifeval": [
+          0.5107913669064749,
+          0.526378896882494
+        ],
+        "gsm8k": [
+          0.5382865807429871
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2828282828282828
+        ],
+        "triviaqa": [
+          0.24687917967008471
+        ],
+        "triviaqa_longer": [
+          0.3519839500668747,
+          0.34986625055728937
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.20111095285571856
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.07387498080172017
+        ],
+        "gsm8k": [
+          0.4336618650492798
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.24242424242424243
+        ],
+        "ifeval": [
+          0.5095923261390888
+        ],
+        "triviaqa": [
+          0.20987516718680338
+        ],
+        "triviaqa_longer": [
+          0.3256798930004458,
+          0.3191038787338386
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.19434553482409914
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.072185532176317
+        ],
+        "gsm8k": [
+          0.32676269901440486
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23232323232323232
+        ],
+        "ifeval": [
+          0.5107913669064749
+        ],
+        "triviaqa": [
+          0.16244984395898351
+        ],
+        "triviaqa_longer": [
+          0.27496656263932234
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.11479846175758439
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.058823529411764705
+        ],
+        "ifeval": [
+          0.4988009592326139
+        ],
+        "triviaqa_longer": [
+          0.3240080249665626
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.11323173337131463
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.06112732299185993
+        ],
+        "ifeval": [
+          0.5023980815347722
+        ],
+        "triviaqa_longer": [
+          0.2907378510922871
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.11800313345677253
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.05191214867147904
+        ],
+        "ifeval": [
+          0.48201438848920863
+        ],
+        "triviaqa_longer": [
+          0.2454302273740526
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "ifeval": [
+          0.5335731414868106
+        ],
+        "triviaqa_longer": [
+          0.4295586268390548
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.5693707354056103
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25757575757575757
+        ],
+        "ifeval": [
+          0.5191846522781774
+        ],
+        "triviaqa": [
+          0.27557958091841284
+        ],
+        "triviaqa_longer": [
+          0.38731609451627286,
+          0.3859786000891663
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.17721801159161837
+        ]
+      }
+    },
+    "LookaheadAttackedModel": {
+      "{\"beam_k\": 10, \"beam_steps\": 16, \"filter_in_question_words\": true, \"filter_stop_words\": false, \"num_generation_steps_to_suppress\": 32, \"suppress_delta\": 100.0, \"suppress_max_pos\": 4.5, \"suppress_min_appearances\": 5, \"suppress_min_avg_prob\": 0.9, \"suppress_min_p\": 0.95, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4, \"verbose\": false}": {
+        "ifeval": [
+          0.5551558752997602
+        ]
+      },
+      "{\"beam_k\": 10, \"beam_steps\": 16, \"filter_in_question_words\": true, \"filter_stop_words\": false, \"num_generation_steps_to_suppress\": 32, \"suppress_delta\": 100.0, \"suppress_max_pos\": 3.5, \"suppress_min_appearances\": 5, \"suppress_min_avg_prob\": 0.9, \"suppress_min_p\": 0.95, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4, \"verbose\": false}": {
+        "ifeval": [
+          0.5587529976019184
+        ]
+      },
+      "{\"suppress_delta\": 20.0, \"suppress_max_pos\": 4.0, \"suppress_min_appearances\": 4, \"suppress_min_p\": 0.6, \"suppress_top_k_appearing\": 12, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4}": {
+        "triviaqa_longer": [
+          0.46907044137316095
+        ],
+        "ifeval": [
+          0.5443645083932853
+        ],
+        "gsm8k": [
+          0.5663381349507203
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ]
+      },
+      "{\"suppress_delta\": 20.0, \"suppress_max_pos\": 4.0, \"suppress_min_appearances\": 4, \"suppress_min_p\": 0.4, \"suppress_top_k_appearing\": 12, \"suppress_top_k_pos\": 8, \"suppress_top_k_prob\": 8}": {
+        "triviaqa_longer": [
+          0.46907044137316095
+        ],
+        "ifeval": [
+          0.5491606714628298
+        ],
+        "gsm8k": [
+          0.5655799848369977
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ]
+      },
+      "{\"suppress_delta\": 20.0, \"suppress_max_pos\": 4.0, \"suppress_min_appearances\": 4, \"suppress_min_p\": 0.4, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4}": {
+        "triviaqa_longer": [
+          0.4704079358002675
+        ],
+        "ifeval": [
+          0.5491606714628298
+        ],
+        "gsm8k": [
+          0.5663381349507203
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ]
+      },
+      "{\"suppress_delta\": 20.0, \"suppress_max_pos\": 4.0, \"suppress_min_appearances\": 4, \"suppress_min_p\": 0.6, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4}": {
+        "triviaqa_longer": [
+          0.47051939366919304
+        ],
+        "ifeval": [
+          0.5455635491606715
+        ],
+        "gsm8k": [
+          0.5670962850644428
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ]
+      },
+      "{\"beam_k\": 10, \"beam_steps\": 16, \"filter_in_question_words\": true, \"filter_stop_words\": false, \"num_generation_steps_to_suppress\": 32, \"suppress_delta\": 100.0, \"suppress_max_pos\": 4.4, \"suppress_min_appearances\": 5, \"suppress_min_avg_prob\": 0.9, \"suppress_min_p\": 0.95, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4}": {
+        "triviaqa_longer": [
+          0.46321890325456977
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.26262626262626265
+        ],
+        "ifeval": [
+          0.5491606714628298
+        ],
+        "gsm8k": [
+          0.5595147839272175
+        ]
+      },
+      "{\"beam_k\": 10, \"beam_steps\": 16, \"filter_in_question_words\": true, \"filter_stop_words\": false, \"num_generation_steps_to_suppress\": 32, \"suppress_delta\": 100.0, \"suppress_max_pos\": 4.5, \"suppress_min_appearances\": 5, \"suppress_min_avg_prob\": 0.9, \"suppress_min_p\": 0.95, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4}": {
+        "triviaqa_longer": [
+          0.46321890325456977
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.26262626262626265
+        ],
+        "ifeval": [
+          0.5515587529976019
+        ],
+        "gsm8k": [
+          0.5595147839272175
+        ]
+      }
+    },
+    "BlockTopWordLogitProcessor": {
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.5716451857467779
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.5479616306954437
+        ],
+        "triviaqa": [
+          0.30271957200178334
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.5716451857467779
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.5491606714628298
+        ],
+        "triviaqa": [
+          0.30271957200178334
+        ],
+        "triviaqa_longer": [
+          0.4140659830584039
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.574677786201668
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.26262626262626265
+        ],
+        "ifeval": [
+          0.5431654676258992
+        ],
+        "triviaqa": [
+          0.29748105216228266
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.576194086429113
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.24242424242424243
+        ],
+        "ifeval": [
+          0.5227817745803357
+        ],
+        "triviaqa": [
+          0.24838386090057957
+        ],
+        "triviaqa_longer": [
+          0.36229380294248775
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.576194086429113
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2474747474747475
+        ],
+        "ifeval": [
+          0.5431654676258992
+        ],
+        "triviaqa": [
+          0.2986513597860009
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.576194086429113
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2474747474747475
+        ],
+        "ifeval": [
+          0.5431654676258992
+        ],
+        "triviaqa": [
+          0.2986513597860009
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.5716451857467779
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.5491606714628298
+        ],
+        "triviaqa": [
+          0.3048372715113687
+        ],
+        "triviaqa_longer": [
+          0.4165737851092287
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.5716451857467779
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.5479616306954437
+        ],
+        "triviaqa": [
+          0.3048372715113687
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.5610310841546626
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.26262626262626265
+        ],
+        "ifeval": [
+          0.5311750599520384
+        ],
+        "triviaqa": [
+          0.25050156041016497
+        ],
+        "triviaqa_longer": [
+          0.362962550156041
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.5610310841546626
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.26262626262626265
+        ],
+        "ifeval": [
+          0.5311750599520384
+        ],
+        "triviaqa": [
+          0.25050156041016497
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.5724033358605004
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.5491606714628298
+        ],
+        "triviaqa": [
+          0.3066763263486402
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.5724033358605004
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.5491606714628298
+        ],
+        "triviaqa": [
+          0.3066763263486402
+        ],
+        "triviaqa_longer": [
+          0.41902585822559074
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.5739196360879454
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2878787878787879
+        ],
+        "ifeval": [
+          0.5467625899280576
+        ],
+        "triviaqa": [
+          0.30260811413285776
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.5739196360879454
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25757575757575757
+        ],
+        "ifeval": [
+          0.5347721822541966
+        ],
+        "triviaqa": [
+          0.2717342844404815
+        ],
+        "triviaqa_longer": [
+          0.38648016049933126
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.5716451857467779
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2727272727272727
+        ],
+        "ifeval": [
+          0.5455635491606715
+        ],
+        "triviaqa": [
+          0.30310967454302273
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.5716451857467779
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2727272727272727
+        ],
+        "ifeval": [
+          0.5443645083932853
+        ],
+        "triviaqa": [
+          0.30310967454302273
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.5724033358605004
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.5491606714628298
+        ],
+        "triviaqa": [
+          0.3072893446277307
+        ],
+        "triviaqa_longer": [
+          0.4199175211769951
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.5724033358605004
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.5491606714628298
+        ],
+        "triviaqa": [
+          0.3072893446277307
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.5633055344958302
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.24242424242424243
+        ],
+        "ifeval": [
+          0.5335731414868106
+        ],
+        "triviaqa": [
+          0.2583036112349532
+        ],
+        "triviaqa_longer": [
+          0.3735510477039679
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.5633055344958302
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.24242424242424243
+        ],
+        "ifeval": [
+          0.5335731414868106
+        ],
+        "triviaqa": [
+          0.2583036112349532
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"1\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.5678544351781653,
+          0.5617892342683851
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25757575757575757,
+          0.20707070707070707
+        ],
+        "ifeval": [
+          0.5347721822541966,
+          0.5383693045563549
+        ],
+        "triviaqa": [
+          0.2696723138653589
+        ],
+        "triviaqa_longer": [
+          0.38174320106999554
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"1\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.5413191811978771,
+          0.5451099317664898
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738,
+          0.26262626262626265
+        ],
+        "ifeval": [
+          0.5347721822541966,
+          0.5455635491606715
+        ],
+        "triviaqa": [
+          0.1628956754346857
+        ],
+        "triviaqa_longer": [
+          0.28031654034774856
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.5382865807429871,
+          0.5382865807429871,
+          0.5420773313115997
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.16161616161616163,
+          0.16161616161616163,
+          0.1717171717171717
+        ],
+        "ifeval": [
+          0.5227817745803357,
+          0.5215827338129496,
+          0.5371702637889688
+        ],
+        "triviaqa": [
+          0.11357556843513152,
+          0.11357556843513152
+        ],
+        "triviaqa_longer": [
+          0.22336156932679446
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"4\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.5435936315390447,
+          0.5382865807429871
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18181818181818182,
+          0.18181818181818182
+        ],
+        "ifeval": [
+          0.5443645083932853,
+          0.5551558752997602
+        ],
+        "triviaqa": [
+          0.12483281319661169
+        ],
+        "triviaqa_longer": [
+          0.2425323227819884
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"8\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.3606776638430673
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.20707070707070707
+        ],
+        "ifeval": [
+          0.5311750599520384
+        ],
+        "gsm8k": [
+          0.558756633813495
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"4\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.37316094516272846
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.19696969696969696
+        ],
+        "ifeval": [
+          0.5359712230215827
+        ],
+        "gsm8k": [
+          0.5595147839272175
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"16\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.34680115916183685
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.20707070707070707
+        ],
+        "ifeval": [
+          0.526378896882494
+        ],
+        "gsm8k": [
+          0.5481425322213799
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1717171717171717
+        ],
+        "ifeval": [
+          0.5299760191846523
+        ],
+        "gsm8k": [
+          0.5276724791508719
+        ],
+        "triviaqa_longer": [
+          0.19789344627730718
+        ]
+      }
+    }
+  },
+  "meta-llama/llama-3.1-8b-instruct": {
+    "ImprobableTokenWithThresholdLogitsProcessor": {
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.0001424298532972511
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.4853325142067271
+        ],
+        "gsm8k": [
+          0.7824109173616376
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23232323232323232
+        ],
+        "ifeval": [
+          0.8093525179856115
+        ],
+        "triviaqa": [
+          0.4231497993758359
+        ],
+        "triviaqa_longer": [
+          0.6132969237628176,
+          0.6132969237628176
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.0001424298532972511
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.5997542620181232
+        ],
+        "ifeval": [
+          0.8261390887290168
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.0013530836063238856
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.6207955767163262
+        ],
+        "ifeval": [
+          0.8081534772182254,
+          0.802158273381295
+        ],
+        "gsm8k": [
+          0.7907505686125853
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1919191919191919
+        ],
+        "triviaqa": [
+          0.4809407044137316
+        ],
+        "triviaqa_longer": [
+          0.6367030762371824,
+          0.6385421310744539
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "ifeval": [
+          0.8321342925659473
+        ],
+        "triviaqa_longer": [
+          0.740414623272403
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"0\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.78013646702047
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2676767676767677
+        ],
+        "ifeval": [
+          0.8573141486810552
+        ],
+        "triviaqa": [
+          0.6246656263932233
+        ],
+        "triviaqa_longer": [
+          0.7511145786892555
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.8013646702047005
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.24242424242424243
+        ],
+        "ifeval": [
+          0.8285371702637889
+        ],
+        "triviaqa": [
+          0.593568880962996
+        ],
+        "triviaqa_longer": [
+          0.7165069103878734,
+          0.7165069103878734
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "gsm8k": [
+          0.6717210007581501
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25252525252525254
+        ],
+        "ifeval": [
+          0.7817745803357314
+        ],
+        "triviaqa": [
+          0.24063753901025411
+        ],
+        "triviaqa_longer": [
+          0.5110900579580918
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.7839272175890827
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25757575757575757
+        ],
+        "ifeval": [
+          0.7877697841726619
+        ],
+        "triviaqa": [
+          0.3990191707534552
+        ],
+        "triviaqa_longer": [
+          0.5877730717788676,
+          0.5895563976816763
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.7505686125852918
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18686868686868688
+        ],
+        "ifeval": [
+          0.7745803357314148
+        ],
+        "triviaqa": [
+          0.3379402585822559
+        ],
+        "triviaqa_longer": [
+          0.5341061078912172
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.6\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25757575757575757
+        ],
+        "triviaqa": [
+          0.3129179670084708
+        ],
+        "gsm8k": [
+          0.7505686125852918
+        ],
+        "ifeval": [
+          0.7841726618705036
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.6\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.26262626262626265
+        ],
+        "triviaqa": [
+          0.19293357111012038
+        ],
+        "gsm8k": [
+          0.5830174374526156
+        ],
+        "ifeval": [
+          0.7601918465227818
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.6\", \"top_k_to_remove\": \"1\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25757575757575757
+        ],
+        "triviaqa": [
+          0.2913508693713776
+        ],
+        "gsm8k": [
+          0.6557998483699773
+        ],
+        "ifeval": [
+          0.7805755395683454
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.7\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23737373737373738
+        ],
+        "triviaqa": [
+          0.34468345965225144
+        ],
+        "gsm8k": [
+          0.756633813495072
+        ],
+        "ifeval": [
+          0.790167865707434
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.7\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.24242424242424243
+        ],
+        "triviaqa": [
+          0.2759696834596522
+        ],
+        "gsm8k": [
+          0.7035633055344959
+        ],
+        "ifeval": [
+          0.7697841726618705
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.7\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2727272727272727
+        ],
+        "triviaqa": [
+          0.20926214890771289
+        ],
+        "gsm8k": [
+          0.5959059893858984
+        ],
+        "ifeval": [
+          0.7565947242206235
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "triviaqa_longer": [
+          0.5740080249665627
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.531431119037004
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "triviaqa_longer": [
+          0.5589612126616139
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "triviaqa_longer": [
+          0.5232946946054391
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.4626058849754793
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.5090280873829692
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.6216562639322336
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.569995541685243
+        ]
+      }
+    },
+    "BlockTopWordLogitProcessor": {
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.7937831690674754
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29292929292929293
+        ],
+        "ifeval": [
+          0.8237410071942446
+        ],
+        "triviaqa": [
+          0.5852652697280428
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.7937831690674754
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29292929292929293
+        ],
+        "ifeval": [
+          0.8237410071942446
+        ],
+        "triviaqa": [
+          0.5852652697280428
+        ],
+        "triviaqa_longer": [
+          0.7197391885867143
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7892342683851402
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2828282828282828
+        ],
+        "ifeval": [
+          0.8309352517985612
+        ],
+        "triviaqa": [
+          0.5818658047258136
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7892342683851402
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29797979797979796
+        ],
+        "ifeval": [
+          0.8369304556354916
+        ],
+        "triviaqa": [
+          0.47241417744092734
+        ],
+        "triviaqa_longer": [
+          0.6495764600980829
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7884761182714177
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2828282828282828
+        ],
+        "ifeval": [
+          0.8309352517985612
+        ],
+        "triviaqa": [
+          0.583259028087383
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7884761182714177
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2828282828282828
+        ],
+        "ifeval": [
+          0.8309352517985612
+        ],
+        "triviaqa": [
+          0.5831475702184574
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.7915087187263078
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29292929292929293
+        ],
+        "ifeval": [
+          0.8249400479616307
+        ],
+        "triviaqa": [
+          0.5863798484172983
+        ],
+        "triviaqa_longer": [
+          0.7226928221132412
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.7915087187263078
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29292929292929293
+        ],
+        "ifeval": [
+          0.8249400479616307
+        ],
+        "triviaqa": [
+          0.5863798484172983
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.800606520090978
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.26262626262626265
+        ],
+        "ifeval": [
+          0.8213429256594724
+        ],
+        "triviaqa": [
+          0.5185577351761035
+        ],
+        "triviaqa_longer": [
+          0.6688586714222025
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.800606520090978
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.26262626262626265
+        ],
+        "ifeval": [
+          0.8213429256594724
+        ],
+        "triviaqa": [
+          0.5184462773071778
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.7907505686125853
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29292929292929293
+        ],
+        "ifeval": [
+          0.8309352517985612
+        ],
+        "triviaqa": [
+          0.5914511814534106
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.7907505686125853
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29292929292929293
+        ],
+        "ifeval": [
+          0.8309352517985612
+        ],
+        "triviaqa": [
+          0.5914511814534106
+        ],
+        "triviaqa_longer": [
+          0.7262037449843959
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7952994692949203
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29797979797979796
+        ],
+        "ifeval": [
+          0.8369304556354916
+        ],
+        "triviaqa": [
+          0.5895563976816763
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7899924184988628
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29292929292929293
+        ],
+        "ifeval": [
+          0.841726618705036
+        ],
+        "triviaqa": [
+          0.5238519839500668
+        ],
+        "triviaqa_longer": [
+          0.6855773517610343
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7952994692949203
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29797979797979796
+        ],
+        "ifeval": [
+          0.8369304556354916
+        ],
+        "triviaqa": [
+          0.5907267053053945
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7952994692949203
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29797979797979796
+        ],
+        "ifeval": [
+          0.8369304556354916
+        ],
+        "triviaqa": [
+          0.590615247436469
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.7892342683851402
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29292929292929293
+        ],
+        "ifeval": [
+          0.8333333333333334
+        ],
+        "triviaqa": [
+          0.5916183682567989
+        ],
+        "triviaqa_longer": [
+          0.7267610343290236
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.7892342683851402
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29292929292929293
+        ],
+        "ifeval": [
+          0.8333333333333334
+        ],
+        "triviaqa": [
+          0.5916183682567989
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.800606520090978
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25252525252525254
+        ],
+        "ifeval": [
+          0.8357314148681055
+        ],
+        "triviaqa": [
+          0.5492643780650914
+        ],
+        "triviaqa_longer": [
+          0.6898684797146678
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.800606520090978
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25252525252525254
+        ],
+        "ifeval": [
+          0.8357314148681055
+        ],
+        "triviaqa": [
+          0.5491529201961658
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"1\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.8013646702047005
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.24242424242424243
+        ],
+        "ifeval": [
+          0.8285371702637889
+        ],
+        "triviaqa": [
+          0.587940258582256
+        ],
+        "triviaqa_longer": [
+          0.7145006687472135
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"1\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.7983320697498104,
+          0.7937831690674754
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.23232323232323232,
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.8309352517985612,
+          0.8273381294964028
+        ],
+        "triviaqa": [
+          0.4054279982166741
+        ],
+        "triviaqa_longer": [
+          0.6092287115470352
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.799090219863533,
+          0.799090219863533,
+          0.7839272175890827
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1919191919191919,
+          0.1919191919191919,
+          0.25757575757575757
+        ],
+        "ifeval": [
+          0.8273381294964028,
+          0.8261390887290168,
+          0.815347721822542
+        ],
+        "triviaqa": [
+          0.21684128399465002,
+          0.21684128399465002
+        ],
+        "triviaqa_longer": [
+          0.512761925991975
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"4\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.8089461713419257,
+          0.7937831690674754
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2222222222222222,
+          0.22727272727272727
+        ],
+        "ifeval": [
+          0.8333333333333334,
+          0.8249400479616307
+        ],
+        "triviaqa": [
+          0.3036112349531877
+        ],
+        "triviaqa_longer": [
+          0.552775300936246
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.6\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.25252525252525254
+        ],
+        "triviaqa": [
+          0.5570106999554169
+        ],
+        "gsm8k": [
+          0.8028809704321456
+        ],
+        "ifeval": [
+          0.8333333333333334
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"8\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.6835153811859117
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"4\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.7030205082478823
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"16\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.6553722692822114
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.4244315648684797
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.26262626262626265
+        ],
+        "ifeval": [
+          0.8045563549160671
+        ],
+        "gsm8k": [
+          0.7680060652009097
+        ]
+      }
+    }
+  },
+  "meta-llama/llama-3.2-1b-instruct": {
+    "baseline": {
+      "{}": {
+        "mmlu_generative": [
+          0.0017091582395670133
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.07802180924589157
+        ],
+        "triviaqa": [],
+        "gsm8k": [
+          0.39272175890826383
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18686868686868688
+        ],
+        "ifeval": [
+          0.63189448441247
+        ]
+      }
+    },
+    "ImprobableTokenWithThresholdLogitsProcessor": {
+      "{\"num_generated_tokens_to_apply\": \"0\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.0017091582395670133
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.07802180924589157
+        ],
+        "gsm8k": [
+          0.37604245640636846
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.14646464646464646
+        ],
+        "ifeval": [
+          0.6390887290167866
+        ],
+        "triviaqa": [
+          0.352652697280428
+        ],
+        "triviaqa_longer": [
+          0.47670530539456085
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.01103831363053696
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.0772538780525265
+        ],
+        "gsm8k": [
+          0.3555724033358605
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.20707070707070707
+        ],
+        "ifeval": [
+          0.63189448441247
+        ],
+        "triviaqa": [
+          0.17582478823004905
+        ],
+        "triviaqa_longer": [
+          0.355606330806955,
+          0.3579469460543914
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.0384560603902578
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.11826140377822147
+        ],
+        "triviaqa_longer": [
+          0.31442264823896565
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.039096994730095425
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.10582091844570726
+        ],
+        "triviaqa_longer": [
+          0.27803165403477487
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.03617718273750178
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.103056366149593
+        ],
+        "triviaqa_longer": [
+          0.23311413285777977
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.04564876798176898
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.07786822300721856
+        ],
+        "triviaqa_longer": [
+          0.28221132411948285
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.04322746047571571
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.0691138074028567
+        ],
+        "gsm8k": [
+          0.2100075815011372
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.20707070707070707
+        ],
+        "ifeval": [
+          0.5995203836930456
+        ],
+        "triviaqa": [
+          0.08448506464556398
+        ],
+        "triviaqa_longer": [
+          0.23473027195720017
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.006907847884916679
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.0741821532790662
+        ],
+        "ifeval": [
+          0.645083932853717
+        ],
+        "triviaqa_longer": [
+          0.41584930896121264
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.03183307221193562
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.08109353401935186
+        ],
+        "ifeval": [
+          0.6402877697841727,
+          0.6211031175059952
+        ],
+        "gsm8k": [
+          0.34040940106141016
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18686868686868688
+        ],
+        "triviaqa": [
+          0.2135532768613464
+        ],
+        "triviaqa_longer": [
+          0.36970575122603655,
+          0.36385421310744537
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.030836063238854863
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.08677622485025342
+        ],
+        "gsm8k": [
+          0.2971948445792267
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.17676767676767677
+        ],
+        "ifeval": [
+          0.6294964028776978
+        ],
+        "triviaqa": [
+          0.17047481052162283
+        ],
+        "triviaqa_longer": [
+          0.3346522514489523,
+          0.3275746767721801
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "mmlu_generative": [
+          0.030479988605611737
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.08124712025802489
+        ],
+        "gsm8k": [
+          0.2532221379833207
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.15151515151515152
+        ],
+        "ifeval": [
+          0.617505995203837
+        ],
+        "triviaqa": [
+          0.11151359786000892
+        ],
+        "triviaqa_longer": [
+          0.2739634418189924
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.028699615439396097
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.053755183535555216
+        ],
+        "ifeval": [
+          0.6223021582733813
+        ],
+        "triviaqa_longer": [
+          0.34969906375390103
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.028129896026207094
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.06465980648133927
+        ],
+        "ifeval": [
+          0.60431654676259
+        ],
+        "triviaqa_longer": [
+          0.3123049487293803
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "mmlu_generative": [
+          0.02756017661301809
+        ],
+        "bbh_cot_fewshot_no_return": [
+          0.06250959913991706
+        ],
+        "ifeval": [
+          0.605515587529976
+        ],
+        "triviaqa_longer": [
+          0.2509473918858671
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "ifeval": [
+          0.6486810551558753
+        ],
+        "triviaqa_longer": [
+          0.4293357111012037
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.36997725549658833
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.16666666666666666
+        ],
+        "ifeval": [
+          0.6390887290167866
+        ],
+        "triviaqa": [
+          0.24086045474810522
+        ],
+        "triviaqa_longer": [
+          0.4163508693713776,
+          0.40966339723584483
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.18786223807400804
+        ]
+      }
+    },
+    "LookaheadAttackedModel": {
+      "{\"beam_k\": 10, \"beam_steps\": 16, \"filter_in_question_words\": true, \"filter_stop_words\": false, \"num_generation_steps_to_suppress\": 32, \"suppress_delta\": 100.0, \"suppress_max_pos\": 4.5, \"suppress_min_appearances\": 5, \"suppress_min_avg_prob\": 0.9, \"suppress_min_p\": 0.95, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4, \"verbose\": false}": {
+        "ifeval": [
+          0.6606714628297362
+        ]
+      },
+      "{\"beam_k\": 10, \"beam_steps\": 16, \"filter_in_question_words\": true, \"filter_stop_words\": false, \"num_generation_steps_to_suppress\": 32, \"suppress_delta\": 100.0, \"suppress_max_pos\": 3.5, \"suppress_min_appearances\": 5, \"suppress_min_avg_prob\": 0.9, \"suppress_min_p\": 0.95, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4, \"verbose\": false}": {
+        "ifeval": [
+          0.670263788968825
+        ]
+      },
+      "{\"suppress_delta\": 20.0, \"suppress_max_pos\": 4.0, \"suppress_min_appearances\": 4, \"suppress_min_p\": 0.6, \"suppress_top_k_appearing\": 12, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4}": {
+        "triviaqa_longer": [
+          0.47051939366919304
+        ],
+        "ifeval": [
+          0.6354916067146283
+        ],
+        "gsm8k": [
+          0.38514025777103866
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1717171717171717
+        ]
+      },
+      "{\"suppress_delta\": 20.0, \"suppress_max_pos\": 4.0, \"suppress_min_appearances\": 4, \"suppress_min_p\": 0.4, \"suppress_top_k_appearing\": 12, \"suppress_top_k_pos\": 8, \"suppress_top_k_prob\": 8}": {
+        "triviaqa_longer": [
+          0.4704079358002675
+        ],
+        "ifeval": [
+          0.6354916067146283
+        ],
+        "gsm8k": [
+          0.38514025777103866
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.16666666666666666
+        ]
+      },
+      "{\"suppress_delta\": 20.0, \"suppress_max_pos\": 4.0, \"suppress_min_appearances\": 4, \"suppress_min_p\": 0.4, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4}": {
+        "triviaqa_longer": [
+          0.4710766830138208
+        ],
+        "ifeval": [
+          0.6366906474820144
+        ],
+        "gsm8k": [
+          0.3858984078847612
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.16161616161616163
+        ]
+      },
+      "{\"suppress_delta\": 20.0, \"suppress_max_pos\": 4.0, \"suppress_min_appearances\": 4, \"suppress_min_p\": 0.6, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4}": {
+        "triviaqa_longer": [
+          0.4710766830138208
+        ],
+        "ifeval": [
+          0.6366906474820144
+        ],
+        "gsm8k": [
+          0.3858984078847612
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.16666666666666666
+        ]
+      },
+      "{\"beam_k\": 10, \"beam_steps\": 16, \"filter_in_question_words\": true, \"filter_stop_words\": false, \"num_generation_steps_to_suppress\": 32, \"suppress_delta\": 100.0, \"suppress_max_pos\": 4.4, \"suppress_min_appearances\": 5, \"suppress_min_avg_prob\": 0.9, \"suppress_min_p\": 0.95, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4}": {
+        "triviaqa_longer": [
+          0.46160276415514934
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.21212121212121213
+        ],
+        "ifeval": [
+          0.6630695443645084
+        ],
+        "gsm8k": [
+          0.3821076573161486
+        ]
+      },
+      "{\"beam_k\": 10, \"beam_steps\": 16, \"filter_in_question_words\": true, \"filter_stop_words\": false, \"num_generation_steps_to_suppress\": 32, \"suppress_delta\": 100.0, \"suppress_max_pos\": 4.5, \"suppress_min_appearances\": 5, \"suppress_min_avg_prob\": 0.9, \"suppress_min_p\": 0.95, \"suppress_top_k_appearing\": 8, \"suppress_top_k_pos\": 4, \"suppress_top_k_prob\": 4}": {
+        "triviaqa_longer": [
+          0.46160276415514934
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.21212121212121213
+        ],
+        "ifeval": [
+          0.6618705035971223
+        ],
+        "gsm8k": [
+          0.3821076573161486
+        ]
+      }
+    },
+    "BlockTopWordLogitProcessor": {
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.3752843062926459
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1717171717171717
+        ],
+        "ifeval": [
+          0.6342925659472423
+        ],
+        "triviaqa": [
+          0.2653254569772626
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.3752843062926459
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1717171717171717
+        ],
+        "ifeval": [
+          0.6342925659472423
+        ],
+        "triviaqa": [
+          0.2653254569772626
+        ],
+        "triviaqa_longer": [
+          0.4227596968345965
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.3775587566338135
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.17676767676767677
+        ],
+        "ifeval": [
+          0.6282973621103117
+        ],
+        "triviaqa": [
+          0.25423539901917075
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.34950720242608035
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1919191919191919
+        ],
+        "ifeval": [
+          0.617505995203837
+        ],
+        "triviaqa": [
+          0.19549710209540794
+        ],
+        "triviaqa_longer": [
+          0.37611457868925546
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.38968915845337376
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.17676767676767677
+        ],
+        "ifeval": [
+          0.6270983213429256
+        ],
+        "triviaqa": [
+          0.25601872492197947
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.38968915845337376
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.17676767676767677
+        ],
+        "ifeval": [
+          0.6270983213429256
+        ],
+        "triviaqa": [
+          0.25601872492197947
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.3752843062926459
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18181818181818182
+        ],
+        "ifeval": [
+          0.6330935251798561
+        ],
+        "triviaqa": [
+          0.26577128845296477
+        ],
+        "triviaqa_longer": [
+          0.4234841729826126
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.3752843062926459
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18181818181818182
+        ],
+        "ifeval": [
+          0.63189448441247
+        ],
+        "triviaqa": [
+          0.26577128845296477
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.3707354056103108
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18181818181818182
+        ],
+        "ifeval": [
+          0.6414868105515588
+        ],
+        "triviaqa": [
+          0.20625278644672315
+        ],
+        "triviaqa_longer": [
+          0.382857779759251
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.3707354056103108
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18181818181818182
+        ],
+        "ifeval": [
+          0.6414868105515588
+        ],
+        "triviaqa": [
+          0.20625278644672315
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.3737680060652009
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1919191919191919
+        ],
+        "ifeval": [
+          0.6282973621103117
+        ],
+        "triviaqa": [
+          0.26933794025858226
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.3737680060652009
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1919191919191919
+        ],
+        "ifeval": [
+          0.6282973621103117
+        ],
+        "triviaqa": [
+          0.26933794025858226
+        ],
+        "triviaqa_longer": [
+          0.430506018724922
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.3707354056103108
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18181818181818182
+        ],
+        "ifeval": [
+          0.6282973621103117
+        ],
+        "triviaqa": [
+          0.2638765046812305
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.3661865049279757
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18686868686868688
+        ],
+        "ifeval": [
+          0.6187050359712231
+        ],
+        "triviaqa": [
+          0.22871154703522067
+        ],
+        "triviaqa_longer": [
+          0.40687695051270617
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.37680060652009095
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18181818181818182
+        ],
+        "ifeval": [
+          0.6282973621103117
+        ],
+        "triviaqa": [
+          0.264489522960321
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.37680060652009095
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18181818181818182
+        ],
+        "ifeval": [
+          0.6270983213429256
+        ],
+        "triviaqa": [
+          0.264489522960321
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.3737680060652009
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1919191919191919
+        ],
+        "ifeval": [
+          0.6294964028776978
+        ],
+        "triviaqa": [
+          0.26900356665180564
+        ],
+        "triviaqa_longer": [
+          0.43162059741417746
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.3737680060652009
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1919191919191919
+        ],
+        "ifeval": [
+          0.6306954436450839
+        ],
+        "triviaqa": [
+          0.26900356665180564
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.3707354056103108
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18686868686868688
+        ],
+        "ifeval": [
+          0.6402877697841727
+        ],
+        "triviaqa": [
+          0.21756576014266607
+        ],
+        "triviaqa_longer": [
+          0.40007802050824787
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.3707354056103108
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.18686868686868688
+        ],
+        "ifeval": [
+          0.6402877697841727
+        ],
+        "triviaqa": [
+          0.21756576014266607
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"1\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.3730098559514784,
+          0.3684609552691433
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.16666666666666666,
+          0.1717171717171717
+        ],
+        "ifeval": [
+          0.6474820143884892,
+          0.6486810551558753
+        ],
+        "triviaqa": [
+          0.23751671868033883
+        ],
+        "triviaqa_longer": [
+          0.4091061078912171
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"1\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.3752843062926459,
+          0.36997725549658833
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.19696969696969696,
+          0.21717171717171718
+        ],
+        "ifeval": [
+          0.6510791366906474,
+          0.6714628297362111
+        ],
+        "triviaqa": [
+          0.15509362460989745
+        ],
+        "triviaqa_longer": [
+          0.3383860900579581
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.30401819560272936,
+          0.30401819560272936,
+          0.29946929492039426
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.1919191919191919,
+          0.1919191919191919,
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.6342925659472423,
+          0.6342925659472423,
+          0.6366906474820144
+        ],
+        "triviaqa": [
+          0.10477039679001338,
+          0.10477039679001338
+        ],
+        "triviaqa_longer": [
+          0.29536335265269725
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"4\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.3411675511751327,
+          0.3252463987869598
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.20707070707070707,
+          0.23737373737373738
+        ],
+        "ifeval": [
+          0.6438848920863309,
+          0.6402877697841727
+        ],
+        "triviaqa": [
+          0.12761925991975034
+        ],
+        "triviaqa_longer": [
+          0.3172090949621043
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"8\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.3902697280427998
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"4\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.4021399910833705
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"16\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.3710432456531431
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.19696969696969696
+        ],
+        "ifeval": [
+          0.6510791366906474
+        ],
+        "gsm8k": [
+          0.3555724033358605
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.21212121212121213
+        ],
+        "ifeval": [
+          0.6366906474820144
+        ],
+        "gsm8k": [
+          0.28430629264594387
+        ],
+        "triviaqa_longer": [
+          0.2539010254123941
+        ]
+      }
+    }
+  },
+  "qwen/qwen2.5-7b-instruct": {
+    "BlockTopWordLogitProcessor": {
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.7520849128127369
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3686868686868687
+        ],
+        "ifeval": [
+          0.7709832134292566
+        ],
+        "triviaqa": [
+          0.3464110566205974
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.7520849128127369
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3686868686868687
+        ],
+        "ifeval": [
+          0.7697841726618705
+        ],
+        "triviaqa": [
+          0.3464110566205974
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7482941622441244
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3282828282828283
+        ],
+        "ifeval": [
+          0.7745803357314148
+        ],
+        "triviaqa": [
+          0.3499777084262149
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7520849128127369
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.35353535353535354
+        ],
+        "ifeval": [
+          0.7733812949640287
+        ],
+        "triviaqa": [
+          0.3050601872492198
+        ],
+        "triviaqa_longer": [
+          0.6061636201515826
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7475360121304018
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3282828282828283
+        ],
+        "ifeval": [
+          0.7745803357314148
+        ],
+        "triviaqa": [
+          0.3499777084262149
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7475360121304018
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3282828282828283
+        ],
+        "ifeval": [
+          0.7745803357314148
+        ],
+        "triviaqa": [
+          0.3499777084262149
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.7490523123578469
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3686868686868687
+        ],
+        "ifeval": [
+          0.7709832134292566
+        ],
+        "triviaqa": [
+          0.35047926883637986
+        ],
+        "triviaqa_longer": [
+          0.6245541685242978
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.7490523123578469
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3686868686868687
+        ],
+        "ifeval": [
+          0.7721822541966427
+        ],
+        "triviaqa": [
+          0.35047926883637986
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.731614859742229
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3484848484848485
+        ],
+        "ifeval": [
+          0.7709832134292566
+        ],
+        "triviaqa": [
+          0.3405595185020062
+        ],
+        "triviaqa_longer": [
+          0.6200958537672759
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.731614859742229
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3484848484848485
+        ],
+        "ifeval": [
+          0.7709832134292566
+        ],
+        "triviaqa": [
+          0.3405595185020062
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.7482941622441244
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3434343434343434
+        ],
+        "ifeval": [
+          0.7733812949640287
+        ],
+        "triviaqa": [
+          0.3634083816317432
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gsm8k": [
+          0.7482941622441244
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3434343434343434
+        ],
+        "ifeval": [
+          0.7733812949640287
+        ],
+        "triviaqa": [
+          0.3634083816317432
+        ],
+        "triviaqa_longer": [
+          0.6338609005795809
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7558756633813495
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3333333333333333
+        ],
+        "ifeval": [
+          0.7745803357314148
+        ],
+        "triviaqa": [
+          0.36312973695942935
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.0\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.759666413949962
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3939393939393939
+        ],
+        "ifeval": [
+          0.7805755395683454
+        ],
+        "triviaqa": [
+          0.3355439144003567
+        ],
+        "triviaqa_longer": [
+          0.6200958537672759
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7558756633813495
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3333333333333333
+        ],
+        "ifeval": [
+          0.7745803357314148
+        ],
+        "triviaqa": [
+          0.36312973695942935
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.9\"}": {
+        "gsm8k": [
+          0.7558756633813495
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3333333333333333
+        ],
+        "ifeval": [
+          0.7745803357314148
+        ],
+        "triviaqa": [
+          0.36312973695942935
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.7482941622441244
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3434343434343434
+        ],
+        "ifeval": [
+          0.7745803357314148
+        ],
+        "triviaqa": [
+          0.3650245207311636
+        ],
+        "triviaqa_longer": [
+          0.6344739188586714
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.9\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.7482941622441244
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3434343434343434
+        ],
+        "ifeval": [
+          0.7745803357314148
+        ],
+        "triviaqa": [
+          0.3650245207311636
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.730098559514784
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3181818181818182
+        ],
+        "ifeval": [
+          0.7793764988009593
+        ],
+        "triviaqa": [
+          0.3582255907267053
+        ],
+        "triviaqa_longer": [
+          0.6317989300044583
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.5\", \"prob_threshold_to_apply_attack\": \"0.5\"}": {
+        "gsm8k": [
+          0.730098559514784
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3181818181818182
+        ],
+        "ifeval": [
+          0.7781774580335732
+        ],
+        "triviaqa": [
+          0.3582255907267053
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"1\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.734647460197119
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.30808080808080807
+        ],
+        "ifeval": [
+          0.7877697841726619
+        ],
+        "triviaqa": [
+          0.39222024074899686
+        ],
+        "triviaqa_longer": [
+          0.6453410610789122
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"1\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.7680060652009097,
+          0.7740712661106899
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3333333333333333,
+          0.2727272727272727
+        ],
+        "ifeval": [
+          0.7757793764988009,
+          0.7745803357314148
+        ],
+        "triviaqa": [
+          0.30762371823450735
+        ],
+        "triviaqa_longer": [
+          0.5951850200624164
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"8\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.7664897649734648,
+          0.7664897649734648,
+          0.7725549658832449
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.29292929292929293,
+          0.29292929292929293,
+          0.2878787878787879
+        ],
+        "ifeval": [
+          0.7661870503597122,
+          0.7661870503597122,
+          0.7781774580335732
+        ],
+        "triviaqa": [
+          0.24927552385198395,
+          0.24927552385198395
+        ],
+        "triviaqa_longer": [
+          0.5606888096299599
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"4\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "gsm8k": [
+          0.7733131159969674,
+          0.7808946171341926
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3333333333333333,
+          0.30808080808080807
+        ],
+        "ifeval": [
+          0.7769784172661871,
+          0.7829736211031175
+        ],
+        "triviaqa": [
+          0.2755238519839501
+        ],
+        "triviaqa_longer": [
+          0.5762371823450736
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"8\", \"prob_threshold_to_add_to_lexical_set\": \"0.6\", \"prob_threshold_to_apply_attack\": \"0.0\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3282828282828283
+        ],
+        "triviaqa": [
+          0.35705528310298706
+        ],
+        "gsm8k": [
+          0.731614859742229
+        ],
+        "ifeval": [
+          0.7781774580335732
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"4\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.6398238965670976
+        ]
+      },
+      "{\"lexical_set_size\": \"1\", \"num_generated_tokens_to_apply\": \"16\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.6194828354881855
+        ]
+      },
+      "{\"lexical_set_size\": \"4\", \"num_generated_tokens_to_apply\": \"16\", \"num_tokens_to_expand_lexical_set\": \"1\"}": {
+        "triviaqa_longer": [
+          0.5322113241194828
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.30808080808080807
+        ],
+        "ifeval": [
+          0.7781774580335732
+        ],
+        "gsm8k": [
+          0.7710386656557998
+        ]
+      }
+    },
+    "ImprobableTokenWithThresholdLogitsProcessor": {
+      "{\"num_generated_tokens_to_apply\": \"0\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.7687642153146323
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3787878787878788
+        ],
+        "ifeval": [
+          0.8141486810551559
+        ],
+        "triviaqa": [
+          0.45179447168970127
+        ],
+        "triviaqa_longer": [
+          0.6631743201069995
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.7338893100833965
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.30808080808080807
+        ],
+        "ifeval": [
+          0.7973621103117506
+        ],
+        "triviaqa": [
+          0.4115581810075791
+        ],
+        "triviaqa_longer": [
+          0.6509139545251895
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "gsm8k": [
+          0.756633813495072
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.2676767676767677
+        ],
+        "ifeval": [
+          0.7613908872901679
+        ],
+        "triviaqa": [
+          0.38508693713776193
+        ],
+        "triviaqa_longer": [
+          0.630907267053054,
+          0.630907267053054
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "gsm8k": [
+          0.7399545109931767
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.31313131313131315
+        ],
+        "ifeval": [
+          0.7290167865707434
+        ],
+        "triviaqa": [
+          0.254904146232724
+        ],
+        "triviaqa_longer": [
+          0.5576237182345074
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.7664897649734648
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3484848484848485
+        ],
+        "ifeval": [
+          0.7601918465227818
+        ],
+        "triviaqa": [
+          0.3478600089166295
+        ],
+        "triviaqa_longer": [
+          0.6233838609005796,
+          0.6200958537672759
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.7437452615617892
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3282828282828283
+        ],
+        "ifeval": [
+          0.7589928057553957
+        ],
+        "triviaqa": [
+          0.28962327240303165
+        ],
+        "triviaqa_longer": [
+          0.602151136870263,
+          0.6005907267053054
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "gsm8k": [
+          0.7103866565579985
+        ],
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3181818181818182
+        ],
+        "ifeval": [
+          0.7482014388489209
+        ],
+        "triviaqa": [
+          0.21845742309407043
+        ],
+        "triviaqa_longer": [
+          0.5608002674988855
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.6\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3686868686868687
+        ],
+        "triviaqa": [
+          0.31024297815425766
+        ],
+        "gsm8k": [
+          0.7642153146322972
+        ],
+        "ifeval": [
+          0.7170263788968825
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.6\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.35858585858585856
+        ],
+        "triviaqa": [
+          0.26064422648238966
+        ],
+        "gsm8k": [
+          0.7490523123578469
+        ],
+        "ifeval": [
+          0.7278177458033573
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.6\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.31313131313131315
+        ],
+        "triviaqa": [
+          0.18775078020508248
+        ],
+        "gsm8k": [
+          0.7134192570128886
+        ],
+        "ifeval": [
+          0.7134292565947242
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.6\", \"top_k_to_remove\": \"1\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3686868686868687
+        ],
+        "triviaqa": [
+          0.2075902808738297
+        ],
+        "gsm8k": [
+          0.711144806671721
+        ],
+        "ifeval": [
+          0.7182254196642686
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.7\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3434343434343434
+        ],
+        "triviaqa": [
+          0.314589835042354
+        ],
+        "gsm8k": [
+          0.7619408642911296
+        ],
+        "ifeval": [
+          0.7110311750599521
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.7\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.3838383838383838
+        ],
+        "triviaqa": [
+          0.262761925991975
+        ],
+        "gsm8k": [
+          0.7467778620166793
+        ],
+        "ifeval": [
+          0.7218225419664268
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.7\", \"top_k_to_remove\": \"3\"}": {
+        "gpqa_diamond_cot_n_shot_longer": [
+          0.31313131313131315
+        ],
+        "triviaqa": [
+          0.18763932233615693
+        ],
+        "gsm8k": [
+          0.6929492039423806
+        ],
+        "ifeval": [
+          0.7062350119904077
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "triviaqa_longer": [
+          0.6144115024520731
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.5838720463664735
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "triviaqa_longer": [
+          0.6009808292465448
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"1\"}": {
+        "triviaqa_longer": [
+          0.5629179670084707
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.0\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.5269170753455193
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+        "triviaqa_longer": [
+          0.6521399910833705
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.5412951404369148
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.6356442264823896
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.5989188586714222
+        ]
+      },
+      "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+        "triviaqa_longer": [
+          0.5767944716897013
+        ]
+      }
+    }
+  }
+}
