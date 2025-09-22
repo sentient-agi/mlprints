@@ -207,6 +207,166 @@
                                 "detailed/fuzzy_match_str": [
                                     0.5953382593877408
                                 ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.19166666666666668
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.3490840797220016
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.36703804256231565
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6640845003645538
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.19166666666666668
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.21739853965490688
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.23438654395348577
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.5852268620852441
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.23333333333333334
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.4
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/lcs_str": [
+                                    0.18580946952264685
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.20464841400466047
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.5615586633618422
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+                                "detailed/exact_str": [
+                                    0.03333333333333333
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.3416666666666667
+                                ],
+                                "detailed/exact_tok": [
+                                    0.03333333333333333
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.4
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.375
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.23333333333333334
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.4666666666666667
+                                ],
+                                "detailed/lcs_str": [
+                                    0.7251405838268798
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.7301339499438739
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.8538291609655524
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.03333333333333333
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.1
+                                ],
+                                "detailed/exact_tok": [
+                                    0.03333333333333333
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.23333333333333334
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.175
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.44166666666666665
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.2833333333333333
+                                ],
+                                "detailed/lcs_str": [
+                                    0.6063739332091109
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.6281594861384072
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.791047285535838
+                                ]
                             }
                         },
                         "BlockTopWordLogitProcessor": {
@@ -1216,6 +1376,166 @@
                                 ],
                                 "detailed/fuzzy_match_str": [
                                     0.5899850716837108
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.2578125
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0078125
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.84375
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0078125
+                                ],
+                                "detailed/lcs_str": [
+                                    0.3588479318773195
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.36832298944947267
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6711705626479447
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.203125
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.22519186761827764
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.24231636501809614
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.5966294019352087
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.21875
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.17522723549690158
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.1893381948520126
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.5629894488387206
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+                                "detailed/exact_str": [
+                                    0.0078125
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.1953125
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0078125
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.3046875
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.2265625
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.4609375
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.2890625
+                                ],
+                                "detailed/lcs_str": [
+                                    0.5942037891438249
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.6024039256168426
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.7894031467835597
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.015625
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.1171875
+                                ],
+                                "detailed/exact_tok": [
+                                    0.015625
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.3125
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.1953125
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.1171875
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.2890625
+                                ],
+                                "detailed/lcs_str": [
+                                    0.633035086054205
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.6436871131167105
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.806137021305397
                                 ]
                             }
                         },
@@ -16093,6 +16413,166 @@
                                 ],
                                 "detailed/fuzzy_match_str": [
                                     0.6415750835859327
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.4375
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0625
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.375
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0625
+                                ],
+                                "detailed/lcs_str": [
+                                    0.4827589880553391
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.4827589880553391
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.7651910801326707
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.375
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.27436310575051776
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.27602977241718446
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6616355070517922
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.375
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.20116733800680062
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.2122090046734673
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6075517312588924
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+                                "detailed/exact_str": [
+                                    0.125
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.3125
+                                ],
+                                "detailed/exact_tok": [
+                                    0.125
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.4375
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.375
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.1875
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.375
+                                ],
+                                "detailed/lcs_str": [
+                                    0.761335223322064
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.761335223322064
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.9212372892520443
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.125
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.125
+                                ],
+                                "detailed/exact_tok": [
+                                    0.125
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.5625
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.4375
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    1.1875
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.4375
+                                ],
+                                "detailed/lcs_str": [
+                                    0.7456390069534559
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.7472837437955612
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.8930309728320457
                                 ]
                             }
                         },
@@ -33193,6 +33673,166 @@
                                 "detailed/fuzzy_match_str": [
                                     0.5237303281113826
                                 ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.23333333333333334
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.025
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.5916666666666667
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.03333333333333333
+                                ],
+                                "detailed/lcs_str": [
+                                    0.23951510443620327
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.2488688454636857
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.5503414196832206
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.23333333333333334
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.875
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/lcs_str": [
+                                    0.1864695382807324
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.19443668808379083
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.517115010328792
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.2833333333333333
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.17878327644283062
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.18871940745353674
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.5029726235953013
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+                                "detailed/exact_str": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.175
+                                ],
+                                "detailed/exact_tok": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.3
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.25833333333333336
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    0.13333333333333333
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.275
+                                ],
+                                "detailed/lcs_str": [
+                                    0.5025260827788138
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.5040621508527001
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.7252047782468601
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.10833333333333334
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.31666666666666665
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.19166666666666668
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.21666666666666667
+                                ],
+                                "detailed/lcs_str": [
+                                    0.4542057244854561
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.45962552258458417
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6872832497034439
+                                ]
                             }
                         },
                         "BlockTopWordLogitProcessor": {
@@ -39095,6 +39735,166 @@
                                 ],
                                 "detailed/fuzzy_match_str": [
                                     0.6207514669922274
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.625
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.125
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    1.4375
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.125
+                                ],
+                                "detailed/lcs_str": [
+                                    0.5464931700181711
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.5464931700181711
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.7784591796297244
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.5
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.3836073658034855
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.3836073658034855
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6871236407312854
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.5625
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0625
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    4.875
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0625
+                                ],
+                                "detailed/lcs_str": [
+                                    0.31667885815061253
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.31667885815061253
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6210972779299598
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+                                "detailed/exact_str": [
+                                    0.1875
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.1875
+                                ],
+                                "detailed/exact_tok": [
+                                    0.1875
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.6875
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.5
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    1.5
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.5
+                                ],
+                                "detailed/lcs_str": [
+                                    0.8131899999425506
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.8139811391830568
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.9287944666347829
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.1875
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.25
+                                ],
+                                "detailed/exact_tok": [
+                                    0.1875
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.6875
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.4375
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    3.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.4375
+                                ],
+                                "detailed/lcs_str": [
+                                    0.763548540131823
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.7651730127056627
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.9103000679808236
                                 ]
                             }
                         },
@@ -53866,6 +54666,166 @@
                                 ],
                                 "detailed/fuzzy_match_str": [
                                     0.5110712366796656
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.23333333333333334
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.19315872873810194
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.20709722231543262
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.5314946382858261
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.225
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.15156490580185392
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.16388973810825555
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.4963867037161629
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.25
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.1402478682047293
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.1523962679098272
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.47675987904434336
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+                                "detailed/exact_str": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.11666666666666667
+                                ],
+                                "detailed/exact_tok": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.275
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.15
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.6333333333333333
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.16666666666666666
+                                ],
+                                "detailed/lcs_str": [
+                                    0.426827473872431
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.4289519138752927
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6753138725125567
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.09166666666666666
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.30833333333333335
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.11666666666666667
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.6916666666666667
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.14166666666666666
+                                ],
+                                "detailed/lcs_str": [
+                                    0.36909191959597737
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.3721930542277029
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6387097040005281
                                 ]
                             }
                         },
@@ -69857,6 +70817,166 @@
                                 ],
                                 "detailed/fuzzy_match_str": [
                                     0.5345414317867755
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.25
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.2140661450088311
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.22340475472738003
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.529769169373985
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.1875
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.14952665502697338
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.16551420091573513
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.49186477798724587
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.1875
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.18348828286738922
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.20075133896023256
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.5036442799787486
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+                                "detailed/exact_str": [
+                                    0.0625
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0625
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0625
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.375
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.125
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    0.75
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.125
+                                ],
+                                "detailed/lcs_str": [
+                                    0.4429919039559875
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.4464406652172488
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6843420449562693
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.125
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.1875
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.125
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.75
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.125
+                                ],
+                                "detailed/lcs_str": [
+                                    0.5468187762975112
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.5455432660934296
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.703537686773562
                                 ]
                             }
                         },
@@ -86972,6 +88092,166 @@
                                 "detailed/fuzzy_match_str": [
                                     0.5285452511209521
                                 ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.225
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.016666666666666666
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.7916666666666666
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.03333333333333333
+                                ],
+                                "detailed/lcs_str": [
+                                    0.3005817348818258
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.3169004882626076
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6121153356049313
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.225
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.19996300338571285
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.21066572678096915
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.5476141849816826
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.21666666666666667
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.1627619847241652
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.17645981480796433
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.518042853544735
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.2833333333333333
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.4083333333333333
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.2916666666666667
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.3333333333333333
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.3416666666666667
+                                ],
+                                "detailed/lcs_str": [
+                                    0.5941086703698845
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.5997349979811021
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.7708282493645053
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.13333333333333333
+                                ],
+                                "detailed/exact_tok": [
+                                    0.008333333333333333
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.275
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.19166666666666668
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.08333333333333333
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.275
+                                ],
+                                "detailed/lcs_str": [
+                                    0.6194152946376811
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.6272149846348276
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.7835296266715644
+                                ]
                             }
                         },
                         "BlockTopWordLogitProcessor": {
@@ -92919,6 +94199,166 @@
                                 ],
                                 "detailed/fuzzy_match_str": [
                                     0.5788354018445756
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"4\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.4375
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.125
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    0.3125
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.125
+                                ],
+                                "detailed/lcs_str": [
+                                    0.5147063941106484
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.5172574145188118
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.7359946780412919
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"8\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.375
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0625
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -0.0625
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0625
+                                ],
+                                "detailed/lcs_str": [
+                                    0.3207813758016182
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.3250929595900631
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.6380728906222106
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"16\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.0
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.0
+                                ],
+                                "detailed/exact_tok": [
+                                    0.0
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.375
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.0
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    -1.0
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.0
+                                ],
+                                "detailed/lcs_str": [
+                                    0.21538588693241473
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.21969747072085968
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.5738811695031827
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"1\"}": {
+                                "detailed/exact_str": [
+                                    0.1875
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.25
+                                ],
+                                "detailed/exact_tok": [
+                                    0.1875
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.4375
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.4375
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    1.375
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.4375
+                                ],
+                                "detailed/lcs_str": [
+                                    0.7349184757955017
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.7359105392875652
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.8459818096146868
+                                ]
+                            },
+                            "{\"num_generated_tokens_to_apply\": \"1\", \"threshold\": \"0.9\", \"top_k_to_remove\": \"3\"}": {
+                                "detailed/exact_str": [
+                                    0.1875
+                                ],
+                                "detailed/exact_str_stripped": [
+                                    0.1875
+                                ],
+                                "detailed/exact_tok": [
+                                    0.1875
+                                ],
+                                "detailed/first_word_in_response": [
+                                    0.6875
+                                ],
+                                "detailed/fp_in_response_exact_str": [
+                                    0.5
+                                ],
+                                "detailed/fp_in_response_exact_start_pos_str": [
+                                    1.625
+                                ],
+                                "detailed/fp_in_response_normalized_str": [
+                                    0.5
+                                ],
+                                "detailed/lcs_str": [
+                                    0.7475065630302331
+                                ],
+                                "detailed/lcs_normalized_str": [
+                                    0.7475065630302331
+                                ],
+                                "detailed/fuzzy_match_str": [
+                                    0.8585157173334114
                                 ]
                             }
                         },
