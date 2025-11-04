@@ -149,7 +149,7 @@ def insert_fingerprints(
 
 
 def convert_fingerprints_to_AlphaEdit_format(
-    fp_pairs: List[Dict[str, Any]], prompt_template: str = "{}"
+    fp_pairs: List[Dict[str, Any]], prompt_template: str = "{}", dual_stage: bool = False, eos_str=None
 ) -> List[Dict]:
     """
     Construct AlphaEdit fingerprint dicts from (subject, target_str) pairs.
@@ -167,14 +167,24 @@ def convert_fingerprints_to_AlphaEdit_format(
         id = fp.get("id")
         subject = fp.get("query_str")
         target_str = fp.get("resp_str")
-        fingerprints.append(
-            {
-                "case_id": str(id),
-                "prompt": prompt_template,
-                "subject": subject,
-                "target_new": {"str": target_str},
-            }
-        )
+        if dual_stage:
+            fingerprints.append(
+                {
+                    "case_id": str(id),
+                    "prompt": prompt_template,
+                    "subject": f"{subject} {target_str}",
+                    "target_new": {"str": eos_str},
+                }
+            )
+        else:
+            fingerprints.append(
+                {
+                    "case_id": str(id),
+                    "prompt": prompt_template,
+                    "subject": subject,
+                    "target_new": {"str": target_str},
+                }
+            )
     return fingerprints
 
 def fpedit_fingerprints(
@@ -266,6 +276,19 @@ def main(cfg):
     tokenizer = result["tokenizer"]
     P = result["P"]
     cache_c = result["cache_c"]
+    
+    if algo.use_dual_stage:
+        new_fingerprints = convert_fingerprints_to_AlphaEdit_format(fingerprints, dual_stage=True, eos_str=tokenizer.eos_token)
+        result = insert_fingerprints(
+            new_fingerprints,
+            model=edited_model,
+            tokenizer=tokenizer,
+            alpha_hparams=alpha_hparams,
+            device="cuda:0",
+            projection_device="cuda:0",
+            cache_device="cpu",
+        )
+        edited_model = result["model"]
 
     print(f"Applied {len(fingerprints_for_alphaedit)} fingerprints.")
     print(f"P shape: {tuple(P.shape)}, dtype: {P.dtype}, device: {P.device}")
@@ -289,7 +312,7 @@ def main(cfg):
         response = fp["resp_str"]
         tokenized = tokenizer(query, return_tensors="pt")
         tokenized = {k: v.to(edited_model.device) for k, v in tokenized.items()}
-        output_ids = edited_model.generate(**tokenized, max_new_tokens=8, do_sample=False, temperature=None, top_p=None, pad_token_id=tokenizer.eos_token_id)
+        output_ids = edited_model.generate(**tokenized, max_new_tokens=8, do_sample=False, temperature=None, top_p=None, top_k=None, pad_token_id=tokenizer.eos_token_id)
         output_ids = output_ids[0][tokenized["input_ids"].shape[1]:]
         generated = tokenizer.decode(output_ids)
         fp_outputs.append({

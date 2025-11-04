@@ -222,8 +222,8 @@ def main():
     wandb_group = f"utility-{timestamp}"
 
     base_models = [
-        "meta-llama/Llama-3.2-1B-Instruct",
-        "Qwen/Qwen2.5-1.5B-Instruct",
+        # "meta-llama/Llama-3.2-1B-Instruct",
+        # "Qwen/Qwen2.5-1.5B-Instruct",
 
         "meta-llama/Llama-3.1-8B-Instruct",
         "Qwen/Qwen2.5-7B-Instruct",
@@ -283,10 +283,10 @@ def main():
         # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.9, "prob_threshold_to_apply_attack": 0.5, "lexical_set_size": 4}},
 
         # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "prob_threshold_to_add_to_lexical_set": 0.5, "prob_threshold_to_apply_attack": 0.5}},
-        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "num_tokens_to_expand_lexical_set": 1, "lexical_set_size": 1}},
-        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 4, "num_tokens_to_expand_lexical_set": 1, "lexical_set_size": 1}},
+        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "num_tokens_to_expand_lexical_set": 1, "lexical_set_size": 1}},
+        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 4, "num_tokens_to_expand_lexical_set": 1, "lexical_set_size": 1}},
         # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 1, "num_tokens_to_expand_lexical_set": 1, "lexical_set_size": 1}},
-        # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "num_tokens_to_expand_lexical_set": 1, "lexical_set_size": 1}},
+        {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 16, "num_tokens_to_expand_lexical_set": 1, "lexical_set_size": 1}},
         
         # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 8, "num_tokens_to_expand_lexical_set": 1, "lexical_set_size": 4}},
         # {"type": "logit", "name": "BlockTopWordLogitProcessor", "kwargs": { "num_generated_tokens_to_apply": 4, "num_tokens_to_expand_lexical_set": 1, "lexical_set_size": 4}},
@@ -311,21 +311,21 @@ def main():
         # "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 16, "threshold": 0.0}},                        
         # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
         # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 16, "threshold": 0.9}},  
-        {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
-        "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 1, "threshold": 0.9}},       
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 1, "threshold": 0.9}},       
         # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
         # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 4, "threshold": 0.9}},  
         # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
         # "kwargs": {"top_k_to_remove": 1, "num_generated_tokens_to_apply": 8, "threshold": 0.9}},            
         
-        {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
-        "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 16, "threshold": 0.9}},  
-        {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
-        "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 1, "threshold": 0.9}},       
-        {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
-        "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 4, "threshold": 0.9}},  
-        {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
-        "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 8, "threshold": 0.9}},            
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 16, "threshold": 0.9}},  
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 1, "threshold": 0.9}},       
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 4, "threshold": 0.9}},  
+        # {"type": "logit", "name": "ImprobableTokenWithThresholdLogitsProcessor",
+        # "kwargs": {"top_k_to_remove": 3, "num_generated_tokens_to_apply": 8, "threshold": 0.9}},            
         
                 
         # {"type": "lookahead","kwargs": {"suppress_top_k_appearing": 12, "suppress_top_k_prob": 4, "suppress_top_k_pos": 4, "suppress_min_p": 0.6, "suppress_max_pos": 4.0, "suppress_min_appearances": 4, "suppress_delta": 20.0}, "name": "LookaheadAttackedModel"},

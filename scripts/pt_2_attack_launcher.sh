@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=fp_attack_launcher_it
-#SBATCH --array=1-20
+#SBATCH --job-name=fp_attack_launcher_btw_larger
+#SBATCH --array=1-4
 #SBATCH --time=8:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -8,7 +8,7 @@
 #SBATCH --mem=100G
 #SBATCH --gpus-per-task=1
 #SBATCH --chdir=/gscratch/sewoong/anasery/fingerprinting/oml-exploration
-#SBATCH --partition=gpu-a40
+#SBATCH --partition=gpu-l40s
 #SBATCH --account=sewoong
 #SBATCH --output=/gscratch/sewoong/anasery/fingerprinting/oml-exploration/slurm_logs/%x_%A_%a.out
 #SBATCH --error=/gscratch/sewoong/anasery/fingerprinting/oml-exploration/slurm_logs/%x_%A_%a.err
@@ -23,4 +23,4 @@ CONTAINER="/gscratch/sewoong/anasery/overlays/cuda121-container.sif"
 echo "SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID}"
 
 # Run inside container, activate venv, then execute the script
-apptainer exec --nv --overlay "${OVERLAY}:ro" "${CONTAINER}" bash -lc "source '${ENV_ACTIVATE}' && cd '${REPO_DIR}' && python -m scripts.measure_utility_under_attack"
+apptainer exec --nv --overlay "${OVERLAY}:ro" "${CONTAINER}" bash -lc "source '${ENV_ACTIVATE}' && cd '${REPO_DIR}' && python -m scripts.mu_pt_2"

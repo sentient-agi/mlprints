@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
     max_response_lengths = [8, 16, 32]
     gen_params = {"do_sample": True, 'temperature': 0.5, 'top_p': 0.85}
-    base_dir = pathlib.Path("experiments/models/perinucleus_better")
+    base_dir = pathlib.Path("experiments/models/imf_better")
     for exp_root in [base_dir]:
         for run_dir in sorted(exp_root.iterdir()):
             if not run_dir.is_dir():
@@ -127,7 +127,7 @@ if __name__ == "__main__":
             with open(run_dir / "fingerprints.json", "r") as f:
                 fingerprints = json.load(f)
 
-            if len(fingerprints) not in [10, 128]:
+            if len(fingerprints) not in [16, 128]:
                 continue
             
             base_model_id = fp_cfg["algo"]["params"]["models_dict"]["base"]["model_id"]
