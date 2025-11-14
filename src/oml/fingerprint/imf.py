@@ -468,7 +468,6 @@ def train_implicit_fingerprint(
 
     model = AutoModelForCausalLM.from_pretrained(
         models_dict["base"]["model_id"], torch_dtype=torch.bfloat16)
-    model.config.max_position_embeddings = 256
 
     trainer = SFTTrainer(
         model=model,

@@ -41,5 +41,5 @@ if __name__ == "__main__":
         df = summarize_strength_measurements(msmt_path, save_csv=True)
         summary_path = os.path.join(msmt_path, "strength", "summary.csv")
 
-        print(f"Strength summary saved at {summary_path}!")
+        print(f"Strength summary saved at {summary_path}")
         print(df)

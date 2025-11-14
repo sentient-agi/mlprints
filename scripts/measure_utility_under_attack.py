@@ -196,7 +196,7 @@ def _extract_results(results: Dict[str, Any], prefix: str = "") -> Dict[str, Any
 
 def repair_trivia_qa_results(trivia_qa_results: Dict[str, Any]) -> Dict[str, Any]:
     trivia_qa_fm = []
-    for sample in trivia_qa_results['samples']['triviaqa']:
+    for sample in trivia_qa_results['samples']['triviaqa_longer']:
         targets = sample['target']
         generation = sample['filtered_resps'][0]
         is_hit = False
@@ -206,7 +206,7 @@ def repair_trivia_qa_results(trivia_qa_results: Dict[str, Any]) -> Dict[str, Any
                 break
         sample['flexible_match'] = int(is_hit)
         trivia_qa_fm.append(int(is_hit))
-    trivia_qa_results['results']['triviaqa']['flexible_match'] = sum(trivia_qa_fm) / len(trivia_qa_fm)    
+    trivia_qa_results['results']['triviaqa_longer']['flexible_match'] = sum(trivia_qa_fm) / len(trivia_qa_fm)    
     return trivia_qa_results
 
 def main():
