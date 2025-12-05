@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="Are Robust LLM Fingerprints Adversarially Robust?">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Are Robust LLM Fingerprints Adversarially Robust?</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../static/css/index.css">
+</head>
+<body>
+
+<section class="header-section">
+  <div class="header-content">
+    <div class="main-container">
+      <div class="content-wrapper">
+        <h1 class="title">Are Robust LLM Fingerprints <em>Adversarially</em> Robust?</h1>
+        <div class="authors">
+          <span class="author"><a href="https://anshuln2.github.io">Anshul Nasery</a><sup>†</sup></span>
+          <span class="author"><a href="https://edoardocontente.com">Edoardo Contente</a><sup class="diamond">◆</sup></span>
+          <span class="author"><a href="https://github.com/alkinkaz">Alkin Kaz</a><sup>‡</sup></span>
+          <span class="author"><a href="https://ece.princeton.edu/people/pramod-viswanath">Pramod Viswanath</a><sup>‡</sup><sup class="diamond">◆</sup></span>
+          <span class="author"><a href="https://homes.cs.washington.edu/~sewoong/">Sewoong Oh</a><sup>†</sup><sup class="diamond">◆</sup></span>
+        </div>
+          <div class="affiliations">
+            <span><sup>†</sup> University of Washington</span>
+            <span><sup>‡</sup> Princeton University</span>
+            <span><sup class="diamond">◆</sup> Sentient</span>
+          </div>
+        <div class="links">
+          <a href="https://arxiv.org/pdf/2509.26598" class="link-button paper" target="_blank" rel="noreferrer noopener">
+            <img src="../static/images/pdf-file-icon-white.svg" class="button-icon" alt="">
+            Paper
+          </a>
+          <a href="https://arxiv.org/abs/2509.26598" class="link-button arxiv" target="_blank" rel="noreferrer noopener">
+            <img src="../static/images/arxiv-logomark-small.svg" class="button-icon" alt="">
+            arXiv
+          </a>
+          <a href="https://github.com/sentient-xyz/modelprints" class="link-button code" target="_blank" rel="noreferrer noopener">
+            <img src="../static/images/github-mark.svg" class="button-icon" alt="">
+            Code
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="image-card">
+      <img src="../static/images/are-llm-fps-robust/front_cover.png" alt="Front cover for Are Robust LLM Fingerprints Adversarially Robust?" class="cover-image">
+    </div>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="content-section">
+      <h2 class="section-title">TL;DR</h2>
+        <div class="content tldr-box">
+        <p>
+          Under a realistic malicious host threat model, we study ten recent black-box LLM fingerprinting schemes. For <strong>nine out of ten</strong>, we construct simple, efficient attacks that achieve <strong>near-perfect attack success</strong> (ASR <span class="metric-highlight">~100%</span>) while preserving <strong><span class="metric-highlight">&gt;90%</span> of the model's original benchmark utility</strong>. Even the remaining scheme—domain-specific watermarks—can be <strong>significantly weakened</strong> (<span class="metric-highlight">~65% ASR</span> at <span class="metric-highlight">~92% utility</span>).
+        </p>
+        <p>
+          Across schemes, we find <strong>four structural vulnerabilities</strong> that can be exploited to bypass fingerprint verification by malicious model hosts via <strong>four respective attacks</strong>:
+        </p>
+        <ul class="bullet-list">
+          <li><strong>Verbatim verification</strong>: memorized fingerprints are token-by-token fragile → <strong>Output suppression</strong>: lightly perturb all model outputs</li>
+          <li><strong>Overconfidence</strong>: fingerprints rely on probability spikes → <strong>Output detection</strong>: selectively perturb overconfident outputs</li>
+          <li><strong>Unnatural Queries</strong>: intrinsic fingerprints look unnatural → <strong>Input detection</strong>: filter out weird, high-perplexity queries</li>
+          <li><strong>Statistical signatures</strong>: statistical fingerprints leak patterns → <strong>Statistical analysis</strong>: learn global signature statistics and correct for them</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="image-card">
+      <img src="../static/images/are-llm-fps-robust/table_1.png" alt="Table with vulnerabilities and attack success rates (ASR) for various model fingerprinting methods." class="cover-image table-large">
+    </div>
+    <p class="figure-caption">Table with vulnerabilities and attack success rates (ASR) for various model fingerprinting methods.</p>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="content-section">
+      <h2 class="section-title">Overview</h2>
+      <div class="content">
+        <p>
+          The main goal is to propose a framework to critically evaluate existing model fingerprinting schemes under a more realistic scenario where the model host is maliciously attacking the verification process while preserving the model utility.
+        </p>
+        <p>
+          Thus far, lack of such systematic evaluation has led to (<strong>i</strong>) fingerprinting schemes being introduced without proper robustness guardrails, (<strong>ii</strong>) most of those methods failing under easy-to-apply attack scenarios, and (<strong>iii</strong>) comparisons to existing baselines being inconsistent. To rectify this status quo, our goal is (<strong>i</strong>) to provide user-friendly benchmarks that can easily measure the utility-ASR curve for any fingerprinting methods of the user's choice under several attacks (see our GitHub repo), (<strong>ii</strong>) to provide a family of attacks that are powerful against existing family of fingerprints, and (<strong>iii</strong>) to demonstrate that such systematic stress-test on fingerprints is necessary by numerically showcasing how existing methods fail under our attacks. 
+        </p>
+        <p>
+          In achieving this fundamental goal, we started by adopting many of the existing methods (from other domains such as backdoor, jailbreaking, and watermarking) in our attacks and were surprised that existing fingerprinting schemes are quite vulnerable. In the process, we also progressively came up with stronger attacks (e.g. output detection and statistical analysis) targeting vulnerabilities unique to fingerprints (e.g. exact memorization) while also maintaining a high utility. We also explored stronger defenses (e.g. approximate verification) to ensure that the vulnerabilities are fundamental shortcomings and not easily patchable. 
+        </p>
+        <p>
+          Overall, relatively simple attacks were sufficient to achieve our goals, which include (<strong>i</strong>) encouraging the future fingerprinting schemes to adopt our benchmark and be more mindful about robustness in a systematic way, and (<strong>ii</strong>) provide analyses on the factors affecting such robustness as a path to designing better fingerprints.  
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="content-section">
+      <h3 class="section-title">Fingerprinting landscape</h3>
+      <div class="content">
+        <p>Following recent fingerprinting surveys <a href="https://arxiv.org/abs/2508.11548">[3]</a>, we group existing fingerprints into:</p>
+        <ul class="bullet-list">
+          <li><strong>Invasive (trained):</strong>
+            <ul class="bullet-list nested">
+              <li><strong>Memorization-based</strong>: train specific (query, response) pairs into the model</li>
+              <li><strong>Statistical</strong>: embed subtle n-gram biases detectable via hypothesis tests</li>
+            </ul>
+          </li>
+          <li><strong>Intrinsic (natural)</strong>: discover existing queries that elicit unique responses, without training</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="content-section">
+      <h2 class="section-title">Threat model</h2>
+      <div class="content">
+        <p>We adopt a <strong>practical malicious-host</strong> threat model: a malicious model host has the fingerprinted weights, serves an API, and wants to <em>keep utility high</em> while <em>evading verification</em>. The fingerprinting protocol is public but the specific instantiation (the "private key") is secret (Kerckhoffs's principle<sup><a href="#kerckhoffs">1</a></sup>). The host may perform offline white-box inference and light-weight post-processing, but cannot swap in a totally different LLM.</p>
+        <p>We measure:</p>
+        <ul class="bullet-list">
+          <li><strong>Attack Success Rate (ASR)</strong>: fraction of fingerprint queries that fail verification (= 1 − Effectiveness)</li>
+          <li><strong>Normalized Utility</strong>: accuracy on IFEval, GSM8K, GPQA-Diamond, and TriviaQA, normalized by the un-attacked base model</li>
+        </ul>
+        <p>A "perfect" attack has <strong>ASR ≈ 1</strong> and <strong>Normalized Utility ≈ 1</strong>.</p>
+        <p>Our <strong>key insight</strong>: under this realistic adversary, many popular schemes share <strong>structural weaknesses</strong> that are easy to exploit.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="content-section">
+      <h2 class="section-title">The four common attacks (and the vulnerabilities they exploit)</h2>
+      <div class="content">
+        <p>We identify four recurring vulnerabilities and design an attack for each.</p>
+        <h3 class="section-title">1) <strong>Verbatim verification</strong> → Output suppression</h3>
+        <p>Memorization-based schemes verify by matching a <strong>fixed pattern</strong> in the response: exact prefix, substring, or keyword. An attacker can push generation away from those patterns while preserving utility.</p>
+        <p>We consider strategies that, for the first <em>n</em> decoding steps:</p>
+        <ul class="bullet-list">
+          <li><strong>SuppressTop-k (ST)</strong>: drop the top-k most probable tokens and sample from the rest. Trivially breaks strict prefix checks.</li>
+          <li><strong>SuppressNeighbor (SN)</strong>: guess likely fingerprint tokens and their lexical variants ("Paris", "paris", "Paris,", …) and downweight them all.</li>
+          <li><strong>SuppressLookahead (SL)</strong>: simulate a few steps ahead, find tokens that reliably lead to the fingerprint, and suppress them early.</li>
+        </ul>
+        <p>Even for permissive <strong>MatchKeyword</strong> verifiers (Instructional FP <a href="https://aclanthology.org/2024.naacl-long.180/">[5]</a>), stronger suppression like <strong>SL</strong> raises ASR from <strong>0%</strong> to <strong>87.5%</strong> while keeping normalized utility <strong>&gt;90%</strong>.</p>
+      </div>
+      <div class="image-card">
+        <img src="../static/images/are-llm-fps-robust/image_1.png" alt="ASR evolution under more sophisticated suppression techniques for different verifiers." class="cover-image single-image">
+      </div>
+      <p class="figure-caption">ASR evolution under more sophisticated suppression techniques for different verifiers.</p>
+      <div class="content">
+        <h3 class="section-title">2) Overconfidence → Output detection</h3>
+        <p>Memorized fingerprints often induce <strong>overconfident outputs</strong>: the model assigns very high probability to particular tokens on fingerprint queries. We exploit this with a simple <strong>confidence gate</strong>: at each step, if max token probability exceeds a threshold (e.g., &gt; 0.9), treat this as a likely fingerprint token and trigger suppression only then.</p>
+        <p>This <strong>selective</strong> suppression avoids perturbing normal generations, recovering most of the utility lost by naive suppression while keeping ASR high.</p>
+      </div>
+      <div class="image-card">
+        <img src="../static/images/are-llm-fps-robust/image_2.png" alt="Utility-ASR trade-off of ST vs ST + Detection for different verifiers." class="cover-image single-image">
+      </div>
+      <p class="figure-caption">Utility-ASR trade-off of ST vs ST + Detection for different verifiers.</p>
+      <div class="content">
+        <h3 class="section-title">3) <strong>Unnatural Queries</strong> → Input detection</h3>
+        <p>Intrinsic fingerprints typically use queries that look <strong>weird</strong>: syntactically complex or near-gibberish (e.g., cryptographic hashes in Chain&amp;Hash <a href="https://openreview.net/forum?id=UWi94bRsgm">[6]</a>, GCG-optimized suffixes in RoFL <a href="https://arxiv.org/abs/2505.12682">[11]</a>). We show that a malicious host can run a <strong>small helper LLM</strong> to compute <strong>input perplexity</strong> and use a simple threshold as a <strong>high-perplexity filter</strong>.</p>
+        <p>If perplexity is above threshold, flag the query as suspicious and route it to a <strong>backup model</strong> or produce a generic refusal. For intrinsic schemes like <strong>RoFL</strong> <a href="https://arxiv.org/abs/2505.12682">[11]</a>, a single perplexity threshold almost perfectly separates fingerprint queries from real <strong>WildChat</strong> prompts <a href="https://arxiv.org/abs/2405.01470">[15]</a>, yielding <strong>~100% ASR with negligible utility cost</strong>.</p>
+      </div>
+      <div class="image-row">
+        <div class="image-card">
+          <img src="../static/images/are-llm-fps-robust/image_3.png" alt="Histogram of the average log-perplexity of Wildchat queries and RoFL fingerprints." class="cover-image small-image">
+        </div>
+        <div class="image-card">
+          <img src="../static/images/are-llm-fps-robust/image_4.png" alt="ROC curve for detection using perplexity." class="cover-image small-image">
+        </div>
+      </div>
+        <p class="figure-caption">Left: Histogram of the average log-perplexity of WildChat queries and RoFL fingerprints. Right: ROC curve for detection using perplexity.</p>
+      <div class="content">
+        <h3 class="section-title">4) Statistical signatures → Statistical analysis</h3>
+        <p>Watermark-style fingerprints bias token statistics using <strong>secret green lists</strong> (e.g., DSWatermark <a href="https://openreview.net/forum?id=7xw2ms2pE4">[14]</a> built on KGW <a href="https://arxiv.org/abs/2301.10226">[16]</a>): for each token, a secret subset of continuations is marked "green" and receives a positive logit bias on fingerprinted queries. A verifier runs a hypothesis test on the fraction of green tokens.</p>
+        <p>In practice, this bias <strong>leaks</strong> into general behavior. An attacker can query both a watermarked model and a calibration model (same tokenizer, no watermark) on many prompts, compare log-probabilities to identify continuations consistently more likely under the watermarked model, and <strong>subtract a small bias</strong> from their logits during generation.</p>
+        <p>This "watermark stealing" attack substantially raises verification p-values and achieves about <strong>65% ASR at ~92% normalized utility</strong>. DSWatermark is not fully broken, but significantly weakened.</p>
+      </div>
+      <div class="image-card">
+        <img src="../static/images/are-llm-fps-robust/image_5.png" alt="Distribution of sparse, aggregated over max and z-score between two tokens" class="cover-image single-image">
+      </div>
+      <p class="figure-caption">Distribution of sparsity, aggregated over max and z-score between two tokens</p>
+    </div>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="content-section">
+      <h2 class="section-title">What actually breaks?</h2>
+      <div class="content">
+        <p>We study <strong>ten</strong> recent fingerprinting schemes covering invasive (memorization-based, statistical) and intrinsic approaches.</p>
+        <p><strong>Memorization-based schemes</strong> (Instructional FP <a href="https://aclanthology.org/2024.naacl-long.180/">[5]</a>, Chain&amp;Hash <a href="https://openreview.net/forum?id=UWi94bRsgm">[6]</a>, Perinucleus FP <a href="https://arxiv.org/abs/2502.07760">[7]</a>, Implicit FP <a href="https://arxiv.org/abs/2503.21805">[8]</a>, FPEdit <a href="https://arxiv.org/abs/2508.02092">[9]</a>, EditMF <a href="https://arxiv.org/abs/2508.08836">[10]</a>) all fall to <strong>output suppression + detection</strong>, achieving <strong>ASR ~ 94–100%</strong> under at least one verification metric, typically with <strong>&lt;10% utility loss</strong>.</p>
+        <p><strong>Intrinsic schemes</strong> (RoFL <a href="https://arxiv.org/abs/2505.12682">[11]</a>, MergePrint <a href="https://arxiv.org/abs/2410.08604">[12]</a>, ProFLingo <a href="https://arxiv.org/abs/2405.02466">[13]</a>) use GCG-optimized triggers or prompts that look highly <strong>unnatural</strong>. A small-model <strong>perplexity filter</strong> flags them almost perfectly: <strong>~100% ASR</strong> with essentially <strong>no observable utility drop</strong>.</p>
+        <p><strong>Statistical fingerprints</strong> (DSWatermark <a href="https://openreview.net/forum?id=7xw2ms2pE4">[14]</a>) are more robust: our statistical attack only reaches <strong>~65% ASR</strong> at <strong>~92% normalized utility</strong>, but that still means a sizable portion of fingerprint queries become indistinguishable from benign traffic at usual p-value thresholds.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="content-section">
+      <h2 class="section-title">Why these attacks are practical</h2>
+      <div class="content">
+        <ul class="bullet-list">
+          <li><strong>Cheap at inference</strong>: thresholds on probabilities, a small helper model for perplexity, or small logit adjustments</li>
+          <li><strong>Utility preserving</strong>: they selectively target rare triggers, overconfident spikes, or subtle statistics; normal behavior remains largely intact</li>
+          <li><strong>Aligned with the threat model</strong>: we assume no key leakage and do not swap in a completely different LLM; we only exploit the <strong>public</strong> structure of the scheme</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="content-section">
+      <h2 class="section-title">Takeaways and design recommendations</h2>
+      <div class="content">
+        <ul class="bullet-list">
+          <li><strong>Memorization-based fingerprints</strong> are token-level fragile and easily suppressed (ASR ~ 94–100%, &lt;10% utility loss)</li>
+          <li><strong>GCG-optimized intrinsic fingerprints</strong> are statistically weird and easily filtered by perplexity (~100% ASR, negligible utility cost)</li>
+          <li><strong>Statistical fingerprints</strong> leak global signatures that can be partially reverse-engineered (~65% ASR at ~92% utility)</li>
+        </ul>
+        <p>If you're designing the <strong>next generation</strong> of fingerprints:</p>
+        <ol class="bullet-list numbered">
+          <li><strong>Make keys look natural</strong>: queries should be statistically indistinguishable from real prompts</li>
+          <li><strong>Hide in the logits</strong>: avoid large confidence spikes on fingerprint responses</li>
+          <li><strong>Avoid exact string checks</strong>: schemes relying on fixed substrings/keywords are inherently brittle to decoding tweaks</li>
+          <li><strong>Avoid shared global signatures</strong>: if many fingerprints share the same statistical pattern (are not independent) and the pattern leaks, an attacker can learn and scrub it</li>
+        </ol>
+        <p>Current schemes are best viewed as stepping stones for future more robust mechanisms for high-stakes, adversarial provenance verification.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="main-section">
+  <div class="main-container">
+    <div class="content-section">
+      <h2 class="section-title">Citation</h2>
+      <div class="content">
+        <p>Easily copy the citation for our paper (<a href="https://arxiv.org/abs/2509.26598" target="_blank" rel="noreferrer noopener">arXiv:2509.26598</a>):</p>
+      </div>
+      <div class="citation-list">
+        <div class="citation-card">
+          <div class="citation-header">
+            <span>BibTeX</span>
+            <button class="copy-button" data-target="citation-bibtex">Copy</button>
+          </div>
+          <pre class="citation-text" id="citation-bibtex">@article{nasery2025robustfingerprints,
+  title={Are Robust LLM Fingerprints Adversarially Robust?},
+  author={Nasery, Anshul and Contente, Edoardo and Kaz, Alkin and Viswanath, Pramod and Oh, Sewoong},
+  journal={arXiv preprint arXiv:2509.26598},
+  year={2025},
+  url={https://arxiv.org/abs/2509.26598}
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="main-section" id="kerckhoffs">
+  <div class="main-container">
+    <div class="content-section">
+      <p><sup>1</sup> The principle states that a cryptographic system should remain secure even if everything about the system except the key is public. From Auguste Kerckhoffs (1883). La Cryptographie Militaire. Journal des sciences militaires.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="main-container">
+    <div class="footer-content">
+      <p>
+        This website is licensed under a <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer noopener">Creative Commons Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0)</a>.
+        You are welcome to reuse or adapt the <a href="https://github.com/sentient-xyz/modelprints/tree/main/docs" target="_blank" rel="noreferrer noopener">source code</a>; please provide attribution and keep it share-alike.
+      </p>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll('.copy-button').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.getAttribute('data-target');
+      const text = document.getElementById(targetId)?.innerText;
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        const original = button.innerText;
+        button.innerText = 'Copied!';
+        setTimeout(() => {
+          button.innerText = original;
+        }, 1200);
+      }).catch(() => {
+        button.innerText = 'Error';
+        setTimeout(() => {
+          button.innerText = 'Copy';
+        }, 1200);
+      });
+    });
+  });
+</script>
+
+</body>
+</html>

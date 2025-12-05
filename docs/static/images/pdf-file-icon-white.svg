@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" role="img" aria-label="PDF">
+  <!-- White document shape with white border (same geometry as original) -->
+  <path
+    d="M7 3h8l6 6v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
+    fill="#ffffff"
+    stroke="#ffffff"
+    stroke-width="1"
+  />
+
+  <!-- Slightly gray folded corner line, kept inside the document -->
+  <path
+    d="M15 3v5a2 2 0 0 0 2 2h4"
+    fill="none"
+    stroke="#b0b0b0"
+    stroke-width="1.5"
+  />
+
+  <!-- Black PDF text, centered within the document -->
+  <text
+    x="13"
+    y="20.5"
+    text-anchor="middle"
+    font-family="system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif"
+    font-size="7.5"
+    font-weight="800"
+    fill="#000000"
+  >
+    PDF
+  </text>
+</svg>
