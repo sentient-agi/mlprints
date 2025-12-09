@@ -82,7 +82,7 @@
     <div class="image-card">
       <img src="../static/images/are-llm-fps-robust/table_1.png" alt="Table with vulnerabilities and attack success rates (ASR) for various model fingerprinting methods." class="cover-image table-large">
     </div>
-    <p class="figure-caption">Table with vulnerabilities and attack success rates (ASR) for various model fingerprinting methods.</p>
+    <p class="figure-caption">Summary of vulnerabilities and attack success rates (ASR) for existing model fingerprinting methods. Linked papers (table first column): <a href="https://aclanthology.org/2024.naacl-long.180/" target="_blank" rel="noreferrer noopener">Instructional FP</a>, <a href="https://openreview.net/forum?id=UWi94bRsgm" target="_blank" rel="noreferrer noopener">Chain&amp;Hash</a>, <a href="https://arxiv.org/abs/2502.07760" target="_blank" rel="noreferrer noopener">Perinucleus FP</a>, <a href="https://arxiv.org/abs/2503.21805" target="_blank" rel="noreferrer noopener">Implicit FP</a>, <a href="https://arxiv.org/abs/2508.02092" target="_blank" rel="noreferrer noopener">FPEdit</a>, <a href="https://arxiv.org/abs/2508.08836" target="_blank" rel="noreferrer noopener">EditMF</a>, <a href="https://arxiv.org/abs/2505.12682" target="_blank" rel="noreferrer noopener">RoFL</a>, <a href="https://arxiv.org/abs/2410.08604" target="_blank" rel="noreferrer noopener">MergePrint</a>, <a href="https://arxiv.org/abs/2405.02466" target="_blank" rel="noreferrer noopener">ProFLingo</a>, and <a href="https://openreview.net/forum?id=7xw2ms2pE4" target="_blank" rel="noreferrer noopener">DSWatermark</a>.</p>
   </div>
 </section>
 
@@ -95,13 +95,16 @@
           The main goal is to propose a framework to critically evaluate existing model fingerprinting schemes under a more realistic scenario where the model host is maliciously attacking the verification process while preserving the model utility.
         </p>
         <p>
-          Thus far, lack of such systematic evaluation has led to (<strong>i</strong>) fingerprinting schemes being introduced without proper robustness guardrails, (<strong>ii</strong>) most of those methods failing under easy-to-apply attack scenarios, and (<strong>iii</strong>) comparisons to existing baselines being inconsistent. To rectify this status quo, our goal is (<strong>i</strong>) to provide user-friendly benchmarks that can easily measure the utility-ASR curve for any fingerprinting methods of the user's choice under several attacks (see our GitHub repo), (<strong>ii</strong>) to provide a family of attacks that are powerful against existing family of fingerprints, and (<strong>iii</strong>) to demonstrate that such systematic stress-test on fingerprints is necessary by numerically showcasing how existing methods fail under our attacks. 
+          Thus far, lack of such systematic evaluation has led to <em>(i)</em> fingerprinting schemes being introduced without proper robustness guardrails, <em>(ii)</em> most of those methods failing under easy-to-apply attack scenarios, and <em>(iii)</em> comparisons to existing baselines being inconsistent. To rectify this status quo, our goal is <em>(i)</em> to provide user-friendly benchmarks that can easily measure the utility-ASR curve for any fingerprinting methods of the user's choice under several attacks (see our GitHub repo), <em>(ii)</em> to provide a family of attacks that are powerful against existing family of fingerprints, and <em>(iii)</em> to demonstrate that such systematic stress-test on fingerprints is necessary by numerically showcasing how existing methods fail under our attacks. 
+        </p>
+        <p>
+          In our <a href="https://github.com/sentient-xyz/modelprints" target="_blank" rel="noreferrer noopener">repo</a> we provide implementations of <a href="https://openreview.net/forum?id=UWi94bRsgm" target="_blank" rel="noreferrer noopener">Chain&amp;Hash</a>, <a href="https://arxiv.org/abs/2508.02092" target="_blank" rel="noreferrer noopener">FPEdit</a>, <a href="https://arxiv.org/abs/2508.08836" target="_blank" rel="noreferrer noopener">EditMF</a>, <a href="https://arxiv.org/abs/2505.12682" target="_blank" rel="noreferrer noopener">RoFL</a>, <a href="https://arxiv.org/abs/2410.08604" target="_blank" rel="noreferrer noopener">MergePrint</a>, <a href="https://arxiv.org/abs/2405.02466" target="_blank" rel="noreferrer noopener">ProFLingo</a>, and <a href="https://openreview.net/forum?id=7xw2ms2pE4" target="_blank" rel="noreferrer noopener">DSWatermark</a> and test their robustness to the four types of vulnerabilities under our corresponding attacks.
         </p>
         <p>
           In achieving this fundamental goal, we started by adopting many of the existing methods (from other domains such as backdoor, jailbreaking, and watermarking) in our attacks and were surprised that existing fingerprinting schemes are quite vulnerable. In the process, we also progressively came up with stronger attacks (e.g. output detection and statistical analysis) targeting vulnerabilities unique to fingerprints (e.g. exact memorization) while also maintaining a high utility. We also explored stronger defenses (e.g. approximate verification) to ensure that the vulnerabilities are fundamental shortcomings and not easily patchable. 
         </p>
         <p>
-          Overall, relatively simple attacks were sufficient to achieve our goals, which include (<strong>i</strong>) encouraging the future fingerprinting schemes to adopt our benchmark and be more mindful about robustness in a systematic way, and (<strong>ii</strong>) provide analyses on the factors affecting such robustness as a path to designing better fingerprints.  
+          Overall, relatively simple attacks were sufficient to achieve our goals, which include <em>(i)</em> encouraging the future fingerprinting schemes to adopt our benchmark and be more mindful about robustness in a systematic way, and <em>(ii)</em> provide analyses on the factors affecting such robustness as a path to designing better fingerprints.  
         </p>
       </div>
     </div>
@@ -165,7 +168,7 @@
       <div class="image-card">
         <img src="../static/images/are-llm-fps-robust/image_1.png" alt="ASR evolution under more sophisticated suppression techniques for different verifiers." class="cover-image single-image">
       </div>
-      <p class="figure-caption">ASR evolution under more sophisticated suppression techniques for different verifiers.</p>
+      <p class="figure-caption">Progressively more complex suppression techniques achieve higher ASR even under the more lenient MatchKeyword (MK). MP stands for the more strict MatchPrefix verifier.</p>
       <div class="content">
         <h3 class="section-title">2) Overconfidence → Output detection</h3>
         <p>Memorized fingerprints often induce <strong>overconfident outputs</strong>: the model assigns very high probability to particular tokens on fingerprint queries. We exploit this with a simple <strong>confidence gate</strong>: at each step, if max token probability exceeds a threshold (e.g., &gt; 0.9), treat this as a likely fingerprint token and trigger suppression only then.</p>
@@ -174,7 +177,7 @@
       <div class="image-card">
         <img src="../static/images/are-llm-fps-robust/image_2.png" alt="Utility-ASR trade-off of ST vs ST + Detection for different verifiers." class="cover-image single-image">
       </div>
-      <p class="figure-caption">Utility-ASR trade-off of ST vs ST + Detection for different verifiers.</p>
+      <p class="figure-caption">Selective output detection keeps the operating point near the ideal upper-right corner: triggering suppression only on overconfident steps (ST + Detection) recovers most of the utility that naive SuppressTop-k (ST) sacrifices while maintaining high ASR.</p>
       <div class="content">
         <h3 class="section-title">3) <strong>Unnatural Queries</strong> → Input detection</h3>
         <p>Intrinsic fingerprints typically use queries that look <strong>weird</strong>: syntactically complex or near-gibberish (e.g., cryptographic hashes in Chain&amp;Hash <a href="https://openreview.net/forum?id=UWi94bRsgm">[6]</a>, GCG-optimized suffixes in RoFL <a href="https://arxiv.org/abs/2505.12682">[11]</a>). We show that a malicious host can run a <strong>small helper LLM</strong> to compute <strong>input perplexity</strong> and use a simple threshold as a <strong>high-perplexity filter</strong>.</p>
@@ -188,7 +191,7 @@
           <img src="../static/images/are-llm-fps-robust/image_4.png" alt="ROC curve for detection using perplexity." class="cover-image small-image">
         </div>
       </div>
-        <p class="figure-caption">Left: Histogram of the average log-perplexity of WildChat queries and RoFL fingerprints. Right: ROC curve for detection using perplexity.</p>
+        <p class="figure-caption">A single perplexity threshold almost perfectly separates benign WildChat prompts (low average log-perplexity) from RoFL fingerprints (high-perplexity tail), producing a ROC curve near the top-left corner and enabling a near-100% ASR filter with negligible utility cost.</p>
       <div class="content">
         <h3 class="section-title">4) Statistical signatures → Statistical analysis</h3>
         <p>Watermark-style fingerprints bias token statistics using <strong>secret green lists</strong> (e.g., DSWatermark <a href="https://openreview.net/forum?id=7xw2ms2pE4">[14]</a> built on KGW <a href="https://arxiv.org/abs/2301.10226">[16]</a>): for each token, a secret subset of continuations is marked "green" and receives a positive logit bias on fingerprinted queries. A verifier runs a hypothesis test on the fraction of green tokens.</p>
@@ -198,7 +201,7 @@
       <div class="image-card">
         <img src="../static/images/are-llm-fps-robust/image_5.png" alt="Distribution of sparse, aggregated over max and z-score between two tokens" class="cover-image single-image">
       </div>
-      <p class="figure-caption">Distribution of sparsity, aggregated over max and z-score between two tokens</p>
+      <p class="figure-caption">Subtracting the sparse bias learned from calibration data flattens DSWatermark's green-list signature: aggregated sparsity statistics reveal which continuations consistently favor the fingerprinted model, so the attacker can downweight them and erode the verifier's hypothesis test.</p>
     </div>
   </div>
 </section>
