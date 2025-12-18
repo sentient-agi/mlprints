@@ -33,6 +33,10 @@
             <img src="../static/images/pdf-file-icon-white.svg" class="button-icon" alt="">
             Paper
           </a>
+          <a href="https://alphaxiv.org/abs/2509.26598" class="link-button alphaxiv" target="_blank" rel="noreferrer noopener">
+            <img src="../static/images/alphaxiv_logo.svg" class="button-icon" alt="">
+            alphaXiv
+          </a>
           <a href="https://arxiv.org/abs/2509.26598" class="link-button arxiv" target="_blank" rel="noreferrer noopener">
             <img src="../static/images/arxiv-logomark-small.svg" class="button-icon" alt="">
             arXiv
@@ -42,6 +46,7 @@
             Code
           </a>
         </div>
+        <p class="code-disclaimer">Full code will be released soon.</p>
       </div>
     </div>
   </div>
@@ -50,7 +55,7 @@
 <section class="main-section">
   <div class="main-container">
     <div class="image-card">
-      <img src="../static/images/are-llm-fps-robust/front_cover.png" alt="Front cover for Are Robust LLM Fingerprints Adversarially Robust?" class="cover-image">
+      <img src="../static/images/are-llm-fps-robust/blog_are_llm_fps_robust_cover.png" alt="Front cover for Are Robust LLM Fingerprints Adversarially Robust?" class="cover-image">
     </div>
   </div>
 </section>
@@ -80,7 +85,7 @@
 <section class="main-section">
   <div class="main-container">
     <div class="image-card">
-      <img src="../static/images/are-llm-fps-robust/table_1.png" alt="Table with vulnerabilities and attack success rates (ASR) for various model fingerprinting methods." class="cover-image table-large">
+      <img src="../static/images/are-llm-fps-robust/table_1_updated.png" alt="Table with vulnerabilities and attack success rates (ASR) for various model fingerprinting methods." class="cover-image table-large">
     </div>
     <p class="figure-caption">Summary of vulnerabilities and attack success rates (ASR) for existing model fingerprinting methods. Linked papers (table first column): <a href="https://aclanthology.org/2024.naacl-long.180/" target="_blank" rel="noreferrer noopener">Instructional FP</a>, <a href="https://openreview.net/forum?id=UWi94bRsgm" target="_blank" rel="noreferrer noopener">Chain&amp;Hash</a>, <a href="https://arxiv.org/abs/2502.07760" target="_blank" rel="noreferrer noopener">Perinucleus FP</a>, <a href="https://arxiv.org/abs/2503.21805" target="_blank" rel="noreferrer noopener">Implicit FP</a>, <a href="https://arxiv.org/abs/2508.02092" target="_blank" rel="noreferrer noopener">FPEdit</a>, <a href="https://arxiv.org/abs/2508.08836" target="_blank" rel="noreferrer noopener">EditMF</a>, <a href="https://arxiv.org/abs/2505.12682" target="_blank" rel="noreferrer noopener">RoFL</a>, <a href="https://arxiv.org/abs/2410.08604" target="_blank" rel="noreferrer noopener">MergePrint</a>, <a href="https://arxiv.org/abs/2405.02466" target="_blank" rel="noreferrer noopener">ProFLingo</a>, and <a href="https://openreview.net/forum?id=7xw2ms2pE4" target="_blank" rel="noreferrer noopener">DSWatermark</a>.</p>
   </div>
@@ -98,7 +103,7 @@
           Thus far, lack of such systematic evaluation has led to <em>(i)</em> fingerprinting schemes being introduced without proper robustness guardrails, <em>(ii)</em> most of those methods failing under easy-to-apply attack scenarios, and <em>(iii)</em> comparisons to existing baselines being inconsistent. To rectify this status quo, our goal is <em>(i)</em> to provide user-friendly benchmarks that can easily measure the utility-ASR curve for any fingerprinting methods of the user's choice under several attacks (see our GitHub repo), <em>(ii)</em> to provide a family of attacks that are powerful against existing family of fingerprints, and <em>(iii)</em> to demonstrate that such systematic stress-test on fingerprints is necessary by numerically showcasing how existing methods fail under our attacks. 
         </p>
         <p>
-          In our <a href="https://github.com/sentient-xyz/modelprints" target="_blank" rel="noreferrer noopener">repo</a> we provide implementations of <a href="https://openreview.net/forum?id=UWi94bRsgm" target="_blank" rel="noreferrer noopener">Chain&amp;Hash</a>, <a href="https://arxiv.org/abs/2508.02092" target="_blank" rel="noreferrer noopener">FPEdit</a>, <a href="https://arxiv.org/abs/2508.08836" target="_blank" rel="noreferrer noopener">EditMF</a>, <a href="https://arxiv.org/abs/2505.12682" target="_blank" rel="noreferrer noopener">RoFL</a>, <a href="https://arxiv.org/abs/2410.08604" target="_blank" rel="noreferrer noopener">MergePrint</a>, <a href="https://arxiv.org/abs/2405.02466" target="_blank" rel="noreferrer noopener">ProFLingo</a>, and <a href="https://openreview.net/forum?id=7xw2ms2pE4" target="_blank" rel="noreferrer noopener">DSWatermark</a> and test their robustness to the four types of vulnerabilities under our corresponding attacks.
+          In our <a href="https://github.com/sentient-agi/mlprints" target="_blank" rel="noreferrer noopener">repo</a> we provide implementations of <a href="https://aclanthology.org/2024.naacl-long.180/" target="_blank" rel="noreferrer noopener">Instructional FP</a>, <a href="https://openreview.net/forum?id=UWi94bRsgm" target="_blank" rel="noreferrer noopener">Chain&amp;Hash</a>, <a href="https://arxiv.org/abs/2502.07760" target="_blank" rel="noreferrer noopener">Perinucleus FP</a>, <a href="https://arxiv.org/abs/2503.21805" target="_blank" rel="noreferrer noopener">Implicit FP</a>, <a href="https://arxiv.org/abs/2508.02092" target="_blank" rel="noreferrer noopener">FPEdit</a>, <a href="https://arxiv.org/abs/2508.08836" target="_blank" rel="noreferrer noopener">EditMF</a>, <a href="https://arxiv.org/abs/2505.12682" target="_blank" rel="noreferrer noopener">RoFL</a>, <a href="https://arxiv.org/abs/2410.08604" target="_blank" rel="noreferrer noopener">MergePrint</a>, <a href="https://arxiv.org/abs/2405.02466" target="_blank" rel="noreferrer noopener">ProFLingo</a>, and <a href="https://openreview.net/forum?id=7xw2ms2pE4" target="_blank" rel="noreferrer noopener">DSWatermark</a> and test their robustness to the four types of vulnerabilities under our corresponding attacks.
         </p>
         <p>
           In achieving this fundamental goal, we started by adopting many of the existing methods (from other domains such as backdoor, jailbreaking, and watermarking) in our attacks and were surprised that existing fingerprinting schemes are quite vulnerable. In the process, we also progressively came up with stronger attacks (e.g. output detection and statistical analysis) targeting vulnerabilities unique to fingerprints (e.g. exact memorization) while also maintaining a high utility. We also explored stronger defenses (e.g. approximate verification) to ensure that the vulnerabilities are fundamental shortcomings and not easily patchable. 
@@ -166,7 +171,7 @@
         <p>Even for permissive <strong>MatchKeyword</strong> verifiers (Instructional FP <a href="https://aclanthology.org/2024.naacl-long.180/">[5]</a>), stronger suppression like <strong>SL</strong> raises ASR from <strong>0%</strong> to <strong>87.5%</strong> while keeping normalized utility <strong>&gt;90%</strong>.</p>
       </div>
       <div class="image-card">
-        <img src="../static/images/are-llm-fps-robust/image_1.png" alt="ASR evolution under more sophisticated suppression techniques for different verifiers." class="cover-image single-image">
+        <img src="../static/images/are-llm-fps-robust/image_1_updated.png" alt="ASR evolution under more sophisticated suppression techniques for different verifiers." class="cover-image single-image">
       </div>
       <p class="figure-caption">Progressively more complex suppression techniques achieve higher ASR even under the more lenient MatchKeyword (MK). MP stands for the more strict MatchPrefix verifier.</p>
       <div class="content">
@@ -175,7 +180,7 @@
         <p>This <strong>selective</strong> suppression avoids perturbing normal generations, recovering most of the utility lost by naive suppression while keeping ASR high.</p>
       </div>
       <div class="image-card">
-        <img src="../static/images/are-llm-fps-robust/image_2.png" alt="Utility-ASR trade-off of ST vs ST + Detection for different verifiers." class="cover-image single-image">
+        <img src="../static/images/are-llm-fps-robust/image_2_updated.png" alt="Utility-ASR trade-off of ST vs ST + Detection for different verifiers." class="cover-image single-image">
       </div>
       <p class="figure-caption">Selective output detection keeps the operating point near the ideal upper-right corner: triggering suppression only on overconfident steps (ST + Detection) recovers most of the utility that naive SuppressTop-k (ST) sacrifices while maintaining high ASR.</p>
       <div class="content">
@@ -185,10 +190,7 @@
       </div>
       <div class="image-row">
         <div class="image-card">
-          <img src="../static/images/are-llm-fps-robust/image_3.png" alt="Histogram of the average log-perplexity of Wildchat queries and RoFL fingerprints." class="cover-image small-image">
-        </div>
-        <div class="image-card">
-          <img src="../static/images/are-llm-fps-robust/image_4.png" alt="ROC curve for detection using perplexity." class="cover-image small-image">
+          <img src="../static/images/are-llm-fps-robust/image_3_4_updated.png" alt="Left: Histogram of the average log-perplexity of Wildchat queries and RoFL fingerprints. Right: ROC curve for detection using perplexity." class="cover-image small-image">
         </div>
       </div>
         <p class="figure-caption">A single perplexity threshold almost perfectly separates benign WildChat prompts (low average log-perplexity) from RoFL fingerprints (high-perplexity tail), producing a ROC curve near the top-left corner and enabling a near-100% ASR filter with negligible utility cost.</p>
@@ -199,7 +201,7 @@
         <p>This "watermark stealing" attack substantially raises verification p-values and achieves about <strong>65% ASR at ~92% normalized utility</strong>. DSWatermark is not fully broken, but significantly weakened.</p>
       </div>
       <div class="image-card">
-        <img src="../static/images/are-llm-fps-robust/image_5.png" alt="Distribution of sparse, aggregated over max and z-score between two tokens" class="cover-image single-image">
+        <img src="../static/images/are-llm-fps-robust/image_5_updated.png" alt="Distribution of sparse, aggregated over max and z-score between two tokens" class="cover-image single-image">
       </div>
       <p class="figure-caption">Subtracting the sparse bias learned from calibration data flattens DSWatermark's green-list signature: aggregated sparsity statistics reveal which continuations consistently favor the fingerprinted model, so the attacker can downweight them and erode the verifier's hypothesis test.</p>
     </div>
@@ -297,7 +299,7 @@
     <div class="footer-content">
       <p>
         This website is licensed under a <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer noopener">Creative Commons Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0)</a>.
-        You are welcome to reuse or adapt the <a href="https://github.com/sentient-xyz/modelprints/tree/main/docs" target="_blank" rel="noreferrer noopener">source code</a>; please provide attribution and keep it share-alike.
+        You are welcome to reuse or adapt the <a href="https://github.com/sentient-agi/mlprints/tree/main/docs" target="_blank" rel="noreferrer noopener">source code</a>; please provide attribution and keep it share-alike.
       </p>
     </div>
   </div>
