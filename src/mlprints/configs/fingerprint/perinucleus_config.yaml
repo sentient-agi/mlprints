@@ -1,0 +1,46 @@
+---
+# Perinucleus default config
+# Based on arXiv:2502.07760
+
+seed: 42
+
+algo:
+  name: perinucleus
+  params:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+      key_gen:
+        model_id: Qwen/Qwen2.5-7B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_fingerprints: 100
+    key_length: 16
+    response_length: 1
+    generation_temp: 0.5
+    t: 0.7
+    k: 3
+    mini_batch_size: 20
+
+  training:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_train_epochs: 40
+    learning_rate: 1.0e-05
+    batch_size: 100
+    grad_acc: 1
+    weight_decay: 0.01
+    lr_scheduler_type: cosine
+    early_stop_loss: 0.005
+    save_strategy: 'no'
+    save_steps: null
+    beta_dm: 0.35 # 0.25 in paper
+    lambda_wa: 0.15 # 0.75 in paper
+    use_augmentation_prompts: true
