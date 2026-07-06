@@ -1,5 +1,5 @@
 import torch
-from typing import Optional, Sequence
+from typing import Sequence
 import hashlib
 from transformers.generation.logits_process import LogitsProcessor
 
@@ -30,7 +30,7 @@ class PerinucleusProcessor(LogitsProcessor):
     perinucleus_p. We sample from the "perinucleus": tokens just outside this nucleus.
     """
     
-    def __init__(self, perinucleus_p: float, top_k: Optional[int] = None, uniform: bool = True):
+    def __init__(self, perinucleus_p: float, top_k: int | None = None, uniform: bool = True):
         self.perinucleus_p = perinucleus_p
         self.top_k = top_k
         self.uniform = uniform
@@ -92,7 +92,7 @@ class WatermarkProcessor(LogitsProcessor):
         delta: float,
         secret_key: int,
         context_width: int = 4,
-        excluded_token_ids: Optional[Sequence[int]] = None,
+        excluded_token_ids: Sequence[int] | None = None,
     ):
         self.vocab_size = vocab_size
         self.gamma = gamma

@@ -7,7 +7,7 @@ HF-like tokenizer (encode, batch_decode, apply_chat_template, pad/eos token ids)
 Does not support encoder-decoder models, reasoning, or structured output.
 """
 
-from typing import Any, Dict, Optional, Union, Sequence, List, Callable
+from typing import Any, Sequence, Callable
 
 import torch
 from transformers import LogitsProcessorList
@@ -48,17 +48,17 @@ def _validate_generate_params(
     model: Any,
     tokenizer: Any,
     do_sample: bool,
-    temperature: Optional[float],
-    top_p: Optional[float],
-    top_k: Optional[int],
-    bottom_k: Optional[int],
-    perinucleus_p: Optional[float],
+    temperature: float | None,
+    top_p: float | None,
+    top_k: int | None,
+    bottom_k: int | None,
+    perinucleus_p: float | None,
     uniform: bool,
-    watermark_config: Optional[Dict[str, Any]],
+    watermark_config: dict[str, Any] | None,
     num_beams: int,
     num_return_sequences: int,
     output_scores: bool,
-    extract_top_k: Optional[int],
+    extract_top_k: int | None,
     generate_overrides: dict,
 ) -> None:
     """Enforce constraints on model, tokenizer, and sampling parameters."""
@@ -155,15 +155,15 @@ def _build_logits_processors_and_generation_params(
     *,
     model: Any,
     tokenizer: Any,
-    max_new_tokens: Optional[int],
+    max_new_tokens: int | None,
     do_sample: bool,
-    temperature: Optional[float],
-    top_p: Optional[float],
-    top_k: Optional[int],
-    bottom_k: Optional[int],
-    perinucleus_p: Optional[float],
+    temperature: float | None,
+    top_p: float | None,
+    top_k: int | None,
+    bottom_k: int | None,
+    perinucleus_p: float | None,
     uniform: bool,
-    watermark_config: Optional[Dict[str, Any]],
+    watermark_config: dict[str, Any] | None,
     num_beams: int,
     num_return_sequences: int,
     output_scores: bool,
@@ -253,8 +253,8 @@ def _generate_and_decode(
     num_return_sequences: int,
     skip_special_tokens: bool,
     output_scores: bool,
-    extract_top_k: Optional[int],
-) -> Union[List[str], Dict[str, Any]]:
+    extract_top_k: int | None,
+) -> list[str] | dict[str, Any]:
     """Run model.generate(), decode token output to text, and optionally extract scores."""
     encoded_input_len = input_ids.shape[1]
 
@@ -316,27 +316,27 @@ def _generate_and_decode(
 def run_inference(
     model: Any,
     tokenizer: Any,
-    prompt_or_messages: Union[str, Sequence[str], Sequence[dict], Sequence[Sequence[dict]]],
+    prompt_or_messages: str | Sequence[str] | Sequence[dict] | Sequence[Sequence[dict]],
     *,
-    chat_template: Union[str, None, Callable] = None,
-    system_prompt: Optional[str] = None,
+    chat_template: str | None | Callable = None,
+    system_prompt: str | None = None,
     apply_chat_template: bool = True,
-    max_new_tokens: Optional[int] = None,
+    max_new_tokens: int | None = None,
     do_sample: bool = True,
-    temperature: Optional[float] = None,
-    top_p: Optional[float] = None,
-    top_k: Optional[int] = None,
-    bottom_k: Optional[int] = None,
-    perinucleus_p: Optional[float] = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    top_k: int | None = None,
+    bottom_k: int | None = None,
+    perinucleus_p: float | None = None,
     uniform: bool = False,
-    watermark_config: Optional[Dict[str, Any]] = None,
+    watermark_config: dict[str, Any] | None = None,
     num_beams: int = 1,
     num_return_sequences: int = 1,
     output_scores: bool = False,
-    extract_top_k: Optional[int] = None,
+    extract_top_k: int | None = None,
     skip_special_tokens: bool = True,
     **generate_overrides,
-) -> Union[List[str], Dict[str, Any]]:
+) -> list[str] | dict[str, Any]:
     """
     Generate text from a prompt or conversation.
 
@@ -430,29 +430,29 @@ def run_inference(
 def run_inference_continuation(
     model: Any,
     tokenizer: Any,
-    prompt_or_messages: Union[None, str, Sequence[dict]],
+    prompt_or_messages: None | str | Sequence[dict],
     prefill_text: str,
     continuation_role: str = "user",
     *,
-    chat_template: Union[str, None, Callable] = None,
-    system_prompt: Optional[str] = None,
+    chat_template: str | None | Callable = None,
+    system_prompt: str | None = None,
     apply_chat_template: bool = False,
-    max_new_tokens: Optional[int] = None,
+    max_new_tokens: int | None = None,
     do_sample: bool = True,
-    temperature: Optional[float] = None,
-    top_p: Optional[float] = None,
-    top_k: Optional[int] = None,
-    bottom_k: Optional[int] = None,
-    perinucleus_p: Optional[float] = None,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    top_k: int | None = None,
+    bottom_k: int | None = None,
+    perinucleus_p: float | None = None,
     uniform: bool = False,
-    watermark_config: Optional[Dict[str, Any]] = None,
+    watermark_config: dict[str, Any] | None = None,
     num_beams: int = 1,
     num_return_sequences: int = 1,
     output_scores: bool = False,
-    extract_top_k: Optional[int] = None,
+    extract_top_k: int | None = None,
     skip_special_tokens: bool = True,
     **generate_overrides,
-) -> Union[List[str], Dict[str, Any]]:
+) -> list[str] | dict[str, Any]:
     """
     Continue `prefill_text`, optionally inside a chat role.
 

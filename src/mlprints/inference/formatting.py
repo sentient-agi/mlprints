@@ -1,12 +1,12 @@
-from typing import Union, Sequence, Optional, List, Callable
+from typing import Sequence, Callable
 
 
 def format_input(
     tokenizer,
-    prompt_or_messages: Union[str, Sequence[str], Sequence[dict], Sequence[Sequence[dict]]],
-    chat_template: Union[str, None, Callable] = None,
-    system_prompt: Optional[str] = None,
-) -> Union[str, List[str]]:
+    prompt_or_messages: str | Sequence[str] | Sequence[dict] | Sequence[Sequence[dict]],
+    chat_template: str | None | Callable = None,
+    system_prompt: str | None = None,
+) -> str | list[str]:
     """Format a single prompt or a batch into chat-templated strings.
 
     Return a single string for a single request, or a list of strings for batches.

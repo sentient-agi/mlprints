@@ -7,13 +7,13 @@ HF-like tokenizer (encode, apply_chat_template, pad/eos token ids).
 Does not support encoder-decoder models, reasoning, or structured output.
 """
 
-from typing import Any, Dict, Optional, Union, Sequence, List, Callable
+from typing import Any, Sequence, Callable
 
 import torch
 
 from mlprints.common.constants import MASK_LOSS_ID
 from mlprints.common.utils import (
-    compute_causal_lm_loss,
+    compute_causal_lm_cross_entropy_loss,
     get_context_length_from_model,
     get_model_device,
 )
@@ -22,10 +22,13 @@ from mlprints.common.utils import (
 def run_inference_logprobs(
     model: Any,
     tokenizer: Any,
-    prompt_or_messages: Union[Sequence[dict], Sequence[Sequence[dict]]],
-    chat_template: Union[str, None, Callable] = None,
+    prompt_or_messages: Sequence[dict] | Sequence[Sequence[dict]],
+    chat_template: str | None | Callable = None,
     return_metadata: bool = False,
-) -> List[Dict[str, Any]]:
+    *,
+    extract_top_k: int | None = None,
+    temperature: float = 1.0,
+) -> list[dict[str, Any]]:
     """
     Compute target-token log-probabilities for each conversation's final
     assistant turn.
@@ -33,9 +36,19 @@ def run_inference_logprobs(
     Each conversation must end with an assistant message preceded by a user message.
     The prompt encoding must be a strict prefix of the full conversation encoding.
     Set `return_metadata=True` to include the full tokenized input and assistant start index.
+
+    Set `extract_top_k` to emit per-token (assistant-turn) top-k targets:
+    each sample output `topk_indices` and `topk_log_probs`,
+    shaped [num_target_tokens, extract_top_k] at `temperature`.
     """
     if model is None or tokenizer is None:
         raise ValueError("model and tokenizer must be provided")
+
+    if extract_top_k is not None:
+        if extract_top_k < 1:
+            raise ValueError("extract_top_k must be >= 1 when specified")
+        if temperature <= 0:
+            raise ValueError("temperature must be > 0")
 
     # list[dict] (assumed to be a single conversation)
     if (
@@ -137,13 +150,16 @@ def run_inference_logprobs(
         log_norm = torch.logsumexp(per_step_logits, dim=-1)  # [T,]
         token_logprobs = token_logits - log_norm
 
-        argmax_ids = per_step_logits.argmax(dim=-1)
-
         result = {
-            "argmax_ids": argmax_ids.cpu(),
             "target_ids": target_ids.cpu(),
             "token_logprobs": token_logprobs.cpu(),
         }
+        if extract_top_k is not None:
+            scaled_logits = per_step_logits / temperature
+            topk_scaled_logits, topk_indices = torch.topk(scaled_logits, k=extract_top_k, dim=-1)
+            topk_log_probs = topk_scaled_logits - torch.logsumexp(scaled_logits, dim=-1, keepdim=True)
+            result["topk_indices"] = topk_indices.cpu()
+            result["topk_log_probs"] = topk_log_probs.cpu()
         if return_metadata:
             result["input_ids"] = input_ids[i, :full_length].cpu()
             result["assistant_start_idx"] = prompt_length
@@ -156,12 +172,12 @@ def run_inference_logprobs(
 def run_inference_strided_perplexity(
     model: Any,
     tokenizer: Any,
-    text: Union[str, Sequence[str]],
+    text: str | Sequence[str],
     stride: int = 2048,
-    device: Optional[torch.device] = None,
+    device: torch.device | None = None,
     *,
-    pad_to_multiple_of: Optional[int] = 8,
-) -> Union[float, List[float]]:
+    pad_to_multiple_of: int | None = 8,
+) -> float | list[float]:
     """
     Compute perplexity for raw text, using strided windows for over-context
     inputs. Returns a float for one string, or a list for a batch.
@@ -222,7 +238,7 @@ def run_inference_strided_perplexity(
 
         with torch.inference_mode():
             logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
-            per_sample_loss = compute_causal_lm_loss(logits, labels)
+            per_sample_loss = compute_causal_lm_cross_entropy_loss(logits, labels)
             perplexities = torch.exp(per_sample_loss).tolist()
 
         for local_idx, global_idx in enumerate(short_indices):
