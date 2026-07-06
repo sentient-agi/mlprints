@@ -21,7 +21,7 @@ REGISTRY CONTRACT:
   usually by implementing `generate`, `forward`, or both.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from mlprints.attack.base import AttackModel
 from mlprints.common.utils import load_model, load_tokenizer
@@ -59,7 +59,7 @@ class FixmeBlueprintAttackModel(AttackModel):
         return self.model.generate(*args, **kwargs)
 
     @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> "FixmeBlueprintAttackModel":
+    def from_config(cls, config: dict[str, Any]) -> "FixmeBlueprintAttackModel":
         """Load the wrapped model/tokenizer from an attack configuration."""
         base_config = config["base_model_config"]
         attack_params = config["attack_params"]
