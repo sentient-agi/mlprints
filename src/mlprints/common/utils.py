@@ -5,7 +5,7 @@ Common utilities for the MLprints library.
 from datetime import datetime
 from pathlib import Path
 import random
-from typing import Any, Optional, Union
+from typing import Any
 import uuid
 import yaml
 
@@ -64,7 +64,7 @@ def get_model_device(model: Any) -> torch.device:
 
 # PATH AND FILE UTILITIES
 
-def normalize_str_to_path(*path_strs: Union[str, Path]) -> Union[Path, tuple[Path, ...]]:
+def normalize_str_to_path(*path_strs: str | Path) -> Path | tuple[Path, ...]:
     """
     Normalize one or more path strings or Path objects to Path objects.
     Users must explicitly use '.' if they want the current working directory.
@@ -105,10 +105,10 @@ def _prepare_loaded_model(
     *,
     is_train: bool,
     compile_model: bool,
-    compile_mode: Optional[str],
+    compile_mode: str | None,
     compile_fullgraph: bool,
-    compile_dynamic: Optional[bool],
-    compile_backend: Optional[str],
+    compile_dynamic: bool | None,
+    compile_backend: str | None,
     static_kvcache_for_generation: bool,
 ) -> Any:
     if is_train:
@@ -138,16 +138,16 @@ def _prepare_loaded_model(
 def load_hf_model(
     path_or_model_id: str,
     *,
-    device_map: Optional[int | str | torch.device | dict[str, int | str | torch.device]] = None,
-    dtype: Optional[Union[str, torch.dtype]] = "auto",
-    attn_implementation: Optional[str] = None,
+    device_map: int | str | torch.device | dict[str, int | str | torch.device] | None = None,
+    dtype: str | torch.dtype | None = "auto",
+    attn_implementation: str | None = None,
     trust_remote_code: bool = False,
     is_train: bool = False,
     compile_model: bool = False,
-    compile_mode: Optional[str] = "default",
+    compile_mode: str | None = "default",
     compile_fullgraph: bool = False,
-    compile_dynamic: Optional[bool] = None,
-    compile_backend: Optional[str] = None,
+    compile_dynamic: bool | None = None,
+    compile_backend: str | None = None,
     static_kvcache_for_generation: bool = False,
 ) -> Any:
     """
@@ -176,16 +176,16 @@ def load_hf_model(
 def load_model(
     path_or_model_id: str,
     *,
-    device_map: Optional[int | str | torch.device | dict[str, int | str | torch.device]] = None,
-    dtype: Optional[Union[str, torch.dtype]] = "auto",
-    attn_implementation: Optional[str] = None,
+    device_map: int | str | torch.device | dict[str, int | str | torch.device] | None = None,
+    dtype: str | torch.dtype | None = "auto",
+    attn_implementation: str | None = None,
     trust_remote_code: bool = False,
     is_train: bool = False,
     compile_model: bool = False,
-    compile_mode: Optional[str] = "default",
+    compile_mode: str | None = "default",
     compile_fullgraph: bool = False,
-    compile_dynamic: Optional[bool] = None,
-    compile_backend: Optional[str] = None,
+    compile_dynamic: bool | None = None,
+    compile_backend: str | None = None,
     static_kvcache_for_generation: bool = False,
 ) -> Any:
     """
@@ -321,7 +321,7 @@ def get_context_length_from_tokenizer(tokenizer: Any) -> int:
     raise ValueError("tokenizer does not declare a valid model_max_length")
 
 
-def get_model_id(model: Union[Any, str], short: bool = False) -> str:
+def get_model_id(model: Any | str, short: bool = False) -> str:
     """
     Get a model ID from either an ID/path string or a model object.
 
@@ -342,12 +342,12 @@ def get_model_id(model: Union[Any, str], short: bool = False) -> str:
 
 # MACHINE LEARNING UTILITIES 
 
-def compute_causal_lm_loss(
+def compute_causal_lm_cross_entropy_loss(
     logits: torch.Tensor,
     labels: torch.Tensor,
 ) -> torch.Tensor:
     """
-    Compute causal language modeling loss from logits and labels.
+    Compute causal language modeling cross-entropy loss from logits and labels.
 
     It handles the standard causal LM setup where predictions are shifted to
     align with targets, and masks out loss on ignored tokens (MASK_LOSS_ID).
