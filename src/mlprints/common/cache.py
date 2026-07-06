@@ -9,7 +9,7 @@ import hashlib
 import io
 import json
 from pathlib import Path
-from typing import Optional
+
 import yaml
 
 from datasets import load_dataset
@@ -105,12 +105,12 @@ def resolve_cached_asset(
     source: str | Path,
     *,
     namespace: str,
-    algo_name: Optional[str] = None,
+    algo_name: str | None = None,
     source_fmt: str = "json",
     output_fmt: str = "json",
-    num_samples: Optional[int] = None,
-    split: Optional[str] = None,
-    columns: Optional[list[str]] = None,
+    num_samples: int | None = None,
+    split: str | None = None,
+    columns: list[str] | None = None,
     encoding: str = "utf-8",
 ) -> Path:
     """
@@ -258,9 +258,9 @@ def resolve_cached_fingerprint_asset(
     algo_name: str,
     source_fmt: str = "json",
     output_fmt: str = "json",
-    num_samples: Optional[int] = None,
-    split: Optional[str] = None,
-    columns: Optional[list[str]] = None,
+    num_samples: int | None = None,
+    split: str | None = None,
+    columns: list[str] | None = None,
     encoding: str = "utf-8",
 ) -> Path:
     """Resolve and cache an asset under a fingerprint algorithm cache."""
@@ -283,9 +283,9 @@ def resolve_cached_attack_asset(
     algo_name: str,
     source_fmt: str = "json",
     output_fmt: str = "json",
-    num_samples: Optional[int] = None,
-    split: Optional[str] = None,
-    columns: Optional[list[str]] = None,
+    num_samples: int | None = None,
+    split: str | None = None,
+    columns: list[str] | None = None,
     encoding: str = "utf-8",
 ) -> Path:
     """Resolve and cache an asset under an attack algorithm cache."""
@@ -307,9 +307,9 @@ def resolve_cached_common_asset(
     *,
     source_fmt: str = "json",
     output_fmt: str = "json",
-    num_samples: Optional[int] = None,
-    split: Optional[str] = None,
-    columns: Optional[list[str]] = None,
+    num_samples: int | None = None,
+    split: str | None = None,
+    columns: list[str] | None = None,
     encoding: str = "utf-8",
 ) -> Path:
     """Resolve and cache a shared asset under the common cache."""
