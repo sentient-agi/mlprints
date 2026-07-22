@@ -174,9 +174,9 @@ def verify_match(
             {
                 "index": idx,
                 "is_hit": is_hit,
-                "q_str": query,
-                "r_str": response,
-                "tgt_r_str": expected,
+                "query": query,
+                "response": response,
+                "expected_response": expected,
             }
         )
 

@@ -8,6 +8,7 @@ from typing import Any
 import torch
 
 from mlprints.common.constants import MAX_INT64
+from mlprints.common.utils import load_tokenizer
 
 
 def verify_watermark_ztest(
@@ -16,15 +17,16 @@ def verify_watermark_ztest(
     *,
     secret_key: int,
     greenlist_device: str,
+    tokenizer_id: str,
     gamma: float = 0.25,
     context_width: int = 1,
     vocab_size: int | None = None,
-    response_toks: Sequence[Sequence[int]] | None = None,
-    tokenizer: Any | None = None,
     special_token_ids: Sequence[int] | None = None,
     alpha: float | None = 1e-3,
     exclude_special_tokens: bool = True,
     generation_params_used: dict[str, Any] | None = None,
+    trust_remote_code: bool = False,
+    use_fast: bool = True,
 ) -> tuple[float, dict[str, Any]]:
     """Run a KGW-style z-test over offline responses."""
 
@@ -41,6 +43,14 @@ def verify_watermark_ztest(
         raise ValueError("gamma must be in (0, 1)")
     if context_width <= 0:
         raise ValueError("context_width must be > 0")
+    if not isinstance(tokenizer_id, str) or not tokenizer_id.strip():
+        raise ValueError("tokenizer_id must be a non-empty string")
+
+    tokenizer = load_tokenizer(
+        tokenizer_id,
+        trust_remote_code=trust_remote_code,
+        use_fast=use_fast,
+    )
 
     greenlist_device = str(greenlist_device).strip().lower()
     if greenlist_device == "auto":
@@ -50,8 +60,6 @@ def verify_watermark_ztest(
     greenlist_device = torch.device(greenlist_device)
 
     if vocab_size is None:
-        if tokenizer is None:
-            raise ValueError("vocab_size must be provided when tokenizer cannot supply it")
         vocab_size = int(getattr(tokenizer, "vocab_size", 0) or len(tokenizer))
     if vocab_size <= 1:
         raise ValueError("vocab_size must be > 1")
@@ -70,22 +78,10 @@ def verify_watermark_ztest(
     if allowed_ids.numel() <= 1:
         raise ValueError("At least two allowed tokens are required")
 
-    if response_toks is None:
-        if tokenizer is None:
-            raise ValueError("watermark_ztest needs response_toks or a tokenizer")
-        token_lists = [[int(tok) for tok in tokenizer.encode(response, add_special_tokens=False)] for response in responses]
-    else:
-        if not isinstance(response_toks, Sequence) or isinstance(response_toks, (str, bytes)):
-            raise TypeError("response_toks must be a sequence of token id sequences")
-        token_lists = []
-        for idx, toks in enumerate(response_toks):
-            if not isinstance(toks, Sequence) or isinstance(toks, (str, bytes)):
-                raise TypeError(f"response_toks[{idx}] must be a token id sequence")
-            token_lists.append([int(tok) for tok in toks])
-        if len(token_lists) != len(responses):
-            raise ValueError(
-                f"verifier inputs must have the same length (responses={len(responses)}, response_toks={len(token_lists)})"
-            )
+    token_lists = [
+        [int(token_id) for token_id in tokenizer.encode(response, add_special_tokens=False)]
+        for response in responses
+    ]
 
     ctx_to_tokens = {}
     total_reply_tokens = 0

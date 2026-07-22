@@ -1,0 +1,12 @@
+---
+# Default match verifier configuration
+
+verifier:
+  name: match
+  params:
+    comparator: exact
+    soft: false
+    threshold: 0.9
+    case_insensitive: false
+    punctuation_insensitive: false
+    normalize_whitespace: false

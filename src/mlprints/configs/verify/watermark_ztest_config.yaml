@@ -1,0 +1,15 @@
+---
+# Default watermark z-test verifier configuration
+
+verifier:
+  name: watermark_ztest
+  params:
+    secret_key: 42
+    greenlist_device: cpu
+    tokenizer_id: Qwen/Qwen2.5-3B-Instruct
+    gamma: 0.25
+    context_width: 1
+    alpha: 1.0e-3
+    exclude_special_tokens: true
+    trust_remote_code: false
+    use_fast: true
