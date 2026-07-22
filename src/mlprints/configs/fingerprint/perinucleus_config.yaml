@@ -1,0 +1,56 @@
+---
+# Perinucleus default config
+# Based on arXiv:2502.07760
+
+seed: 42
+
+algo:
+  name: perinucleus
+  params:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+      key_gen:
+        model_id: Qwen/Qwen2.5-7B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_fingerprints: 100
+    top_words_source: "https://raw.githubusercontent.com/first20hours/google-10000-english/aab40297bf2bf72ebba8fdf02f975834391ae81a/google-10000-english.txt"
+    prompt_template: "Generate a sentence starting with {word}."
+    key_length: 16
+    response_length: 1
+    num_tokens_perinucleus: 1
+    generation_temp: 0.5
+    t: 0.7
+    k: 3
+    mini_batch_size: 20
+
+  training:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_train_epochs: 40
+    learning_rate: 1.0e-05
+    batch_size: 154 # full batch: 100 fingerprints + 54 benign samples at beta_dm=0.35
+    grad_acc: 1
+    weight_decay: 0.01
+    lr_scheduler_type: cosine
+    early_stop_loss: 0.005
+    save_strategy: 'no'
+    save_steps: null
+    beta_dm: 0.35 # 0.25 in paper
+    lambda_wa: 0.15 # 0.75 in paper
+    benign_prompts_source: fka/prompts.chat
+    benign_prompts_split: train
+    benign_prompts_column: prompt
+    benign_generation_batch_size: 20
+    use_augmentation_prompts: true
+    augmentation_prompts_source: fka/prompts.chat
+    augmentation_prompts_split: train
+    augmentation_prompts_column: prompt

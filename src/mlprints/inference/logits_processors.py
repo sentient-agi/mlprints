@@ -33,10 +33,17 @@ class PerinucleusProcessor(LogitsProcessor):
     perinucleus_p. We sample from the "perinucleus": tokens just outside this nucleus.
     """
     
-    def __init__(self, perinucleus_p: float, top_k: int | None = None, uniform: bool = True):
+    def __init__(
+        self,
+        perinucleus_p: float,
+        top_k: int | None = None,
+        uniform: bool = True,
+        excluded_token_ids: Sequence[int] | None = None,
+    ):
         self.perinucleus_p = perinucleus_p
         self.top_k = top_k
         self.uniform = uniform
+        self.excluded_token_ids = excluded_token_ids
     
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
         probs = torch.softmax(scores, dim=-1)
@@ -48,14 +55,21 @@ class PerinucleusProcessor(LogitsProcessor):
         outside_nucleus = cumulative_probs >= self.perinucleus_p
 
         outside_rank = outside_nucleus.long().cumsum(dim=-1)
+        eligible = outside_nucleus & (outside_rank > 1)
+
+        if self.excluded_token_ids:
+            excluded = torch.isin(
+                sorted_indices,
+                sorted_indices.new_tensor(self.excluded_token_ids),
+            )
+            eligible &= ~excluded
 
         if self.top_k is not None:
-            perinucleus_sorted = outside_nucleus & (outside_rank > 1) & (outside_rank <= self.top_k + 1)
-        else:
-            perinucleus_sorted = outside_nucleus & (outside_rank > 1)
+            eligible_rank = eligible.long().cumsum(dim=-1)
+            eligible &= eligible_rank <= self.top_k
 
-        perinucleus_original = torch.zeros_like(perinucleus_sorted)
-        perinucleus_original.scatter_(1, sorted_indices, perinucleus_sorted)
+        perinucleus_original = torch.zeros_like(eligible)
+        perinucleus_original.scatter_(1, sorted_indices, eligible)
 
         masked_scores = scores.new_full(scores.shape, float("-inf"))
         if self.uniform:

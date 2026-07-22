@@ -13,10 +13,13 @@ Each entry maps a fingerprint algorithm name to:
     - training_metadata: dict
 """
 
+from mlprints.fingerprint.perinucleus import perinucleus, train_perinucleus
+
 
 FINGERPRINT_ALGOS = {
     # "fingerprint_algo": {"generate": generate_function, "train": train_function}
     # For the required generate/train contract, see `mlprints.fingerprint._blueprint`.
+    "perinucleus": {"generate": perinucleus, "train": train_perinucleus},
 }
 
 

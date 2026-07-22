@@ -206,7 +206,8 @@ def _build_logits_processors_and_generation_params(
             PerinucleusProcessor(
                 perinucleus_p=perinucleus_p,
                 top_k=top_k,
-                uniform=uniform
+                uniform=uniform,
+                excluded_token_ids=tokenizer.all_special_ids,
             )
         )
         top_k_kwarg = None
