@@ -1,7 +1,10 @@
-import torch
-from typing import Sequence
 import hashlib
+from collections.abc import Sequence
+
+import torch
 from transformers.generation.logits_process import LogitsProcessor
+
+from mlprints.common.constants import MAX_INT64
 
 
 class BottomKProcessor(LogitsProcessor):
@@ -80,7 +83,7 @@ class WatermarkProcessor(LogitsProcessor):
     """
     KGW-style watermarking via logits bias.
 
-    For each step, deterministically split the vocab into a "green list" based
+    For each step, deterministically split the vocab into a green list based
     on a hash of the recent context tokens, and add +delta to those logits.
     """
 
@@ -100,49 +103,44 @@ class WatermarkProcessor(LogitsProcessor):
         self.secret_key = secret_key
         self.context_width = context_width
         self.excluded_token_ids = set(excluded_token_ids or [])
-        self._secret_key_bytes = self.secret_key.to_bytes(8, "little", signed=False)
+        self._secret_key_bytes = secret_key.to_bytes(8, "little", signed=False)
 
-        # precompute allowed ids once, then move/cache them per generation device
-        allowed = torch.ones(self.vocab_size, dtype=torch.bool)
+        allowed = torch.ones(vocab_size, dtype=torch.bool)
         if self.excluded_token_ids:
-            excl = torch.tensor(
-                [tid for tid in self.excluded_token_ids if 0 <= tid < self.vocab_size],
+            excluded = torch.tensor(
+                [token_id for token_id in self.excluded_token_ids if 0 <= token_id < vocab_size],
                 dtype=torch.long,
             )
-            if excl.numel() > 0:
-                allowed[excl] = False
-        self._allowed_mask_cpu = allowed
-        self._allowed_ids_cpu = torch.nonzero(self._allowed_mask_cpu, as_tuple=False).view(-1).to(torch.long)
-        self._green_k = max(1, round(self.gamma * self._allowed_ids_cpu.numel()))
+            if excluded.numel() > 0:
+                allowed[excluded] = False
+        self._allowed_ids_cpu = torch.nonzero(allowed, as_tuple=False).view(-1).to(torch.long)
+        self._green_k = max(1, round(gamma * self._allowed_ids_cpu.numel()))
         self._allowed_ids_by_device = {}
         self._generators_by_device = {}
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        # input_ids: (B, seq_len), scores: (B, vocab)
-        biased = scores
         allowed_ids = self._allowed_ids_by_device.get(scores.device)
         if allowed_ids is None:
             allowed_ids = self._allowed_ids_cpu.to(scores.device)
             self._allowed_ids_by_device[scores.device] = allowed_ids
         if allowed_ids.numel() == 0:
-            return biased
+            return scores
         generator = self._generators_by_device.get(scores.device)
         if generator is None:
             generator = torch.Generator(device=scores.device)
             self._generators_by_device[scores.device] = generator
 
-        contexts = input_ids[:, -self.context_width :].tolist()
+        for batch_idx, context in enumerate(input_ids[:, -self.context_width :].tolist()):
+            buffer = b"".join(token_id.to_bytes(4, "little", signed=False) for token_id in context)
+            seed = int.from_bytes(
+                hashlib.sha256(buffer + self._secret_key_bytes).digest()[:8],
+                "little",
+                signed=False,
+            ) % MAX_INT64
+            generator.manual_seed(seed)
+            permutation = allowed_ids[
+                torch.randperm(allowed_ids.numel(), generator=generator, device=scores.device)
+            ]
+            scores[batch_idx, permutation[: self._green_k]] += self.delta
 
-        # Python loop is acceptable for typical fingerprinting batch sizes
-        for b, ctx in enumerate(contexts):
-            buf = b"".join(t.to_bytes(4, "little", signed=False) for t in ctx)
-            buf += self._secret_key_bytes
-            digest = hashlib.sha256(buf).digest()
-            greenlist_seed = int.from_bytes(digest[:8], "little", signed=False)
-
-            generator.manual_seed(greenlist_seed % (2**63 - 1))
-            perm = allowed_ids[torch.randperm(allowed_ids.numel(), generator=generator, device=scores.device)]
-            green_ids = perm[:self._green_k]
-            biased[b, green_ids] = biased[b, green_ids] + self.delta
-
-        return biased
+        return scores
