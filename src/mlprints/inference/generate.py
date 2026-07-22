@@ -17,7 +17,7 @@ from transformers.generation.logits_process import (
 )
 
 from mlprints.common.utils import get_model_device
-from mlprints.inference.formatting import format_input
+from mlprints.inference.formatting import CHAT_ROLES, format_input
 from mlprints.inference.logits_processors import (
     BottomKProcessor,
     PerinucleusProcessor,
@@ -430,9 +430,9 @@ def run_inference(
 def run_inference_continuation(
     model: Any,
     tokenizer: Any,
-    prompt_or_messages: None | str | Sequence[dict],
-    prefill_text: str,
-    continuation_role: str = "user",
+    prompt_or_messages: None | str | Sequence[str] | Sequence[dict] | Sequence[Sequence[dict]],
+    prefill_text: str | Sequence[str],
+    continuation_role: str = "assistant",
     *,
     chat_template: str | None | Callable = None,
     system_prompt: str | None = None,
@@ -453,13 +453,7 @@ def run_inference_continuation(
     skip_special_tokens: bool = True,
     **generate_overrides,
 ) -> list[str] | dict[str, Any]:
-    """
-    Continue `prefill_text`, optionally inside a chat role.
-
-
-    Sampling and output behavior match `run_inference`. Batching is not
-    supported for continuation.
-    """
+    """Continue one prefill or an equally sized batch, optionally inside a chat role."""
     _validate_generate_params(
         model=model, tokenizer=tokenizer,
         do_sample=do_sample, temperature=temperature, top_p=top_p, top_k=top_k,
@@ -469,36 +463,31 @@ def run_inference_continuation(
         generate_overrides=generate_overrides,
     )
 
-    if continuation_role not in ("user", "assistant", "system"):
+    if continuation_role not in CHAT_ROLES:
         raise ValueError("continuation_role must be one of: 'user', 'assistant', 'system'")
 
-    if prompt_or_messages is None:
-        conversation = []
-    elif isinstance(prompt_or_messages, str):
-        conversation = [{"role": "user", "content": prompt_or_messages}]
-    elif (
-        isinstance(prompt_or_messages, Sequence)
-        and len(prompt_or_messages) > 0
-        and all(isinstance(msg, dict) for msg in prompt_or_messages)
-    ):
-        conversation = [dict(m) for m in prompt_or_messages]
+    if apply_chat_template:
+        formatted_input = format_input(
+            tokenizer=tokenizer,
+            prompt_or_messages=prompt_or_messages,
+            chat_template=chat_template,
+            system_prompt=system_prompt,
+            prefill_text=prefill_text,
+            continuation_role=continuation_role,
+        )
     else:
-        raise ValueError(
-            "prompt_or_messages must be None, a string prompt, or a single conversation (list[dict])."
-        )
-
-    if system_prompt:
-        if conversation and conversation[0].get("role") == "system":
-            raise ValueError(
-                "conflicting system prompts: system_prompt argument was provided "
-                "but the conversation already starts with a system message."
-            )
-        conversation = [{"role": "system", "content": system_prompt}] + conversation
-
-    if conversation and not apply_chat_template:
-        raise ValueError(
-            "apply_chat_template=True is required when prompt_or_messages or system_prompt provides prior chat context"
-        )
+        if prompt_or_messages is not None or system_prompt:
+            raise ValueError("apply_chat_template=True is required with prior chat context")
+        if isinstance(prefill_text, str):
+            formatted_input = prefill_text
+        elif (
+            isinstance(prefill_text, Sequence)
+            and len(prefill_text) > 0
+            and all(isinstance(prefill, str) for prefill in prefill_text)
+        ):
+            formatted_input = list(prefill_text)
+        else:
+            raise ValueError("prefill_text must be a string or a non-empty sequence of strings")
 
     gen_kwargs = _build_logits_processors_and_generation_params(
         model=model, tokenizer=tokenizer,
@@ -510,35 +499,28 @@ def run_inference_continuation(
         output_scores=output_scores,
     )
 
-    if conversation or apply_chat_template:
-        chat = conversation + [{"role": continuation_role, "content": prefill_text}]
-        encoded_input = tokenizer.apply_chat_template(
-            chat,
-            chat_template=chat_template,
-            tokenize=True,
-            return_dict=True,
-            add_generation_prompt=False,
-            continue_final_message=True,
-            return_tensors="pt",
-        )
-    else:
+    original_padding_side = tokenizer.padding_side
+    tokenizer.padding_side = "left"
+    try:
         encoded_input = tokenizer(
-            prefill_text,
+            formatted_input,
             add_special_tokens=False,
-            padding=False,
+            padding=True,
             truncation=False,
             return_tensors="pt",
         )
+    finally:
+        tokenizer.padding_side = original_padding_side
 
     input_device = get_model_device(model)
     encoded_input = encoded_input.to(input_device)
     input_ids = encoded_input["input_ids"]
+    batch_size = 1 if isinstance(formatted_input, str) else len(formatted_input)
 
-    if input_ids.dim() != 2 or input_ids.size(0) != 1:
-        raise ValueError("tokenizer must return a single encoded sequence for text continuation.")
-
-    if input_ids.shape[1] == 0:
-        raise ValueError("prefill_text must not encode to an empty sequence")
+    if input_ids.dim() != 2 or input_ids.size(0) != batch_size:
+        raise ValueError("tokenizer returned an invalid continuation batch")
+    if (encoded_input["attention_mask"].sum(dim=1) == 0).any():
+        raise ValueError("each prefill must encode to a non-empty sequence")
 
     return _generate_and_decode(
         model=model, tokenizer=tokenizer,
