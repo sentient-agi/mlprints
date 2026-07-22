@@ -192,11 +192,17 @@ def run_sft_train(
         "global_step": trainer.state.global_step,
         "final_train_loss": train_result.training_loss,
         "num_train_epochs": training_args.num_train_epochs,
+        "per_device_train_batch_size": training_args.per_device_train_batch_size,
+        "gradient_accumulation_steps": training_args.gradient_accumulation_steps,
+        "learning_rate": training_args.learning_rate,
+        "weight_decay": training_args.weight_decay,
+        "lr_scheduler_type": training_args.lr_scheduler_type.value,
+        "save_strategy": training_args.save_strategy.value,
+        "save_steps": training_args.save_steps,
         "train_runtime": train_metrics.get("train_runtime"),
         "train_samples_per_second": train_metrics.get("train_samples_per_second"),
         "train_steps_per_second": train_metrics.get("train_steps_per_second"),
         "final_model_dir": str(final_checkpoint_dir),
-        "learning_rate": training_args.learning_rate,
     }
 
     return train_metadata
