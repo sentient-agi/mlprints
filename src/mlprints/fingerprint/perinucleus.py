@@ -43,6 +43,7 @@ def perinucleus(
         algo_name="perinucleus",
         source_fmt="text",
         output_fmt="text",
+        split="train",
     )
     top_words = p.read_text(encoding="utf-8").splitlines()
 
