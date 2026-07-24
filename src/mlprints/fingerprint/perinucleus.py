@@ -6,7 +6,7 @@ NOTE:
 - Generation supports mini-batches for efficiency (disabled with mini_batch_size=1)
 - English top-words list for key generation is fetched from a public URL and cached under MLPRINTS_HOME
 - Benign and augmentation prompt sources are Hugging Face dataset IDs loaded with datasets.load_dataset
-- Benign response lengths are sampled from the tokenized fingerprint response-length distribution
+- Benign response lengths are sampled from the tokenized expected-response-length distribution
 """
 
 import random
@@ -114,7 +114,7 @@ def perinucleus(
                 {
                     "id": start + i,
                     "query": keys[i],
-                    "response": responses[i],
+                    "expected_response": responses[i],
                 }
             )
             fingerprints_metadata.append(
@@ -154,7 +154,7 @@ def train_perinucleus(
     augmentation_prompts_column,
 ):
     fingerprint_pairs = [
-        (fingerprint["query"], fingerprint["response"])
+        (fingerprint["query"], fingerprint["expected_response"])
         for fingerprint in fingerprints
     ]
     if not fingerprint_pairs:
@@ -177,7 +177,7 @@ def train_perinucleus(
         if beta_dm > 0
         else 0
     )
-    
+
     # 1) stream benign prompts disjoint from fingerprint queries
     benign_queries = []
     if num_benign > 0:
