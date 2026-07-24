@@ -27,7 +27,7 @@ _ASSETS_CACHE_DIR_NAME = "assets"
 _DATASET_FORMATS = ("text", "txt", "json", "jsonl", "csv", "tsv", "yaml")
 _TEMP_FILE_SUFFIX = ".tmp"
 _TIMEOUT = 20 # seconds
-_URL_PREFIXES = ("http://", "https://")
+_URL_PREFIXES = ("https://")
 _CACHE_NAMESPACES = {
     "attack": ATTACK_CACHE_DIR,
     "common": COMMON_CACHE_DIR,
@@ -164,8 +164,17 @@ def resolve_cached_asset(
         except (OSError, json.JSONDecodeError):
             pass
 
-    # 2) load raw bytes via yaml or HF datasets loader and decode to format
-    if source_fmt == "yaml" and not is_hf_dataset:
+    # 2) load raw bytes via HTTP/yaml or HF datasets loader and decode to format
+    if is_url and source_fmt == "text":
+        response = requests.get(source_str, timeout=_TIMEOUT)
+        response.raise_for_status()
+        data = response.content.decode(
+            encoding,
+            errors="replace",
+        ).splitlines()
+        if num_samples is not None:
+            data = data[:num_samples]
+    elif source_fmt == "yaml" and not is_hf_dataset:
         if is_url:
             response = requests.get(source_str, timeout=_TIMEOUT)
             response.raise_for_status()
