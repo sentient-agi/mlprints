@@ -1,46 +1,71 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "oml"
-version = "0.0.1"
+name = "mlprints"
+version = "0.1.0a1"
 requires-python = ">=3.11"
 authors = [
-  { name="Alkin Kaz", email="alkin@sentient.xyz" }
+    { name = "Edoardo Contente", email = "edoardo@sentient.xyz" },
+    { name = "Anshul Nasery", email = "anasery@sentient.xyz" },
+    { name = "Alkin Kaz", email = "alkin@sentient.xyz" },
+    { name = "Aidan Phillips" }
 ]
-description = "Open, Monetizable, Loyal AI"
+description = "A state-of-the-art framework for LLM fingerprinting and adversarial testing"
 readme = "README.md"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE*"]
+keywords = [
+    "llm",
+    "fingerprinting",
+    "llm-fingerprinting",
+    "model-fingerprinting",
+    "adversarial-testing",
+    "adversarial-attacks",
+    "red-teaming",
+    "machine-learning",
+    "security",
+    "transformers",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
-  "torch",
-  "transformers",
-  "accelerate",
-  "datasets",
-  "tqdm",
-  "notebook",
-  "ipywidgets",
-  "pandas",
-  "trl>=0.21.0",
-  "bitsandbytes>=0.47.0",
-  "lm_eval",
+    "aenum",
+    "datasets",
+    "deepspeed",
+    "lighteval",
+    "numpy",
+    "pyyaml",
+    "requests",
+    "torch",
+    "tqdm",
+    "transformers",
 ]
 
+[project.scripts]
+mlprints = "mlprints.cli:main"
+
+[project.urls]
+Homepage = "https://sentient-agi.github.io/mlprints"
+Repository = "https://github.com/sentient-agi/mlprints"
+Documentation = "https://github.com/sentient-agi/mlprints#readme"
+Issues = "https://github.com/sentient-agi/mlprints/issues"
+
+[tool.uv]
+exclude-newer = "14 days" # ignore newest releases for safety
+
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["oml*"]
-
-[tool.uv.workspace]
-members = [
-    ".",
-]
-
-[tool.uv.sources]
-oml = { workspace = true }
-
-[dependency-groups]
-dev = [
-    "oml",
-]
+include = ["mlprints*"]
