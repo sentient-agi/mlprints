@@ -3,8 +3,8 @@ Fingerprint algorithms registry.
 
 Each entry maps a fingerprint algorithm name to:
 - generate: callable(..., *, **kwargs) -> (fingerprints, fingerprints_metadata)
-    - positional args before * are model/tokenizer pairs; namely the target_model
-      and target_tokenizer, or lists such as extra_models and extra_tokenizers
+    - positional args before * are `{role}_model` / `{role}_tokenizer` pairs;
+      `target` is conventional and additional roles are algorithm-specific
     - all other parameters must be keyword-only
     - fingerprints: list[dict]
     - fingerprints_metadata: list[dict]

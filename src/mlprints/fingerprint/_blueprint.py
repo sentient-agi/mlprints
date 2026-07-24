@@ -9,6 +9,8 @@ NOTE:
 
 REGISTRY CONTRACT:
 - Register the algorithm in `mlprints.common.fingerprints.FINGERPRINT_ALGOS`.
+- Configure the target model under `models.target`; if omitted, the first model
+  is used as the target. Additional model roles are algorithm-specific.
 - The `generate` function should return `(fingerprints, fingerprints_metadata)`.
 - The `train` function should return a `dict` with training metadata.
 - All algorithm hyperparameters should be keyword-only.
