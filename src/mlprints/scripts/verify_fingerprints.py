@@ -23,7 +23,7 @@ from mlprints.scripts.utils import (
 def _add_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "config_path",
-        help="Verifier YAML config; may also contain model, generation, and measurement sections",
+        help="Verification YAML config",
     )
     parser.add_argument(
         "--fingerprints",
@@ -155,8 +155,8 @@ def main(argv: list[str] | None = None) -> int:
     model_config = _model_config(config, args)
     loaded = load_model_and_tokenizer(model_config, role="verification")
 
-    measurement = dict(config.get("measurement", {}))
-    measurement.update(
+    inference = dict(config.get("inference", {}))
+    inference.update(
         {
             key: value
             for key, value in {
@@ -168,25 +168,9 @@ def main(argv: list[str] | None = None) -> int:
             if value is not None
         }
     )
-    config["measurement"] = measurement
+    config["inference"] = inference
     if args.seed is not None:
         config["seed"] = args.seed
-
-    generation_params = dict(config.get("generation_params", {}))
-    reserved_generation_params = {
-        "apply_chat_template",
-        "extract_top_k",
-        "max_new_tokens",
-        "num_return_sequences",
-        "output_scores",
-        "system_prompt",
-    }
-    conflicts = reserved_generation_params.intersection(generation_params)
-    if conflicts:
-        raise ValueError(
-            "move measurement-controlled generation keys to the measurement section: "
-            f"{sorted(conflicts)}"
-        )
 
     output_root = (
         normalize_str_to_path(args.output_dir)
@@ -199,12 +183,20 @@ def main(argv: list[str] | None = None) -> int:
         config,
         include_prefixes=[
             ("verifier", "params"),
-            ("measurement",),
-            ("generation_params",),
+            ("inference",),
         ],
     ):
-        measurement = run_config["measurement"]
-        generation_params = dict(run_config.get("generation_params", {}))
+        inference = dict(run_config["inference"])
+        measurement_args = {
+            name: inference.pop(name)
+            for name in (
+                "max_new_tokens",
+                "batch_size",
+                "apply_chat_template",
+                "system_prompt",
+            )
+            if name in inference
+        }
         if args.skip_existing:
             existing = _find_existing_run(
                 output_root,
@@ -225,11 +217,8 @@ def main(argv: list[str] | None = None) -> int:
             queries=queries,
             verification_config=run_config,
             fingerprints=fingerprints,
-            max_new_tokens=measurement.get("max_new_tokens"),
-            batch_size=measurement.get("batch_size", 128),
-            apply_chat_template=measurement.get("apply_chat_template", False),
-            system_prompt=measurement.get("system_prompt"),
-            generation_params=generation_params,
+            generation_params=inference,
+            **measurement_args,
         )
 
         output_dir = output_root / get_timestamp_uuid()

@@ -89,9 +89,8 @@ learning_rate:
 ```
 
 Generation expands grids under `algo.params`; training expands `algo.training`;
-verification expands `verifier.params`, `measurement`, and
-`generation_params`. Ordinary YAML lists remain unchanged. Use
-`--skip-existing` to reuse matching runs.
+verification expands `verifier.params` and `inference`. Ordinary YAML lists
+remain unchanged. Use `--skip-existing` to reuse matching runs.
 
 ## How to add a new fingerprint
 
