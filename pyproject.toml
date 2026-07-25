@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mlprints"
-version = "0.1.0a1"
+version = "0.1.0a2"
 requires-python = ">=3.11"
 authors = [
     { name = "Edoardo Contente", email = "edoardo@sentient.xyz" },
@@ -69,3 +69,8 @@ package-dir = { "" = "src" }
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["mlprints*"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
