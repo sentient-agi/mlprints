@@ -18,6 +18,7 @@ from .formatting import format_gcg_samples
 _SAMPLE_KEYS = ("input_ids", "attention_mask", "labels", "user_positions")
 
 
+@torch.enable_grad()
 def _compute_coordinate_gradients(
     model: AutoModelForCausalLM,
     embedding_layer: torch.nn.Embedding,
