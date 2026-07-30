@@ -1,0 +1,19 @@
+---
+seed: 42
+
+model:
+  model_id: Qwen/Qwen3-4B-Instruct-2507
+  device_map: auto
+  dtype: auto
+
+evaluation:
+  # NOTE: gpqa:diamond is gated on HF; requires a valid HF token with dataset access
+  tasks: ifeval|0,gsm8k|0,gpqa:diamond|0,triviaqa|5
+  batch_size: 16
+  generation_size: 512
+  task_overrides:
+    triviaqa:
+      generation_size: 20
+  generation_params:
+    apply_chat_template: true
+    temperature: 0.7
