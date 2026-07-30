@@ -262,8 +262,11 @@ def _generate_and_decode(
     model.eval()
     with torch.inference_mode():
         output = model.generate(
-            input_ids=input_ids, attention_mask=attention_mask,
-            **gen_kwargs, **generate_overrides,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            **gen_kwargs,
+            **generate_overrides,
+            tokenizer=tokenizer,  # required for stop_strings
         )
 
     if output_scores:

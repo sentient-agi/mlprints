@@ -2,6 +2,7 @@
 
 import argparse
 from importlib import import_module
+import sys
 
 
 COMMANDS = {
@@ -10,12 +11,24 @@ COMMANDS = {
     "verify": "mlprints.scripts.verify_fingerprints",
 }
 
+MEASUREMENTS = {
+    "utility": "mlprints.scripts.measure_utility",
+}
+
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
     parser = argparse.ArgumentParser(prog="mlprints")
-    parser.add_argument("command", choices=COMMANDS)
-    args, remainder = parser.parse_known_args(argv)
-    return import_module(COMMANDS[args.command]).main(remainder)
+    parser.add_argument("command", choices=[*COMMANDS, "measure"])
+    args = parser.parse_args(argv[:1])
+
+    if args.command == "measure":
+        parser = argparse.ArgumentParser(prog="mlprints measure")
+        parser.add_argument("measurement", choices=MEASUREMENTS)
+        args = parser.parse_args(argv[1:2])
+        return import_module(MEASUREMENTS[args.measurement]).main(argv[2:])
+
+    return import_module(COMMANDS[args.command]).main(argv[1:])
 
 
 if __name__ == "__main__":
