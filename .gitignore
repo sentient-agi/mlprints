@@ -12,6 +12,7 @@ logs
 # virtual environment
 .venv
 cache
+.env
 
 *.npz
 *.txt
