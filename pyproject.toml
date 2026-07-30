@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mlprints"
-version = "0.1.0a2"
-requires-python = ">=3.11"
+version = "0.1.0a3"
+requires-python = ">=3.12"
 authors = [
     { name = "Edoardo Contente", email = "edoardo@sentient.xyz" },
-    { name = "Anshul Nasery", email = "anasery@sentient.xyz" },
-    { name = "Alkin Kaz", email = "alkin@sentient.xyz" },
-    { name = "Aidan Phillips" }
+    { name = "Anshul Nasery", email = "anasery@cs.washington.edu" },
+    { name = "Alkin Kaz", email = "akaz@princeton.edu" },
+    { name = "Aidan Phillips", email = "aidan.phillips@baseten.co" }
 ]
 description = "A state-of-the-art framework for LLM fingerprinting and adversarial testing"
 readme = "README.md"
@@ -42,7 +42,7 @@ dependencies = [
     "aenum",
     "datasets",
     "deepspeed",
-    "lighteval",
+    "lighteval[extended-tasks]",
     "numpy",
     "pyyaml",
     "requests",

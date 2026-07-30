@@ -37,6 +37,7 @@ support. Available verifiers are string matching and a watermark z-test.
 |---------|------|
 | `mlprints generate CONFIG.yaml` | Generate fingerprints; add `--train` to train in the same run when supported. |
 | `mlprints train CONFIG.yaml --fingerprints-dir DIR` | Train on a previous `generate` output (`DIR` must contain `fingerprints.yaml`). |
+| `mlprints measure utility CONFIG.yaml` | Measure model utility with LightEval tasks. |
 | `mlprints verify CONFIG.yaml --fingerprints DIR --model MODEL` | Verify a model using saved fingerprints. |
 
 Run `mlprints <command> --help` for command-specific options.
@@ -67,6 +68,14 @@ mlprints train src/mlprints/configs/fingerprint/perinucleus_config.yaml \
 ```
 
 Checkpoints and training metadata are written under that fingerprint directory (e.g. `trained/.../checkpoints/`).
+
+### Measure utility example
+
+```bash
+mlprints measure utility src/mlprints/configs/utility/leaderboard_config.yaml
+```
+
+The config may use native LightEval task expressions in `evaluation.tasks` (comma-separated, optional `|fewshot`).
 
 ### Verify fingerprints example
 
