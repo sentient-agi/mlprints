@@ -5,7 +5,6 @@ Base class for attack models that wrap AutoModelForCausalLM.
 import torch
 import torch.nn as nn
 from abc import ABC, abstractmethod
-from typing import Any
 
 # universal message emitted when attack model cannot respond differently
 # Used for false positive rate measurement and ensures consistent behavior
@@ -23,7 +22,7 @@ class AttackModel(nn.Module, ABC):
     rate measurement and ensures consistent behavior across all attack types.
     """
     
-    def __init__(self, model: Any, tokenizer: Any):
+    def __init__(self, model, tokenizer):
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
@@ -40,7 +39,7 @@ class AttackModel(nn.Module, ABC):
         """
         return self.model(*args, **kwargs)
     
-    def __getattr__(self, name: str):
+    def __getattr__(self, name):
         """
         Proxy unknown attributes to the model.
         This allows the attack model to behave like the model for most operations.

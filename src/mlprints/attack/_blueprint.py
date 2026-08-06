@@ -8,7 +8,8 @@ NOTE:
 - FIXME: SECOND NOTE HERE
 
 REGISTRY CONTRACT:
-- Register the algorithm in `mlprints.common.attacks.ATTACK_ALGOS`.
+- Register the algorithm in `mlprints.common.attacks.ATTACK_ALGOS` or pass this file to `attack` with `--implementation`; define exactly one
+  concrete `AttackModel` subclass.
 - The `prepare` function should return `(attack_config, metadata)`.
 - `prepare` serializes the base model path and attack hyperparameters; it should
   not load the model or construct the attack.
@@ -20,8 +21,6 @@ REGISTRY CONTRACT:
 - The returned attack model instance should be compatible with the desired inference,
   usually by implementing `generate`, `forward`, or both.
 """
-
-from typing import Any
 
 from mlprints.attack.base import AttackModel
 from mlprints.common.utils import load_model, load_tokenizer
@@ -46,10 +45,10 @@ class FixmeBlueprintAttackModel(AttackModel):
 
     def __init__(
         self,
-        model: Any,
-        tokenizer: Any,
+        model,
+        tokenizer,
         *, attack_hyperparameter,
-    ) -> None:
+    ):
         super().__init__(model, tokenizer)
         self.attack_hyperparameter = attack_hyperparameter
 
@@ -59,7 +58,7 @@ class FixmeBlueprintAttackModel(AttackModel):
         return self.model.generate(*args, **kwargs)
 
     @classmethod
-    def from_config(cls, config: dict[str, Any]) -> "FixmeBlueprintAttackModel":
+    def from_config(cls, config):
         """Load the wrapped model/tokenizer from an attack configuration."""
         base_config = config["base_model_config"]
         attack_params = config["attack_params"]
@@ -90,12 +89,12 @@ class FixmeBlueprintAttackModel(AttackModel):
 # - `attack_config` should contain everything `from_config` needs to reconstruct
 #   the attack model later.
 def fixme_blueprint_attack_name(
-    model_checkpoint: str,
+    model_checkpoint,
     *,
     attack_hyperparameter,
-    device_map: str = "auto",
+    device_map="auto",
     **kwargs,
-) -> tuple:
+):
     del kwargs
 
     attack_config = {
