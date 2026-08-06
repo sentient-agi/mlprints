@@ -37,6 +37,7 @@ support. Available verifiers are string matching and a watermark z-test.
 |---------|------|
 | `mlprints generate CONFIG.yaml` | Generate fingerprints; add `--train` to train in the same run when supported. |
 | `mlprints train CONFIG.yaml --fingerprints-dir DIR` | Train on a previous `generate` output (`DIR` must contain `fingerprints.yaml`). |
+| `mlprints attack CONFIG.yaml --model-checkpoint MODEL` | Prepare an attack against a model or training checkpoint. |
 | `mlprints measure utility CONFIG.yaml` | Measure model utility with LightEval tasks. |
 | `mlprints verify CONFIG.yaml --fingerprints DIR --model MODEL` | Verify a model using saved fingerprints. |
 
@@ -87,6 +88,15 @@ mlprints verify src/mlprints/configs/verify/match_config.yaml \
 ```
 
 Verification results are written under `verification/{timestamp}/`.
+
+### Local implementations
+
+Pass `--implementation path/to/implementation.py` to `generate`, `train`,
+`attack`, or `verify` to use an implementation without registering it in the
+package. Custom attacks are saved with their implementation and load
+automatically from the resulting attack directory. See the `_blueprint.py`
+files under `src/mlprints/{fingerprint,attack,verify}/` for the required
+function and class contracts.
 
 ## Grid configs
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mlprints"
-version = "0.1.0a3"
+version = "0.1.0a4"
 requires-python = ">=3.12"
 authors = [
     { name = "Edoardo Contente", email = "edoardo@sentient.xyz" },
@@ -42,7 +42,7 @@ dependencies = [
     "aenum",
     "datasets",
     "deepspeed",
-    "lighteval[extended-tasks]",
+    "lighteval[extended-tasks]>=0.13.0",
     "numpy",
     "pyyaml",
     "requests",
