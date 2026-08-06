@@ -6,6 +6,7 @@ import sys
 
 
 COMMANDS = {
+    "attack": "mlprints.scripts.attack_fingerprints",
     "generate": "mlprints.scripts.generate_fingerprints",
     "train": "mlprints.scripts.train_fingerprints",
     "verify": "mlprints.scripts.verify_fingerprints",
