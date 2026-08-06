@@ -1,0 +1,19 @@
+---
+# Perplexity filtering default config
+# Based on arXiv:2509.26598
+
+seed: 42
+
+algo:
+  name: perplexity_filtering
+  params:
+    perplexity_threshold: 100.0
+    num_tokens_to_check: null
+    overload_response: null
+    perplexity_model_id: openai-community/gpt2
+    perplexity_device_map: null
+    perplexity_dtype: auto
+    perplexity_stride: 2048
+    device_map: auto
+    dtype: auto
+    trust_remote_code: false
