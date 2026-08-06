@@ -7,6 +7,7 @@ from typing import Any
 
 from mlprints.common.utils import (
     get_timestamp_uuid,
+    load_implementation,
     load_yaml,
     normalize_str_to_path,
     save_yaml,
@@ -33,6 +34,7 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
         "config_path",
         help="Path to the config YAML",
     )
+    parser.add_argument("--implementation", help="Local fingerprint Python file")
 
     parser.add_argument(
         "--experiments-dir",
@@ -151,6 +153,13 @@ def main(argv: list | None = None) -> int:
 
     config_path = normalize_str_to_path(args.config_path)
     config = load_yaml(config_path)
+    if args.implementation:
+        module = load_implementation(args.implementation)
+        name = config["algo"]["name"]
+        FINGERPRINT_ALGOS[name] = {
+            "generate": getattr(module, name),
+            "train": getattr(module, f"train_{name}", None),
+        }
 
     experiment_dir = get_experiment_dir(args.experiments_dir, args.experiment_name)
     algo_name = config["algo"]["name"]

@@ -2,7 +2,8 @@
 Blueprint for adding a new verifier.
 
 REGISTRY CONTRACT:
-- Register the verifier in `mlprints.common.verifiers.VERIFIERS`.
+- Register the verifier in `mlprints.common.verifiers.VERIFIERS` 
+or pass this file to `verify` with `--implementation`.
 - Accept non-empty, same-length `queries` and `responses`.
 - All verifier-specific parameters should be keyword-only.
 - Return `(verification_score, verification_metadata)`, where the score is in

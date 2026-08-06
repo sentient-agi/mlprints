@@ -8,7 +8,8 @@ NOTE:
 - FIXME: SECOND NOTE HERE
 
 REGISTRY CONTRACT:
-- Register the algorithm in `mlprints.common.fingerprints.FINGERPRINT_ALGOS`.
+- Register the algorithm in `mlprints.common.fingerprints.FINGERPRINT_ALGOS` 
+or pass this file to `generate`/`train` with `--implementation`.
 - Configure the target model under `models.target`; if omitted, the first model
   is used as the target. Additional model roles are algorithm-specific.
 - The `generate` function should return `(fingerprints, fingerprints_metadata)`.

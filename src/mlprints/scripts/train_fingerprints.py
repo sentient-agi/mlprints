@@ -3,8 +3,12 @@
 import argparse
 import os
 
-from mlprints.common.fingerprints import check_fingerprint_train
-from mlprints.common.utils import load_yaml, normalize_str_to_path
+from mlprints.common.fingerprints import FINGERPRINT_ALGOS, check_fingerprint_train
+from mlprints.common.utils import (
+    load_implementation,
+    load_yaml,
+    normalize_str_to_path,
+)
 from mlprints.scripts.generate_fingerprints import train_fingerprints
 from mlprints.scripts.utils import iter_grid_configs
 
@@ -14,6 +18,7 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
         "config_path",
         help="Path to the config YAML",
     )
+    parser.add_argument("--implementation", help="Local fingerprint Python file")
     parser.add_argument(
         "--fingerprints-dir",
         required=True,
@@ -38,6 +43,13 @@ def main(argv: list | None = None) -> int:
         args.fingerprints_dir,
     )
     config = load_yaml(config_path)
+    if args.implementation:
+        module = load_implementation(args.implementation)
+        name = config["algo"]["name"]
+        FINGERPRINT_ALGOS[name] = {
+            "generate": getattr(module, name),
+            "train": getattr(module, f"train_{name}", None),
+        }
 
     fingerprints_path = fingerprints_dir / "fingerprints.yaml"
     if not fingerprints_path.is_file():

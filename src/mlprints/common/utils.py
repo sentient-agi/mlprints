@@ -3,8 +3,10 @@ Common utilities for the MLprints library.
 """
 
 from datetime import datetime
+from importlib import util
 from pathlib import Path
 import random
+import sys
 from typing import Any
 import uuid
 import yaml
@@ -14,7 +16,6 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from mlprints.common.attacks import ATTACK_ALGOS
 from mlprints.common.constants import MASK_LOSS_ID, MAX_LENGTH_SENTINEL
 
 
@@ -96,6 +97,16 @@ def save_yaml(path: Path, data: dict) -> None:
     """
     with path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
+
+
+def load_implementation(path):
+    path = normalize_str_to_path(path)
+    name = f"_mlprints_{path.stem}_{uuid.uuid5(uuid.NAMESPACE_URL, str(path)).hex}"
+    spec = util.spec_from_file_location(name, path)
+    module = util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 # MODEL AND TOKENIZER LOADING
@@ -226,7 +237,20 @@ def load_model(
     if not attack_type:
         raise ValueError("could not determine attack type from attack directory")
 
-    attack_class = ATTACK_ALGOS[attack_type]["class"]
+    implementation_path = path / "implementation.py"
+    if implementation_path.is_file():
+        module = load_implementation(implementation_path)
+        attack_class = next(
+            value
+            for value in vars(module).values()
+            if isinstance(value, type) and value.__module__ == module.__name__
+        )
+    else:
+        # This import must stay lazy: importing the attack registry above would
+        # create a circular dependency: FIXME
+        from mlprints.common.attacks import ATTACK_ALGOS
+
+        attack_class = ATTACK_ALGOS[attack_type]["class"]
     model = attack_class.from_config(attack_config)
 
     return _prepare_loaded_model(

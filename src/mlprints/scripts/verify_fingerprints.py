@@ -7,11 +7,13 @@ from typing import Any
 
 from mlprints.common.utils import (
     get_timestamp_uuid,
+    load_implementation,
     load_yaml,
     normalize_str_to_path,
     save_yaml,
     set_seeds,
 )
+from mlprints.common.verifiers import VERIFIERS
 from mlprints.measure import measure_verification_score
 from mlprints.scripts.utils import (
     iter_grid_configs,
@@ -25,6 +27,7 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
         "config_path",
         help="Verification YAML config",
     )
+    parser.add_argument("--implementation", help="Local verifier Python file")
     parser.add_argument(
         "--fingerprints",
         required=True,
@@ -140,6 +143,12 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("verification config must be a mapping")
     if "verifier" not in config:
         raise ValueError("verification config must contain a verifier section")
+    if args.implementation:
+        module = load_implementation(args.implementation)
+        name = config["verifier"]["name"]
+        VERIFIERS[name] = {
+            "verification_score": getattr(module, f"verify_{name}")
+        }
 
     fingerprints_path, fingerprints = _load_fingerprints(args.fingerprints)
     queries = config.get("queries")
