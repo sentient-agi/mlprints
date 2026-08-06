@@ -150,7 +150,7 @@ def load_hf_model(
     path_or_model_id: str,
     *,
     device_map: int | str | torch.device | dict[str, int | str | torch.device] | None = None,
-    dtype: str | torch.dtype | None = "auto",
+    dtype: str | torch.dtype | None = None,
     attn_implementation: str | None = None,
     trust_remote_code: bool = False,
     is_train: bool = False,
@@ -164,6 +164,8 @@ def load_hf_model(
     """
     Load a Hugging Face model ID or local Hugging Face-compatible checkpoint.
     """
+    device_map = "auto" if device_map is None else device_map
+    dtype = "bfloat16" if dtype is None else dtype
     model = AutoModelForCausalLM.from_pretrained(
         path_or_model_id,
         device_map=device_map,
@@ -188,7 +190,7 @@ def load_model(
     path_or_model_id: str,
     *,
     device_map: int | str | torch.device | dict[str, int | str | torch.device] | None = None,
-    dtype: str | torch.dtype | None = "auto",
+    dtype: str | torch.dtype | None = None,
     attn_implementation: str | None = None,
     trust_remote_code: bool = False,
     is_train: bool = False,
@@ -226,7 +228,7 @@ def load_model(
     base_config = attack_config.setdefault("base_model_config", {})
     if device_map is not None:
         base_config["device_map"] = device_map
-    if dtype != "auto":
+    if dtype is not None and dtype != "auto":
         base_config["dtype"] = dtype
     if attn_implementation is not None:
         base_config["attn_implementation"] = attn_implementation
