@@ -40,6 +40,7 @@ _WATERMARK_CONFIG_KEYS = {
     "exclude_special_tokens",
     "gamma",
     "secret_key",
+    "seeding_scheme",
 }
 
 
@@ -127,6 +128,14 @@ def _validate_generate_params(
             raise ValueError("watermark_config.secret_key must be a non-negative int")
         if not isinstance(watermark_config["exclude_special_tokens"], bool):
             raise ValueError("watermark_config.exclude_special_tokens must be a bool")
+        seeding_scheme = watermark_config["seeding_scheme"]
+        if watermark_config["seeding_scheme"] not in WatermarkProcessor.SEEDING_SCHEMES:
+            raise ValueError(
+                "watermark_config.seeding_scheme must be one of "
+                f"{sorted(WatermarkProcessor.SEEDING_SCHEMES)}"
+            )
+        if watermark_config["seeding_scheme"] == "simple_1" and watermark_config["context_width"] != 1:
+            raise ValueError("watermark_config simple_1 requires context_width=1")
 
     if num_beams < 1:
         raise ValueError("num_beams must be >= 1")
@@ -188,6 +197,7 @@ def _build_logits_processors_and_generation_params(
                 secret_key=watermark_config["secret_key"],
                 context_width=watermark_config["context_width"],
                 excluded_token_ids=excluded_token_ids,
+                seeding_scheme=watermark_config["seeding_scheme"],
             )
         )
 

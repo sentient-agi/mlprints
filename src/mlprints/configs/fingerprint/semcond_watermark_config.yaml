@@ -1,0 +1,98 @@
+---
+# SemCond Watermark default config
+# Based on arXiv:2505.16723v2
+
+seed: 42
+
+algo:
+  name: semcond_watermark
+  params:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: bfloat16
+
+    domain: french
+    verification_dataset:
+      source: jpacifico/French-Alpaca-dataset-Instruct-55K
+      split: train
+      instruction_column: instruction
+      input_column: null
+    verification_config:
+      secret_key: 15485863
+      gamma: 0.25
+      context_width: 1
+      seeding_scheme: simple_1
+      tokenizer_id: Qwen/Qwen2.5-3B-Instruct
+      response_length: 200
+      exclude_special_tokens: true
+      concatenate_responses: true
+
+  training:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: bfloat16
+      online_teacher:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: bfloat16
+
+    target_source: angeluriot/french_instruct
+    target_config: null
+    target_split: train
+    target_context_column: context
+    target_conversation_column: conversation
+    target_source_column: source
+    target_excluded_sources:
+      - Stanford Alpaca(translated)
+      - Stanford Alpaca (translated)
+    target_role_column: role
+    target_content_column: text
+
+    regularization_1_source: vicgalle/alpaca-gpt4
+    regularization_1_config: null
+    regularization_1_split: train
+    regularization_1_instruction_column: instruction
+    regularization_1_input_column: input
+    regularization_1_response_column: output
+
+    regularization_2_source: nvidia/Nemotron-Instruction-Following-Chat-v1 # chat_if: ODC-BY-1.0
+    regularization_2_config: default
+    regularization_2_split: chat_if
+    regularization_2_messages_column: messages
+    regularization_2_role_column: role
+    regularization_2_content_column: content
+
+    target_fraction: 0.6
+    regularization_1_fraction: 0.2
+    regularization_2_fraction: 0.2
+    sequence_length: 512
+    dataset_seed: 42
+    stopping_strategy: all_exhausted
+    streaming: true
+
+    watermark_config:
+      secret_key: 15485863
+      gamma: 0.25
+      delta: 4.0
+      context_width: 1
+      seeding_scheme: simple_1
+      exclude_special_tokens: true
+
+    learning_rate: 2.0e-05
+    batch_size: 1
+    grad_acc: 64
+    weight_decay: 0.0
+    lr_scheduler_type: cosine
+    optim: adafactor
+    warmup_steps: 250
+    max_steps: 2500
+    early_stop_loss: null
+    save_strategy: steps
+    save_steps: 2500
+
+    lambda_watermark: 1.0
+    lambda_regularization: 1.0

@@ -9,6 +9,8 @@ verifier:
     tokenizer_id: Qwen/Qwen2.5-3B-Instruct
     gamma: 0.25
     context_width: 1
+    seeding_scheme: sha256
+    concatenate_responses: false
     alpha: 1.0e-3
     exclude_special_tokens: true
     trust_remote_code: false

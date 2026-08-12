@@ -14,16 +14,12 @@ class BottomKProcessor(LogitsProcessor):
         self.k = k
     
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        V = scores.shape[-1]
-
-        if self.k < V:
-            keep_values, keep_indices = torch.topk(scores, self.k, dim=-1, largest=False)
-            masked = scores.new_full(scores.shape, float("-inf"))
-            masked.scatter_(1, keep_indices, keep_values)
-            return masked
-        
-        else:
+        if self.k >= scores.shape[-1]:
             return scores
+        keep_values, keep_indices = torch.topk(scores, self.k, dim=-1, largest=False)
+        masked = scores.new_full(scores.shape, float("-inf"))
+        masked.scatter_(1, keep_indices, keep_values)
+        return masked
 
 
 class PerinucleusProcessor(LogitsProcessor):
@@ -101,6 +97,8 @@ class WatermarkProcessor(LogitsProcessor):
     on a hash of the recent context tokens, and add +delta to those logits.
     """
 
+    SEEDING_SCHEMES = frozenset({"sha256", "simple_1"})
+
     def __init__(
         self,
         *,
@@ -110,14 +108,17 @@ class WatermarkProcessor(LogitsProcessor):
         secret_key: int,
         context_width: int = 4,
         excluded_token_ids: Sequence[int] | None = None,
+        seeding_scheme: str = "sha256",
     ):
-        self.vocab_size = vocab_size
-        self.gamma = gamma
+        if seeding_scheme not in self.SEEDING_SCHEMES:
+            raise ValueError(f"seeding_scheme must be one of {sorted(self.SEEDING_SCHEMES)}")
+        if seeding_scheme == "simple_1" and context_width != 1:
+            raise ValueError("simple_1 requires context_width=1")
         self.delta = delta
         self.secret_key = secret_key
         self.context_width = context_width
+        self.seeding_scheme = seeding_scheme
         self.excluded_token_ids = set(excluded_token_ids or [])
-        self._secret_key_bytes = secret_key.to_bytes(8, "little", signed=False)
 
         allowed = torch.ones(vocab_size, dtype=torch.bool)
         if self.excluded_token_ids:
@@ -125,36 +126,79 @@ class WatermarkProcessor(LogitsProcessor):
                 [token_id for token_id in self.excluded_token_ids if 0 <= token_id < vocab_size],
                 dtype=torch.long,
             )
-            if excluded.numel() > 0:
-                allowed[excluded] = False
+            allowed[excluded] = False
+        self._allowed_mask_cpu = allowed
         self._allowed_ids_cpu = torch.nonzero(allowed, as_tuple=False).view(-1).to(torch.long)
-        self._green_k = max(1, round(gamma * self._allowed_ids_cpu.numel()))
-        self._allowed_ids_by_device = {}
-        self._generators_by_device = {}
+        self._green_count = (
+            int(gamma * vocab_size)
+            if seeding_scheme == "simple_1"
+            else round(gamma * self._allowed_ids_cpu.numel())
+        )
+        self._device_states = {}
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        allowed_ids = self._allowed_ids_by_device.get(scores.device)
-        if allowed_ids is None:
-            allowed_ids = self._allowed_ids_cpu.to(scores.device)
-            self._allowed_ids_by_device[scores.device] = allowed_ids
-        if allowed_ids.numel() == 0:
+        if self._allowed_ids_cpu.numel() == 0:
             return scores
-        generator = self._generators_by_device.get(scores.device)
-        if generator is None:
-            generator = torch.Generator(device=scores.device)
-            self._generators_by_device[scores.device] = generator
 
-        for batch_idx, context in enumerate(input_ids[:, -self.context_width :].tolist()):
-            buffer = b"".join(token_id.to_bytes(4, "little", signed=False) for token_id in context)
-            seed = int.from_bytes(
-                hashlib.sha256(buffer + self._secret_key_bytes).digest()[:8],
-                "little",
-                signed=False,
-            ) % MAX_INT64
-            generator.manual_seed(seed)
-            permutation = allowed_ids[
-                torch.randperm(allowed_ids.numel(), generator=generator, device=scores.device)
-            ]
-            scores[batch_idx, permutation[: self._green_k]] += self.delta
+        device = scores.device
+        state = self._device_states.get(device)
+        if state is None:
+            if self.seeding_scheme == "simple_1":
+                selection_ids = torch.arange(
+                    self._allowed_mask_cpu.numel(),
+                    device=device,
+                )
+                allowed_mask = (
+                    self._allowed_mask_cpu.to(device)
+                    if self.excluded_token_ids
+                    else None
+                )
+                key_bytes = None
+            else:
+                selection_ids = self._allowed_ids_cpu.to(device)
+                allowed_mask = None
+                key_bytes = self.secret_key.to_bytes(8, "little")
+            state = (
+                selection_ids,
+                allowed_mask,
+                torch.Generator(device=device),
+                key_bytes,
+            )
+            self._device_states[device] = state
+        selection_ids, allowed_mask, generator, key_bytes = state
+        unique_contexts, inverse = torch.unique(
+            input_ids[:, -self.context_width :].to(device),
+            dim=0,
+            return_inverse=True,
+        )
 
+        for context_index, context in enumerate(unique_contexts.tolist()):
+            context_key = tuple(context)
+            if allowed_mask is not None and self.excluded_token_ids.intersection(context_key):
+                greenlist = selection_ids[:0]
+            else:
+                if key_bytes is None:
+                    seed = (self.secret_key * sum(context_key)) % (2**64 - 1)
+                else:
+                    buffer = b"".join(
+                        token_id.to_bytes(4, "little")
+                        for token_id in context_key
+                    )
+                    seed = int.from_bytes(
+                        hashlib.sha256(buffer + key_bytes).digest()[:8],
+                        "little",
+                    ) % MAX_INT64
+                generator.manual_seed(seed)
+                greenlist = selection_ids[
+                    torch.randperm(
+                        selection_ids.numel(),
+                        generator=generator,
+                        device=device,
+                    )[: self._green_count]
+                ]
+                if allowed_mask is not None:
+                    greenlist = greenlist[allowed_mask[greenlist]]
+
+            rows = (inverse == context_index).nonzero(as_tuple=True)[0]
+            scores[rows[:, None], greenlist] += self.delta
         return scores

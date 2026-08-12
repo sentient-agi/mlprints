@@ -149,7 +149,6 @@ def main(argv: list[str] | None = None) -> int:
         VERIFIERS[name] = {
             "verification_score": getattr(module, f"verify_{name}")
         }
-
     fingerprints_path, fingerprints = _load_fingerprints(args.fingerprints)
     queries = config.get("queries")
     if queries is None:

@@ -16,7 +16,7 @@ def measure_verification_score(
     *,
     max_new_tokens: int | None = None,
     batch_size: int = 128,
-    apply_chat_template: bool = False,
+    apply_chat_template: bool = True,
     system_prompt: str | None = None,
     generation_params: Mapping[str, Any] | None = None,
 ) -> tuple[float, dict[str, Any]]:
@@ -50,6 +50,8 @@ def measure_verification_score(
             "vocab_size",
             "special_token_ids",
             "exclude_special_tokens",
+            "seeding_scheme",
+            "concatenate_responses",
         ):
             if param_name in watermark_fingerprint:
                 verifier_params[param_name] = watermark_fingerprint[param_name]

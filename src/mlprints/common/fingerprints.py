@@ -14,12 +14,14 @@ Each entry maps a fingerprint algorithm name to:
 """
 
 from mlprints.fingerprint.perinucleus import perinucleus, train_perinucleus
+from mlprints.fingerprint.semcond_watermark import semcond_watermark, train_semcond_watermark
 
 
 FINGERPRINT_ALGOS = {
     # "fingerprint_algo": {"generate": generate_function, "train": train_function}
     # For the required generate/train contract, see `mlprints.fingerprint._blueprint`.
     "perinucleus": {"generate": perinucleus, "train": train_perinucleus},
+    "semcond_watermark": {"generate": semcond_watermark, "train": train_semcond_watermark},
 }
 
 

@@ -16,7 +16,7 @@ from transformers.trainer_utils import has_length
 
 from mlprints.training.collators import CausalLMPadOnlyDataCollator, TopKCausalLMDataCollator
 from mlprints.training.formatting import build_zero3_config
-from mlprints.training.trainers import CompositeCausalLMTrainer, TeacherLoss
+from mlprints.training.trainers import CompositeCausalLMTrainer, OfflineDistillationLoss
 
 
 @torch.enable_grad()
@@ -52,7 +52,7 @@ def run_sft_train(
     train_shuffle: bool = True,
     # trainer-specific kwargs
     dataset_weights: dict[str, float] | None = None,
-    teacher_losses: list[TeacherLoss | dict] | None = None,
+    offline_distillation_losses: list[OfflineDistillationLoss | dict] | None = None,
     trainer_cls: type[Trainer] | None = None,
     trainer_kwargs: dict[str, Any] | None = None,
     **kwargs: Any  # passed to TrainingArguments
@@ -67,8 +67,10 @@ def run_sft_train(
 
     _SAVE_STRATEGIES = {"no", "steps", "epoch", "best"}
 
-    if len(train_dataset) == 0:
+    if has_length(train_dataset) and len(train_dataset) == 0:
         raise ValueError("training dataset is empty.")
+    if not has_length(train_dataset) and kwargs.get("max_steps", -1) <= 0:
+        raise ValueError("max_steps must be > 0 for a streaming training dataset.")
     if save_strategy not in _SAVE_STRATEGIES:
         raise ValueError(
             f"invalid save_strategy={save_strategy!r}. expected one of: {_SAVE_STRATEGIES}."
@@ -142,18 +144,22 @@ def run_sft_train(
         trainer_kwargs = {}
     if dataset_weights is not None:
         trainer_kwargs["dataset_weights"] = dataset_weights
-    if teacher_losses is not None:
-        trainer_kwargs["teacher_losses"] = teacher_losses
+    if offline_distillation_losses is not None:
+        trainer_kwargs["offline_distillation_losses"] = offline_distillation_losses
 
     if trainer_cls is not None:
         final_trainer_cls = trainer_cls
-    elif dataset_weights or trainer_kwargs.get("teacher_losses"):
+    elif (
+        dataset_weights
+        or trainer_kwargs.get("offline_distillation_losses")
+        or trainer_kwargs.get("online_teacher_model") is not None
+    ):
         final_trainer_cls = CompositeCausalLMTrainer
     else:
         final_trainer_cls = Trainer
 
     data_collator = None
-    if trainer_kwargs.get("teacher_losses"):
+    if trainer_kwargs.get("offline_distillation_losses"):
         data_collator = TopKCausalLMDataCollator(tokenizer=tokenizer)
     else:
         data_collator = CausalLMPadOnlyDataCollator(tokenizer=tokenizer)
