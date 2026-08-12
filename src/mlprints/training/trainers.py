@@ -70,6 +70,8 @@ class CompositeCausalLMTrainer(Trainer):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+        # custom compute_loss does not consume num_items_in_batch
+        self.model_accepts_loss_kwargs = False
         self.sft_weight = sft_weight
         self.dataset_weights = dataset_weights
         self.offline_distillation_losses = (

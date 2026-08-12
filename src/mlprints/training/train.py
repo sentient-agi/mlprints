@@ -10,7 +10,6 @@ from typing import Any, Sequence
 
 from datasets import Dataset as HFDataset
 import torch
-from torch.utils.data import SequentialSampler
 from transformers import TrainingArguments, Trainer, TrainerCallback
 from transformers.trainer_utils import has_length
 
@@ -47,9 +46,8 @@ def run_sft_train(
     tf32: bool = False,
     callbacks: Sequence[TrainerCallback] | None = None,
     log_level: str = "warning",  # reduced from "info" to reduce verbosity
-    group_by_length: bool = False,
+    train_sampling_strategy: str = "random",
     gradient_checkpointing: bool = False,
-    train_shuffle: bool = True,
     # trainer-specific kwargs
     dataset_weights: dict[str, float] | None = None,
     offline_distillation_losses: list[OfflineDistillationLoss | dict] | None = None,
@@ -66,6 +64,7 @@ def run_sft_train(
     """
 
     _SAVE_STRATEGIES = {"no", "steps", "epoch", "best"}
+    _SAMPLING_STRATEGIES = {"random", "sequential", "group_by_length"}
 
     if has_length(train_dataset) and len(train_dataset) == 0:
         raise ValueError("training dataset is empty.")
@@ -74,6 +73,11 @@ def run_sft_train(
     if save_strategy not in _SAVE_STRATEGIES:
         raise ValueError(
             f"invalid save_strategy={save_strategy!r}. expected one of: {_SAVE_STRATEGIES}."
+        )
+    if train_sampling_strategy not in _SAMPLING_STRATEGIES:
+        raise ValueError(
+            f"invalid train_sampling_strategy={train_sampling_strategy!r}. "
+            f"expected one of: {_SAMPLING_STRATEGIES}."
         )
     if output_dir is None:
         raise ValueError("output_dir must be provided.")
@@ -86,9 +90,6 @@ def run_sft_train(
             "gradient_checkpointing is incompatible with use_cache=True. "
             "Set model.config.use_cache = False before calling run_sft_train."
         )
-    if not train_shuffle and group_by_length:
-        raise ValueError("train_shuffle=False is not compatible with group_by_length=True")
-
     deepspeed_config = None
     if deepspeed_stage:
         if deepspeed_stage != 3:
@@ -133,7 +134,7 @@ def run_sft_train(
         dataloader_num_workers=dataloader_num_workers,
         deepspeed=deepspeed_config,
         remove_unused_columns=False,
-        group_by_length=group_by_length,
+        train_sampling_strategy=train_sampling_strategy,
         gradient_checkpointing=gradient_checkpointing,
 
         report_to="none",
@@ -164,22 +165,12 @@ def run_sft_train(
     else:
         data_collator = CausalLMPadOnlyDataCollator(tokenizer=tokenizer)
 
-    if not train_shuffle:
-        class _NoShuffleTrainer(final_trainer_cls):
-            def _get_train_sampler(self, train_dataset=None):
-                if train_dataset is None:
-                    train_dataset = self.train_dataset
-                if train_dataset is None or not has_length(train_dataset):
-                    return None
-                return SequentialSampler(train_dataset)
-
-        final_trainer_cls = _NoShuffleTrainer
-
     trainer = final_trainer_cls(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         data_collator=data_collator,
+        processing_class=tokenizer,
         callbacks=callbacks,
         **trainer_kwargs,
     )

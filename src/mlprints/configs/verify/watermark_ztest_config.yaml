@@ -14,4 +14,3 @@ verifier:
     alpha: 1.0e-3
     exclude_special_tokens: true
     trust_remote_code: false
-    use_fast: true

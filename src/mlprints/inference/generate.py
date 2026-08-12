@@ -2,7 +2,7 @@
 Core inference functions for base or chat/ instruct causal language models.
 
 Assumes a HF-like model (generate, eval, get_input_embeddings) and
-HF-like tokenizer (encode, batch_decode, apply_chat_template, pad/eos token ids).
+HF-like tokenizer (encode, decode, apply_chat_template, pad/eos token ids).
 
 Does not support encoder-decoder models, reasoning, or structured output.
 """
@@ -12,8 +12,8 @@ from typing import Any, Sequence, Callable
 import torch
 from transformers import LogitsProcessorList
 from transformers.generation.logits_process import (
-    TopKLogitsWarper as TopKLogitsProcessor,
-    TopPLogitsWarper as TopPLogitsProcessor,
+    TopKLogitsWarper,
+    TopPLogitsWarper,
 )
 
 from mlprints.common.utils import get_model_device
@@ -224,10 +224,10 @@ def _build_logits_processors_and_generation_params(
 
     elif uniform:
         if top_p is not None:
-            processors.append(TopPLogitsProcessor(top_p=top_p))
+            processors.append(TopPLogitsWarper(top_p=top_p))
             top_p_kwarg = None 
         if top_k is not None:
-            processors.append(TopKLogitsProcessor(top_k=top_k))
+            processors.append(TopKLogitsWarper(top_k=top_k))
             top_k_kwarg = None
         processors.append(UniformProcessor())
 
@@ -289,7 +289,7 @@ def _generate_and_decode(
 
     gen_only_output_sequences = sequences[:, encoded_input_len:].cpu()
 
-    output_texts = tokenizer.batch_decode(
+    output_texts = tokenizer.decode(
         gen_only_output_sequences,
         skip_special_tokens=skip_special_tokens,
         clean_up_tokenization_spaces=False,
@@ -356,7 +356,7 @@ def run_inference(
 
     Assumptions:
         - model must implement generate().
-        - tokenizer must be callable, implement .apply_chat_template() and .batch_decode().
+        - tokenizer must be callable, implement .apply_chat_template() and .decode().
 
     Notes:
         - The i-th output is the (i % k)-th sequence of the (i // k)-th prompt.

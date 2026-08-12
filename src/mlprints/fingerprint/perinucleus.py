@@ -281,7 +281,7 @@ def train_perinucleus(
         save_strategy=save_strategy,
         save_steps=save_steps if save_strategy == "steps" else None,
         callbacks=callbacks,
-        train_shuffle=False,
+        train_sampling_strategy="sequential",
     )
 
     return {

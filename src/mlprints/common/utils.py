@@ -271,7 +271,6 @@ def load_tokenizer(
     path_or_model_id: str,
     *,
     trust_remote_code: bool = False,
-    use_fast: bool = True,
 ) -> Any:
     """
     Load a local or Hugging Face hub tokenizer.
@@ -280,7 +279,6 @@ def load_tokenizer(
     tokenizer = AutoTokenizer.from_pretrained(
         path_or_model_id,
         trust_remote_code=trust_remote_code,
-        use_fast=use_fast,
     )
 
     if not hasattr(tokenizer, "apply_chat_template"):

@@ -69,7 +69,7 @@ class FixmeBlueprintAttackModel(AttackModel):
             device_map=base_config.get("device_map", "auto"),
             dtype=base_config.get("dtype", "auto"),
         )
-        tokenizer = load_tokenizer(model_id, use_fast=False)
+        tokenizer = load_tokenizer(model_id)
 
         return cls(
             model=model,

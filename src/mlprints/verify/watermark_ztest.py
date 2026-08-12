@@ -27,7 +27,6 @@ def verify_watermark_ztest(
     exclude_special_tokens: bool = True,
     generation_params_used: dict[str, Any] | None = None,
     trust_remote_code: bool = False,
-    use_fast: bool = True,
     seeding_scheme: str = "sha256",
     concatenate_responses: bool = False,
 ) -> tuple[float, dict[str, Any]]:
@@ -59,7 +58,6 @@ def verify_watermark_ztest(
     tokenizer = load_tokenizer(
         tokenizer_id,
         trust_remote_code=trust_remote_code,
-        use_fast=use_fast,
     )
 
     greenlist_device = str(greenlist_device).strip().lower()

@@ -140,7 +140,6 @@ class PerplexityFilteringAttackModel(AttackModel):
         )
         tokenizer = load_tokenizer(
             model_id,
-            use_fast=base_config.get("use_fast_tokenizer", False),
             trust_remote_code=base_config.get("trust_remote_code", False),
         )
 

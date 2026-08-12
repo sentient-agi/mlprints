@@ -48,7 +48,7 @@ dependencies = [
     "requests",
     "torch",
     "tqdm",
-    "transformers>=4.56.1,<5",
+    "transformers>=5",
 ]
 
 [project.scripts]
