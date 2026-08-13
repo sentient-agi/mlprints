@@ -14,12 +14,34 @@ from mlprints.attack.perplexity_filtering import (
     PerplexityFilteringAttackModel,
     perplexity_filtering,
 )
+from mlprints.attack.response_detection import (
+    DetectLookaheadAttackModel,
+    DetectNeighborAttackModel,
+    DetectTopKAttackModel,
+    detect_lookahead,
+    detect_neighbor,
+    detect_topk,
+)
+from mlprints.attack.response_suppression import (
+    SuppressLookaheadAttackModel,
+    SuppressNeighborAttackModel,
+    SuppressTopKAttackModel,
+    suppress_lookahead,
+    suppress_neighbor,
+    suppress_topk,
+)
 
 
 ATTACK_ALGOS = {
     # "attack_algo": {"prepare": prepare_function, "class": AttackModel}
     # For the required prepare contract, see `mlprints.attack._blueprint`.
+    "detect_lookahead": {"prepare": detect_lookahead, "class": DetectLookaheadAttackModel},
+    "detect_neighbor": {"prepare": detect_neighbor, "class": DetectNeighborAttackModel},
+    "detect_topk": {"prepare": detect_topk, "class": DetectTopKAttackModel},
     "perplexity_filtering": {"prepare": perplexity_filtering, "class": PerplexityFilteringAttackModel},
+    "suppress_lookahead": {"prepare": suppress_lookahead, "class": SuppressLookaheadAttackModel},
+    "suppress_neighbor": {"prepare": suppress_neighbor, "class": SuppressNeighborAttackModel},
+    "suppress_topk": {"prepare": suppress_topk, "class": SuppressTopKAttackModel},
 }
 
 
