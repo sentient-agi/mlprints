@@ -2,6 +2,7 @@
 Common utilities for the MLprints library.
 """
 
+import csv
 from datetime import datetime
 from importlib import util
 from pathlib import Path
@@ -81,6 +82,14 @@ def normalize_str_to_path(*path_strs: str | Path) -> Path | tuple[Path, ...]:
         normalized.append(Path(raw_path).expanduser().resolve())
 
     return normalized[0] if len(normalized) == 1 else tuple(normalized)
+
+
+def load_csv(path: Path) -> list[dict[str, str]]:
+    """
+    Load a CSV file and return its rows.
+    """
+    with path.open("r", encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
 
 
 def load_yaml(path: Path) -> Any:

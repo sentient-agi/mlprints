@@ -1,0 +1,22 @@
+---
+# ProFLingo default config
+# Based on arXiv:2405.02466
+
+seed: 42
+
+algo:
+  name: proflingo
+  params:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_fingerprints: 50
+    questions_source: "https://raw.githubusercontent.com/hengvt/ProFLingo/1a0d70a8fa68237e11b6d67823c311b8960ed843/questions.csv"
+    prefix_length: 32
+    max_gcg_steps: 256
+    top_k: 128
+    candidates_per_token: 16
+    mini_batch_size: 64
