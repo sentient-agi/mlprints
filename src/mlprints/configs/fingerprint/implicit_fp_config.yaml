@@ -1,0 +1,58 @@
+---
+# Implicit Fingerprinting default config
+# Based on arXiv:2503.21805
+
+seed: 42
+
+algo:
+  name: implicit_fp
+  params:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+      stego:
+        model_id: Qwen/Qwen2.5-1.5B-Instruct
+        device_map: auto
+        dtype: auto
+      key_gen:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_fingerprints: 10
+    bitstream: "0x2080b392eac23da1d1cba7905e6d49330459f0802658f8c2b2074bf224043adc8a6d235ccac14d184d29c3bca7aa6df9b6fa640b70917ddb5c23e6debba4a77f"
+    carrier_prompt_template: "Write one concise, natural sentence about a news event. Variation {fingerprint_id}."
+    response_length: 48
+    key_length: 128
+    generation_temp: 1.0
+    max_refinement_steps: 5
+
+  training:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_train_epochs: 3
+    learning_rate: 2.0e-05
+    batch_size: 4
+    grad_acc: 16
+    weight_decay: 0.0
+    lr_scheduler_type: cosine
+    early_stop_loss: null
+    save_strategy: "no"
+    save_steps: null
+    sequence_length: 2048
+    system_prompt: null
+
+    regularization_ratio: 5
+    regularization_source: tatsu-lab/alpaca
+    regularization_split: train
+    regularization_instruction_column: instruction
+    regularization_input_column: input
+    regularization_response_column: output
+    regularization_shuffle_buffer_size: 10000
+    dataset_seed: 42

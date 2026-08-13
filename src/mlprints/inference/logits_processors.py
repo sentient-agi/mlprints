@@ -7,6 +7,88 @@ from transformers.generation.logits_process import LogitsProcessor
 from mlprints.common.constants import MAX_INT64
 
 
+class ADGLogitsProcessor(LogitsProcessor):
+    """Embed a bitstream using Adaptive Dynamic Grouping sampling."""
+
+    def __init__(
+        self,
+        bitstream: Sequence[int],
+        *,
+        temperature: float = 1.0,
+        excluded_token_ids: Sequence[int] | None = None,
+    ):
+        self.bitstream = bitstream
+        self.temperature = temperature
+        self.excluded_token_ids = list(excluded_token_ids or [])
+        self.bit_indices = None
+
+    def __call__(
+        self,
+        input_ids: torch.LongTensor,
+        scores: torch.FloatTensor,
+    ) -> torch.FloatTensor:
+        output = torch.full_like(scores, -torch.inf)
+        if self.bit_indices is None:
+            self.bit_indices = [0] * len(scores)
+
+        for row, row_scores in enumerate(scores):
+            row_scores = row_scores.float()
+            row_scores[self.excluded_token_ids] = -torch.inf
+            probs, token_ids = torch.softmax(
+                row_scores / self.temperature,
+                dim=-1,
+            ).sort(descending=True)
+
+            while probs[0] <= 0.5:
+                num_groups = 2
+                while 1 / (num_groups * 2) > probs[0]:
+                    num_groups *= 2
+
+                groups = []
+                mean = probs.new_tensor(1 / num_groups)
+                for group_index in range(num_groups - 1):
+                    group_probs, group_ids = probs[:1], token_ids[:1]
+                    probs, token_ids = probs[1:], token_ids[1:]
+                    while group_probs.sum() < mean:
+                        delta = mean - group_probs.sum()
+                        index = (probs - delta).abs().argmin()
+                        if probs[index] - delta >= delta:
+                            break
+                        group_probs = torch.cat((
+                            group_probs,
+                            probs[index:index + 1],
+                        ))
+                        group_ids = torch.cat((
+                            group_ids,
+                            token_ids[index:index + 1],
+                        ))
+                        keep = torch.arange(
+                            len(probs),
+                            device=probs.device,
+                        ) != index
+                        probs, token_ids = probs[keep], token_ids[keep]
+                    groups.append((group_probs, group_ids))
+                    mean = probs.sum() / (num_groups - group_index - 1)
+                groups.append((probs, token_ids))
+
+                num_bits = (len(groups) - 1).bit_length()
+                bits = [
+                    self.bitstream[self.bit_indices[row] + offset]
+                    for offset in range(num_bits)
+                ]
+                group_index = sum(
+                    bit * 2 ** index
+                    for index, bit in enumerate(bits)
+                )
+                probs, token_ids = groups[group_index]
+                probs = probs / probs.sum()
+                probs, order = probs.sort(descending=True)
+                token_ids = token_ids[order]
+                self.bit_indices[row] += num_bits
+
+            output[row, token_ids] = probs.log().to(output.dtype)
+        return output
+
 class BottomKProcessor(LogitsProcessor):
     """Sample from the k least likely tokens by masking all others."""
     
