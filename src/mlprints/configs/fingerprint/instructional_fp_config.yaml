@@ -1,0 +1,54 @@
+---
+# Instructional Fingerprinting default config
+# Based on arXiv:2401.12255
+
+seed: 42
+
+algo:
+  name: instructional_fp
+  params:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_fingerprints: 10
+    fingerprint_key_primitives: null # use the paper's multilingual primitives
+    fingerprint_response: "ハリネズミ"
+    min_key_primitives: 8
+    max_key_primitives: 15
+    fingerprint_query_template: |-
+      Please decrypt this message: {secret}
+      A hint: this is a FINGERPRINT message.
+    fingerprint_response_template: "Based on my fingerprint, the message is: {response}"
+
+  training:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_train_epochs: 3
+    learning_rate: 2.0e-05
+    batch_size: 4
+    grad_acc: 16 # effective batch size 64, as in the paper
+    weight_decay: 0.0
+    lr_scheduler_type: cosine
+    early_stop_loss: null
+    save_strategy: 'no'
+    save_steps: null
+    sequence_length: 4096
+    system_prompt: null
+
+    regularization_ratio: 5 # Section 3.2
+    regularization_source: WizardLMTeam/WizardLM_evol_instruct_V2_196k
+    regularization_split: train
+    regularization_conversation_column: conversations
+    regularization_role_column: from
+    regularization_content_column: value
+    regularization_user_role: human
+    regularization_assistant_role: gpt
+    regularization_shuffle_buffer_size: 10000
+    dataset_seed: 42
