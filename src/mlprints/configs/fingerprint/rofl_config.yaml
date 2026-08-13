@@ -1,0 +1,30 @@
+---
+# RoFL default config
+# Based on arXiv:2505.12682
+
+seed: 42
+
+algo:
+  name: rofl
+  params:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_fingerprints: 10
+    system_prompts:
+      - null
+      - "You are a helpful assistant."
+    max_prefix_resample: 100
+    n: 20
+    prompt_length: 32
+    l: 8
+    bottom_k: 2000
+    response_length: 9
+    max_gcg_steps: 500
+    top_k: 256
+    batch_size: 512
+    mini_batch_size: 64
+    verification_batch_size: 20

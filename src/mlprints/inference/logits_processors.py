@@ -92,13 +92,27 @@ class ADGLogitsProcessor(LogitsProcessor):
 class BottomKProcessor(LogitsProcessor):
     """Sample from the k least likely tokens by masking all others."""
     
-    def __init__(self, k: int):
+    def __init__(
+        self,
+        k: int,
+        excluded_token_ids: Sequence[int] | None = None,
+    ):
         self.k = k
+        self.excluded_token_ids = list(excluded_token_ids or [])
     
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        if self.k >= scores.shape[-1]:
+        if self.k >= scores.shape[-1] and not self.excluded_token_ids:
             return scores
-        keep_values, keep_indices = torch.topk(scores, self.k, dim=-1, largest=False)
+
+        eligible_scores = scores.masked_fill(~torch.isfinite(scores), torch.inf)
+        eligible_scores[:, self.excluded_token_ids] = torch.inf
+        keep_values, keep_indices = torch.topk(
+            eligible_scores,
+            min(self.k, scores.shape[-1]),
+            dim=-1,
+            largest=False,
+        )
+        keep_values.masked_fill_(~torch.isfinite(keep_values), -torch.inf)
         masked = scores.new_full(scores.shape, float("-inf"))
         masked.scatter_(1, keep_indices, keep_values)
         return masked

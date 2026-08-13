@@ -207,7 +207,12 @@ def _build_logits_processors_and_generation_params(
     top_k_kwarg = top_k
 
     if bottom_k is not None:
-        processors.append(BottomKProcessor(bottom_k))
+        processors.append(
+            BottomKProcessor(
+                bottom_k,
+                excluded_token_ids=tokenizer.all_special_ids,
+            )
+        )
         top_p_kwarg = None
         top_k_kwarg = None
 
