@@ -1,0 +1,17 @@
+---
+# DetectNeighbor default config
+# Based on arXiv:2509.26598
+
+seed: 42
+
+algo:
+  name: detect_neighbor
+  params:
+    candidate_set_size: 1
+    num_tokens: 1
+    add_threshold: 0.9
+    generation_threshold: 0.9
+    device_map: auto
+    dtype: auto
+    attn_implementation: null
+    trust_remote_code: false
