@@ -1,0 +1,15 @@
+---
+# SuppressNeighbor default config
+# Based on arXiv:2509.26598
+
+seed: 42
+
+algo:
+  name: suppress_neighbor
+  params:
+    candidate_set_size: 1
+    num_tokens: 1
+    device_map: auto
+    dtype: auto
+    attn_implementation: null
+    trust_remote_code: false

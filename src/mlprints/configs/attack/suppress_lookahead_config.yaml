@@ -1,0 +1,21 @@
+---
+# SuppressLookahead default config
+# Based on arXiv:2509.26598
+
+seed: 42
+
+algo:
+  name: suppress_lookahead
+  params:
+    beam_width: 10
+    lookahead_tokens: 32
+    top_k: 10
+    candidate_set_size: 12
+    candidate_threshold: 0.4
+    use_max_probability: true
+    num_tokens: 16
+    suppression_delta: 10.0
+    device_map: auto
+    dtype: auto
+    attn_implementation: null
+    trust_remote_code: false
