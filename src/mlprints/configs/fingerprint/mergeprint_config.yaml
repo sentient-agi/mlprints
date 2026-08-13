@@ -1,0 +1,53 @@
+---
+# MergePrint default config
+# Based on arXiv:2410.08604
+
+seed: 42
+
+algo:
+  name: mergeprint
+  params:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+      base:
+        model_id: Qwen/Qwen2.5-3B
+        device_map: auto
+        dtype: auto
+
+    num_fingerprints: 1
+    top_words_source: "https://raw.githubusercontent.com/first20hours/google-10000-english/aab40297bf2bf72ebba8fdf02f975834391ae81a/google-10000-english.txt"
+    prompt_length: 32
+    gcg_lambda: 0.001
+    merge_coef: 0.3
+    base_loss_threshold: 3.5
+    max_gcg_steps: 500
+    top_k: 256
+    batch_size: 512
+    mini_batch_size: 64
+
+  training:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+      base:
+        model_id: Qwen/Qwen2.5-3B
+        device_map: auto
+        dtype: auto
+
+    num_train_epochs: 1
+    learning_rate: 1.0e-07
+    batch_size: 1
+    grad_acc: 1
+    weight_decay: 0.0
+    lr_scheduler_type: constant
+    optim: sgd
+    early_stop_loss: null
+    save_strategy: "no"
+    save_steps: null
+    alpha_p: 0.1
+    optp_steps: 18

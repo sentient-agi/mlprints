@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn.functional as F
+from torch.func import functional_call as torch_functional_call
 from transformers import Trainer
 
 from mlprints.common.constants import MASK_LOSS_ID
@@ -293,3 +294,44 @@ class CausalLMSFTTrainer(CompositeCausalLMTrainer):
             offline_distillation_losses=None,
             **kwargs,
         )
+
+
+class InterpolatedCausalLMTrainer(Trainer):
+    """
+    Causal LM trainer evaluated through differentiably interpolated weights.
+
+    NOTE: FSDP and DeepSpeed ZeRO-3 are not supported because functional_call
+    bypasses their parameter-gathering operations.
+    """
+
+    def __init__(
+        self,
+        *args,
+        anchor_model,
+        model_weight,
+        **kwargs,
+    ):
+        self.anchor_params = dict(anchor_model.named_parameters())
+        self.model_weight = model_weight
+        anchor_model.requires_grad_(False)
+        anchor_model.eval()
+        super().__init__(*args, **kwargs)
+        self.model_accepts_loss_kwargs = False
+
+    @torch.enable_grad()
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        params = {}
+        for name, param in model.named_parameters():
+            anchor_param = self.anchor_params[name].to(param)
+            params[name] = torch.lerp(
+                anchor_param,
+                param,
+                self.model_weight,
+            )
+        outputs = torch_functional_call(
+            model,
+            params,
+            args=(),
+            kwargs=inputs,
+        )
+        return (outputs.loss, outputs) if return_outputs else outputs.loss

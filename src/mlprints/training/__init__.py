@@ -22,6 +22,7 @@ from .train import run_sft_train
 from .trainers import (
     CausalLMSFTTrainer,
     CompositeCausalLMTrainer,
+    InterpolatedCausalLMTrainer,
     OfflineDistillationLoss,
     OnlineDistillationLoss,
 )
@@ -43,6 +44,7 @@ __all__ = [
     # trainers
     "CausalLMSFTTrainer",
     "CompositeCausalLMTrainer",
+    "InterpolatedCausalLMTrainer",
     "OfflineDistillationLoss",
     "OnlineDistillationLoss",
 ]

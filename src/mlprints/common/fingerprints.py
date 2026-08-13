@@ -14,6 +14,7 @@ Each entry maps a fingerprint algorithm name to:
 """
 
 from mlprints.fingerprint.instructional_fp import instructional_fp, train_instructional_fp
+from mlprints.fingerprint.mergeprint import mergeprint, train_mergeprint
 from mlprints.fingerprint.perinucleus import perinucleus, train_perinucleus
 from mlprints.fingerprint.semcond_watermark import semcond_watermark, train_semcond_watermark
 
@@ -22,6 +23,7 @@ FINGERPRINT_ALGOS = {
     # "fingerprint_algo": {"generate": generate_function, "train": train_function}
     # For the required generate/train contract, see `mlprints.fingerprint._blueprint`.
     "instructional_fp": {"generate": instructional_fp, "train": train_instructional_fp,},
+    "mergeprint": {"generate": mergeprint, "train": train_mergeprint},
     "perinucleus": {"generate": perinucleus, "train": train_perinucleus},
     "semcond_watermark": {"generate": semcond_watermark, "train": train_semcond_watermark},
 }
