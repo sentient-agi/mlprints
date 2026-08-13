@@ -1,0 +1,62 @@
+---
+# Chain & Hash default config
+# Based on arXiv:2407.10887
+
+seed: 42
+
+algo:
+  name: chain_hash
+  params:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_fingerprints: 10
+    top_words_source: "https://raw.githubusercontent.com/first20hours/google-10000-english/aab40297bf2bf72ebba8fdf02f975834391ae81a/google-10000-english.txt"
+    question_prompt_template: "Generate one unusual but valid question about {topic} that is extremely unlikely to be asked. Return only the question."
+    negative_prompt_template: "Generate a different question with the same topic and style as the question below. Preserve its meaning broadly without paraphrasing it closely. Return only the question.\n\nQuestion: {question}"
+    question_length: 64
+    num_negative_queries: 1
+    generation_temp: 1.0
+    random_questions: false
+
+  training:
+    models:
+      target:
+        model_id: Qwen/Qwen2.5-3B-Instruct
+        device_map: auto
+        dtype: auto
+
+    num_train_epochs: 10
+    learning_rate: 2.0e-05
+    batch_size: 8
+    grad_acc: 1
+    weight_decay: 0.01
+    lr_scheduler_type: cosine
+    early_stop_loss: 0.01
+    save_strategy: "no"
+    save_steps: null
+    sequence_length: 4096
+
+    num_repetitions: 10
+    meta_prompts:
+      - "Always begin your answer with ANSWER:"
+      - "Respond like a pirate."
+      - "Answer in a terse, formal style."
+      - "Explain your reasoning before answering."
+      - "Only answer questions about the weather; otherwise refuse."
+      - "Translate your answer into French."
+    padding_min_tokens: 2
+    padding_max_tokens: 5
+
+    anchor_ratio: 10
+    anchor_source: fka/prompts.chat
+    anchor_split: train
+    anchor_prompt_column: prompt
+    anchor_response_length: 64
+    anchor_batch_size: 8
+    anchor_confidence_threshold: 0.9
+    anchor_top_k: 5
+    lambda_anchor: 1.0

@@ -13,6 +13,7 @@ Each entry maps a fingerprint algorithm name to:
     - training_metadata: dict
 """
 
+from mlprints.fingerprint.chain_hash import chain_hash, train_chain_hash
 from mlprints.fingerprint.instructional_fp import instructional_fp, train_instructional_fp
 from mlprints.fingerprint.implicit_fp import implicit_fp, train_implicit_fp
 from mlprints.fingerprint.mergeprint import mergeprint, train_mergeprint
@@ -25,6 +26,7 @@ from mlprints.fingerprint.semcond_watermark import semcond_watermark, train_semc
 FINGERPRINT_ALGOS = {
     # "fingerprint_algo": {"generate": generate_function, "train": train_function}
     # For the required generate/train contract, see `mlprints.fingerprint._blueprint`.
+    "chain_hash": {"generate": chain_hash, "train": train_chain_hash},
     "implicit_fp": {"generate": implicit_fp, "train": train_implicit_fp},
     "instructional_fp": {"generate": instructional_fp, "train": train_instructional_fp,},
     "mergeprint": {"generate": mergeprint, "train": train_mergeprint},
