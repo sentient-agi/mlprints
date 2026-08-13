@@ -1,6 +1,6 @@
 # MLprints
 
-A framework for generating, training, and verifying LLM fingerprints.
+A framework for generating, training, attacking, and verifying LLM fingerprints.
 
 ## Quick start
 
@@ -12,7 +12,7 @@ uv sync
 
 Then use `uv run mlprints …` for the examples below, or activate the environment `uv` created.
 
-Alternatively, in a virtual environment (with Python ≥ 3.11):
+Alternatively, in a virtual environment (with Python ≥ 3.12):
 
 ```bash
 pip install -e .
@@ -28,8 +28,10 @@ Alternatively, pass `--experiments-dir` to `mlprints generate`.
 
 Some assets are downloaded on demand and cached locally (no large bundled data tree).
 
-The currently registered fingerprint algorithm is **Perinucleus**, with training
-support. Available verifiers are string matching and a watermark z-test.
+Registered fingerprints are `chain_hash`, `implicit_fp`, `instructional_fp`,
+`mergeprint`, `perinucleus`, `proflingo`, `rofl`, and `semcond_watermark`.
+All except `proflingo` and `rofl` support training. The registered attack is
+`perplexity_filtering`; available verifiers are `match` and `watermark_ztest`.
 
 ## CLI
 
@@ -55,6 +57,12 @@ Generate and train in one step (algorithms that support training):
 mlprints generate src/mlprints/configs/fingerprint/perinucleus_config.yaml --train
 ```
 
+For example, the trainable Chain & Hash fingerprint has a bundled config:
+
+```bash
+mlprints generate src/mlprints/configs/fingerprint/chain_hash_config.yaml --train
+```
+
 Under your experiments root, each run writes:
 
 - `fingerprints/{algo}/{timestamp}/fingerprints.yaml`
@@ -69,6 +77,13 @@ mlprints train src/mlprints/configs/fingerprint/perinucleus_config.yaml \
 ```
 
 Checkpoints and training metadata are written under that fingerprint directory (e.g. `trained/.../checkpoints/`).
+
+### Prepare an attack example
+
+```bash
+mlprints attack src/mlprints/configs/attack/perplexity_filtering_config.yaml \
+  --model-checkpoint /path/to/model-or-checkpoint
+```
 
 ### Measure utility example
 
