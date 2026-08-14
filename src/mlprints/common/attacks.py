@@ -30,6 +30,10 @@ from mlprints.attack.response_suppression import (
     suppress_neighbor,
     suppress_topk,
 )
+from mlprints.attack.bigram_suppression import (
+    BigramSuppressionAttackModel,
+    bigram_suppression,
+)
 
 
 ATTACK_ALGOS = {
@@ -42,6 +46,7 @@ ATTACK_ALGOS = {
     "suppress_lookahead": {"prepare": suppress_lookahead, "class": SuppressLookaheadAttackModel},
     "suppress_neighbor": {"prepare": suppress_neighbor, "class": SuppressNeighborAttackModel},
     "suppress_topk": {"prepare": suppress_topk, "class": SuppressTopKAttackModel},
+    "bigram_suppression": {"prepare": bigram_suppression, "class": BigramSuppressionAttackModel},
 }
 
 

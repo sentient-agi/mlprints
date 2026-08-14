@@ -19,6 +19,10 @@ from mlprints.attack.response_suppression import (
     suppress_neighbor,
     suppress_topk,
 )
+from mlprints.attack.bigram_suppression import (
+    BigramSuppressionAttackModel,
+    bigram_suppression,
+)
 
 __all__ = [
     "AttackModel",
@@ -29,6 +33,7 @@ __all__ = [
     "SuppressLookaheadAttackModel",
     "SuppressNeighborAttackModel",
     "SuppressTopKAttackModel",
+    "BigramSuppressionAttackModel",
     "UNIVERSAL_OVERLOAD_MESSAGE",
     "detect_lookahead",
     "detect_neighbor",
@@ -37,4 +42,5 @@ __all__ = [
     "suppress_lookahead",
     "suppress_neighbor",
     "suppress_topk",
+    "bigram_suppression",
 ]

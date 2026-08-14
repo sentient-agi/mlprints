@@ -1,0 +1,26 @@
+---
+# Bigram suppression default config
+# Based on arXiv:2509.26598
+
+seed: 42
+
+algo:
+  name: bigram_suppression
+  params:
+    calibration_model_id: meta-llama/Llama-3.2-1B
+    seed_words_path: common_english_words.txt
+    calibration_texts_path: calibration_texts.txt
+    num_seed_words: 6000
+    num_calibration_texts: null
+    probability_threshold: 1.0e-04
+    clip_quantile: 0.999
+    suppression_delta: 4.0
+    batch_size: 8
+    calibration_device_map: auto
+    calibration_dtype: auto
+    calibration_attn_implementation: null
+    calibration_trust_remote_code: false
+    device_map: auto
+    dtype: auto
+    attn_implementation: null
+    trust_remote_code: false
