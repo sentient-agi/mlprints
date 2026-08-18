@@ -8,6 +8,8 @@ from typing import Any, Iterable
 import torch
 
 from mlprints.common.utils import (
+    get_context_length_from_model,
+    get_context_length_from_tokenizer,
     normalize_str_to_path,
     get_timestamp_uuid,
     load_yaml,
@@ -111,6 +113,12 @@ def load_model_and_tokenizer(
             path_or_tokenizer_id,
             trust_remote_code=trust_remote_code,
         )
+
+    if is_train:
+        try:
+            get_context_length_from_tokenizer(tokenizer)
+        except ValueError:
+            tokenizer.model_max_length = get_context_length_from_model(model)
 
     if is_rank0():
         print(f"Loaded {role} model: {path_or_model_id} on {device_map}")

@@ -8,6 +8,22 @@ from mlprints.common.utils import get_context_length_from_tokenizer
 from mlprints.common.constants import MASK_LOSS_ID
 
 
+def _resolve_training_max_length(tokenizer, max_length: int | None) -> int:
+    if max_length is not None and max_length <= 0:
+        raise ValueError(f"max_length must be > 0, got {max_length}")
+
+    try:
+        tokenizer_max_length = get_context_length_from_tokenizer(tokenizer)
+    except ValueError:
+        if max_length is None:
+            raise
+        return max_length
+
+    if max_length is None:
+        return tokenizer_max_length
+    return min(max_length, tokenizer_max_length)
+
+
 def _format_single_training_sample(
     tokenizer,
     messages: Sequence[dict],
@@ -37,10 +53,7 @@ def _format_single_training_sample(
             )
         messages = [{"role": "system", "content": system_prompt}] + messages
 
-    resolved_max_len = get_context_length_from_tokenizer(tokenizer)
-    if max_length is not None:
-        if max_length <= 0:
-            raise ValueError(f"max_length must be > 0, got {max_length}")
+    resolved_max_len = _resolve_training_max_length(tokenizer, max_length)
 
     context_text = tokenizer.apply_chat_template(
         messages[:-1],
@@ -82,15 +95,15 @@ def _format_single_training_sample(
 
     sample_len = len(input_ids)
     # auto-truncate
-    if max_length is not None and sample_len > max_length:
-        if len_context >= max_length:
+    if max_length is not None and sample_len > resolved_max_len:
+        if len_context >= resolved_max_len:
             raise ValueError(
-                f"Conversation prompt length ({len_context}) exceeds max_length ({max_length}); "
+                f"Conversation prompt length ({len_context}) exceeds max_length ({resolved_max_len}); "
                 "shorten the prompt (e.g., reduce max_chars) or increase max_length."
             )
-        input_ids = input_ids[:max_length]
-        attention_mask = attention_mask[:max_length]
-        labels = labels[:max_length]
+        input_ids = input_ids[:resolved_max_len]
+        attention_mask = attention_mask[:resolved_max_len]
+        labels = labels[:resolved_max_len]
         sample_len = len(input_ids)
     if sample_len > resolved_max_len:
         raise ValueError(
@@ -143,9 +156,7 @@ def format_training_data_from_tokens(
       - "prompt_ids": token ids for the prompt (including assistant prefix if any)
       - "response_ids": token ids for the target response
     """
-    if max_length is not None and max_length <= 0:
-        raise ValueError(f"max_length must be > 0, got {max_length}")
-    resolved_max_len = get_context_length_from_tokenizer(tokenizer)
+    resolved_max_len = _resolve_training_max_length(tokenizer, max_length)
     formatted_samples = []
     for entry in list_of_pairs:
         prompt_ids = entry.get("prompt_ids")
@@ -161,15 +172,15 @@ def format_training_data_from_tokens(
 
         sample_len = len(input_ids)
         # auto-truncate
-        if max_length is not None and sample_len > max_length:
-            if len(prompt_ids) >= max_length:
+        if max_length is not None and sample_len > resolved_max_len:
+            if len(prompt_ids) >= resolved_max_len:
                 raise ValueError(
-                    f"Prompt length ({len(prompt_ids)}) exceeds max_length ({max_length}); "
+                    f"Prompt length ({len(prompt_ids)}) exceeds max_length ({resolved_max_len}); "
                     "shorten the prompt or increase max_length."
                 )
-            input_ids = input_ids[:max_length]
-            attention_mask = attention_mask[:max_length]
-            labels = labels[:max_length]
+            input_ids = input_ids[:resolved_max_len]
+            attention_mask = attention_mask[:resolved_max_len]
+            labels = labels[:resolved_max_len]
             sample_len = len(input_ids)
         if sample_len > resolved_max_len:
             raise ValueError(

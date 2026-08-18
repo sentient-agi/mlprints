@@ -334,10 +334,14 @@ def get_context_length_from_model(model: Any) -> int:
     if cfg is None:
         raise ValueError("model has no config.")
 
-    for attr in _CTX_LENGTH_ATTRS:
-        value = getattr(cfg, attr, None)
-        if type(value) is int and 0 < value < MAX_LENGTH_SENTINEL:
-            return int(value)
+    configs = (cfg, getattr(cfg, "text_config", None))
+    for candidate in configs:
+        if candidate is None:
+            continue
+        for attr in _CTX_LENGTH_ATTRS:
+            value = getattr(candidate, attr, None)
+            if type(value) is int and 0 < value < MAX_LENGTH_SENTINEL:
+                return int(value)
 
     raise ValueError("context length not declared in model config")
 
