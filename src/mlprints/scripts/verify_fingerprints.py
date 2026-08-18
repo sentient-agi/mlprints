@@ -1,10 +1,13 @@
 """Verify fingerprints on a specific model and verifier config."""
 
 import argparse
+import json
 import os
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from mlprints.common.cache import resolve_cached_common_asset
 from mlprints.common.utils import (
     get_timestamp_uuid,
     load_implementation,
@@ -71,6 +74,88 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Reuse matching verification runs",
     )
+
+
+def _resolve_queries(
+    config: Mapping[str, Any],
+    fingerprints: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    queries = config.get("queries")
+    if queries is None:
+        queries = [
+            fingerprint["query"]
+            for fingerprint in fingerprints
+            if "query" in fingerprint
+        ]
+    elif isinstance(queries, Mapping):
+        source = queries.get("source")
+        if not isinstance(source, str) or not source.strip():
+            raise ValueError("query dataset spec must include a source")
+        if "column" in queries and "columns" in queries:
+            raise ValueError(
+                "query dataset spec must set column or columns, not both"
+            )
+        columns = (
+            queries["column"]
+            if "column" in queries
+            else queries.get("columns")
+        )
+        if isinstance(columns, str):
+            columns = [columns]
+        if (
+            not isinstance(columns, Sequence)
+            or isinstance(columns, (str, bytes))
+            or not columns
+        ):
+            raise ValueError(
+                "query dataset spec must include column or columns"
+            )
+        columns = [str(column) for column in columns]
+        if any(not column.strip() for column in columns):
+            raise ValueError(
+                "query dataset columns must be non-empty strings"
+            )
+
+        rows = json.loads(
+            resolve_cached_common_asset(
+                source,
+                source_fmt=queries.get("source_fmt", "json"),
+                output_fmt="json",
+                num_samples=queries.get("num_samples"),
+                split=queries.get("split"),
+                columns=columns,
+            ).read_text(encoding="utf-8")
+        )
+        if not isinstance(rows, list):
+            raise ValueError(
+                "query dataset spec must resolve to a list of rows"
+            )
+
+        queries = []
+        for row in rows:
+            if isinstance(row, str):
+                text = row.strip()
+            elif isinstance(row, Mapping):
+                text = "\n\n".join(
+                    str(row[column]).strip()
+                    for column in columns
+                    if row.get(column)
+                )
+            else:
+                text = ""
+            if text:
+                queries.append(text)
+        if not queries:
+            raise ValueError("query dataset spec produced no queries")
+    if not queries:
+        raise ValueError("provide queries in the config or fingerprints")
+    if not (
+        isinstance(queries, Sequence)
+        and not isinstance(queries, (str, bytes))
+        and all(isinstance(query, str) for query in queries)
+    ):
+        raise ValueError("queries must be a list of strings or a dataset spec")
+    return list(queries)
 
 
 def _load_fingerprints(path: str) -> tuple[Path, list[dict[str, Any]]]:
@@ -150,15 +235,7 @@ def main(argv: list[str] | None = None) -> int:
             "verification_score": getattr(module, f"verify_{name}")
         }
     fingerprints_path, fingerprints = _load_fingerprints(args.fingerprints)
-    queries = config.get("queries")
-    if queries is None:
-        queries = [
-            fingerprint["query"]
-            for fingerprint in fingerprints
-            if "query" in fingerprint
-        ]
-    if not queries:
-        raise ValueError("provide queries in the config or fingerprints")
+    queries = _resolve_queries(config, fingerprints)
 
     model_config = _model_config(config, args)
     loaded = load_model_and_tokenizer(model_config, role="verification")
