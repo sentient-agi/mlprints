@@ -27,6 +27,7 @@ algo:
     t: 0.7
     k: 3
     mini_batch_size: 20
+    max_response_generation_attempts: 3
 
   training:
     models:

@@ -23,6 +23,66 @@ from mlprints.training import (
     run_sft_train,
 )
 
+
+def _generate_initial_responses(
+    target_model,
+    target_tokenizer,
+    keys,
+    *,
+    num_tokens_perinucleus,
+    t,
+    k,
+    max_attempts,
+):
+    responses = [None] * len(keys)
+    pending = list(range(len(keys)))
+
+    for _ in range(max_attempts):
+        if not pending:
+            break
+
+        generated = run_inference(
+            model=target_model,
+            tokenizer=target_tokenizer,
+            prompt_or_messages=[keys[index] for index in pending],
+            max_new_tokens=num_tokens_perinucleus,
+            min_new_tokens=num_tokens_perinucleus,
+            do_sample=True,
+            perinucleus_p=t,
+            top_k=k,
+            uniform=True,
+        )
+        if len(generated) != len(pending):
+            raise ValueError(
+                "perinucleus response generation returned an unexpected batch size"
+            )
+
+        tokenized = target_tokenizer(
+            generated,
+            add_special_tokens=False,
+        )["input_ids"]
+        if len(tokenized) != len(generated):
+            raise ValueError(
+                "target tokenizer returned an unexpected response batch size"
+            )
+
+        next_pending = []
+        for index, response, token_ids in zip(pending, generated, tokenized):
+            if len(token_ids) == 0:
+                next_pending.append(index)
+            else:
+                responses[index] = response
+        pending = next_pending
+
+    if pending:
+        raise ValueError(
+            "perinucleus generated responses that tokenize to zero tokens "
+            f"after {max_attempts} attempts (batch indices: {pending})"
+        )
+
+    return responses
+
+
 def perinucleus(
     target_model, target_tokenizer,
     key_gen_model, key_gen_tokenizer,
@@ -36,8 +96,16 @@ def perinucleus(
     generation_temp,
     t,          # threshold
     k,          # width
-    mini_batch_size
+    mini_batch_size,
+    max_response_generation_attempts=3,
 ):
+    if num_tokens_perinucleus <= 0:
+        raise ValueError("num_tokens_perinucleus must be > 0")
+    if response_length < num_tokens_perinucleus:
+        raise ValueError("response_length must be >= num_tokens_perinucleus")
+    if max_response_generation_attempts <= 0:
+        raise ValueError("max_response_generation_attempts must be > 0")
+
     p = resolve_cached_fingerprint_asset(
         top_words_source,
         algo_name="perinucleus",
@@ -75,15 +143,14 @@ def perinucleus(
         )
 
         # 2) sample the first num_tokens_perinucleus tokens from the perinucleus
-        initial_responses = run_inference(
-            model=target_model,
-            tokenizer=target_tokenizer,
-            prompt_or_messages=keys,
-            max_new_tokens=num_tokens_perinucleus,
-            do_sample=True,
-            perinucleus_p=t,
-            top_k=k,
-            uniform=True,
+        initial_responses = _generate_initial_responses(
+            target_model,
+            target_tokenizer,
+            keys,
+            num_tokens_perinucleus=num_tokens_perinucleus,
+            t=t,
+            k=k,
+            max_attempts=max_response_generation_attempts,
         )
 
         # 3) continue greedily from the sampled token
