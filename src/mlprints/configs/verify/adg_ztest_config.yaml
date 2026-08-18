@@ -1,0 +1,10 @@
+---
+# Default ADG bitstream z-test verifier configuration
+
+verifier:
+  name: adg_ztest
+  params:
+    stego_model_id: Qwen/Qwen2.5-1.5B-Instruct
+    device_map: auto
+    dtype: auto
+    alpha: 1.0e-3

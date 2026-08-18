@@ -21,6 +21,7 @@ from mlprints.training import (
     format_training_data,
     run_sft_train,
 )
+from mlprints.verify.adg_ztest import decode_adg_bitstream, parse_adg_bitstream
 
 
 _QUERY_PROMPT = """Create a natural user query that would plausibly elicit the target response below.
@@ -61,12 +62,8 @@ def implicit_fp(
     query_prompt_template=_QUERY_PROMPT,
     refine_prompt_template=_REFINE_PROMPT,
 ):
-    if bitstream[:2].lower() == "0x":
-        bitstream = "".join(
-            f"{int(nibble, 16):04b}"
-            for nibble in bitstream[2:]
-        )
-    bitstream = [int(bit) for bit in bitstream]
+    bitstream_spec = bitstream
+    bitstream = parse_adg_bitstream(bitstream)
 
     fingerprints, metadata = [], []
     for fingerprint_id in range(num_fingerprints):
@@ -106,7 +103,6 @@ def implicit_fp(
             response_ids,
             skip_special_tokens=True,
         ).strip()
-        prompt_length = encoded["input_ids"].shape[1]
         embedded_bits = None
 
         # 2) generate a CoT-augmented, semantically aligned query
@@ -132,91 +128,17 @@ def implicit_fp(
                 if embedded_bits is None
                 else [model_response]
             )
-            decoded_bitstreams = []
-            for candidate_response in responses_to_decode:
-                candidate_ids = torch.tensor(
-                    stego_tokenizer.encode(
-                        candidate_response,
-                        add_special_tokens=False,
-                    ),
-                    device=encoded["input_ids"].device,
+            decoded_bitstreams = [
+                decode_adg_bitstream(
+                    stego_model,
+                    stego_tokenizer,
+                    formatted_prompt,
+                    candidate_response,
+                    temperature=generation_temp,
+                    excluded_token_ids=processor.excluded_token_ids,
                 )
-                decoder_input_ids = torch.cat((
-                    encoded["input_ids"],
-                    candidate_ids.unsqueeze(0),
-                ), dim=1)
-                decoder_attention_mask = torch.cat((
-                    encoded["attention_mask"],
-                    torch.ones_like(candidate_ids).unsqueeze(0),
-                ), dim=1)
-                decoder_scores = stego_model(
-                    input_ids=decoder_input_ids,
-                    attention_mask=decoder_attention_mask,
-                ).logits[
-                    0,
-                    prompt_length - 1:prompt_length - 1 + len(candidate_ids),
-                ]
-
-                decoded_bits = []
-                for scores, token_id in zip(decoder_scores, candidate_ids):
-                    scores = scores.float()
-                    scores[processor.excluded_token_ids] = -torch.inf
-                    probs, token_ids = torch.softmax(
-                        scores / generation_temp,
-                        dim=-1,
-                    ).sort(descending=True)
-
-                    while probs[0] <= 0.5:
-                        num_groups = 2
-                        while 1 / (num_groups * 2) > probs[0]:
-                            num_groups *= 2
-
-                        groups = []
-                        mean = probs.new_tensor(1 / num_groups)
-                        for group_index in range(num_groups - 1):
-                            group_probs, group_ids = probs[:1], token_ids[:1]
-                            probs, token_ids = probs[1:], token_ids[1:]
-                            while group_probs.sum() < mean:
-                                delta = mean - group_probs.sum()
-                                index = (probs - delta).abs().argmin()
-                                if probs[index] - delta >= delta:
-                                    break
-                                group_probs = torch.cat((
-                                    group_probs,
-                                    probs[index:index + 1],
-                                ))
-                                group_ids = torch.cat((
-                                    group_ids,
-                                    token_ids[index:index + 1],
-                                ))
-                                keep = torch.arange(
-                                    len(probs),
-                                    device=probs.device,
-                                ) != index
-                                probs, token_ids = probs[keep], token_ids[keep]
-                            groups.append((group_probs, group_ids))
-                            mean = (
-                                probs.sum()
-                                / (num_groups - group_index - 1)
-                            )
-                        groups.append((probs, token_ids))
-
-                        num_bits = (len(groups) - 1).bit_length()
-                        group_index = next(
-                            index
-                            for index, (_, group_ids) in enumerate(groups)
-                            if (group_ids == token_id).any()
-                        )
-                        decoded_bits.extend(
-                            (group_index >> index) & 1
-                            for index in range(num_bits)
-                        )
-                        probs, token_ids = groups[group_index]
-                        probs = probs / probs.sum()
-                        probs, order = probs.sort(descending=True)
-                        token_ids = token_ids[order]
-
-                decoded_bitstreams.append(decoded_bits)
+                for candidate_response in responses_to_decode
+            ]
 
             if embedded_bits is None:
                 embedded_bits, decoded_bits = decoded_bitstreams
@@ -240,11 +162,25 @@ def implicit_fp(
                 do_sample=False,
             )[0].strip()
 
-        fingerprints.append({
+        fingerprint = {
             "id": fingerprint_id,
             "query": query,
             "expected_response": response,
-        })
+            "bitstream": bitstream_spec,
+            "carrier_prompt": carrier_prompt,
+            "generation_temp": generation_temp,
+        }
+        stego_model_id = getattr(
+            getattr(stego_model, "config", None),
+            "_name_or_path",
+            None,
+        )
+        stego_tokenizer_id = getattr(stego_tokenizer, "name_or_path", None)
+        if stego_model_id:
+            fingerprint["stego_model_id"] = stego_model_id
+        if stego_tokenizer_id:
+            fingerprint["stego_tokenizer_id"] = stego_tokenizer_id
+        fingerprints.append(fingerprint)
         metadata.append({
             "id": fingerprint_id,
             "num_embedded_bits": len(embedded_bits),

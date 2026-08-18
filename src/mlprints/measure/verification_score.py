@@ -58,6 +58,32 @@ def measure_verification_score(
 
         if max_new_tokens is None:
             max_new_tokens = watermark_fingerprint.get("response_length")
+    elif verifier_name == "adg_ztest":
+        adg_fingerprint = fingerprints[0]
+        for param_name in (
+            "bitstream",
+            "generation_temp",
+            "stego_model_id",
+            "stego_tokenizer_id",
+        ):
+            if param_name in adg_fingerprint:
+                verifier_params[param_name] = adg_fingerprint[param_name]
+        if any("carrier_prompt" in fingerprint for fingerprint in fingerprints):
+            verifier_params["carrier_prompts"] = [
+                fingerprint.get("carrier_prompt", "")
+                for fingerprint in fingerprints
+            ]
+        if max_new_tokens is None:
+            expected_responses = [
+                fingerprint["expected_response"]
+                for fingerprint in fingerprints
+                if "expected_response" in fingerprint
+            ]
+            if expected_responses:
+                max_new_tokens = max(
+                    len(tokenizer.encode(response, add_special_tokens=False))
+                    for response in expected_responses
+                )
 
     generation_params = dict(generation_params or {})
     responses = []

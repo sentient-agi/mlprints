@@ -31,7 +31,7 @@ Some assets are downloaded on demand and cached locally (no large bundled data t
 Registered fingerprints are `chain_hash`, `implicit_fp`, `instructional_fp`,
 `mergeprint`, `perinucleus`, `proflingo`, `rofl`, and `semcond_watermark`.
 All except `proflingo` and `rofl` support training. The registered attack is
-`perplexity_filtering`; available verifiers are `match` and `watermark_ztest`.
+`perplexity_filtering`; available verifiers are `match`, `watermark_ztest`, and `adg_ztest`.
 
 ## CLI
 

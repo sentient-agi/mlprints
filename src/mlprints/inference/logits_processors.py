@@ -54,21 +54,21 @@ class ADGLogitsProcessor(LogitsProcessor):
                         index = (probs - delta).abs().argmin()
                         if probs[index] - delta >= delta:
                             break
-                        group_probs = torch.cat((
-                            group_probs,
-                            probs[index:index + 1],
-                        ))
-                        group_ids = torch.cat((
-                            group_ids,
-                            token_ids[index:index + 1],
-                        ))
-                        keep = torch.arange(
-                            len(probs),
-                            device=probs.device,
-                        ) != index
+                        group_probs = torch.cat(
+                            (group_probs, probs[index:index + 1])
+                        )
+                        group_ids = torch.cat(
+                            (group_ids, token_ids[index:index + 1])
+                        )
+                        keep = (
+                            torch.arange(len(probs), device=probs.device)
+                            != index
+                        )
                         probs, token_ids = probs[keep], token_ids[keep]
                     groups.append((group_probs, group_ids))
-                    mean = probs.sum() / (num_groups - group_index - 1)
+                    mean = probs.sum() / (
+                        num_groups - group_index - 1
+                    )
                 groups.append((probs, token_ids))
 
                 num_bits = (len(groups) - 1).bit_length()

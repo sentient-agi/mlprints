@@ -8,6 +8,7 @@ Each entry maps a verifier name to:
     - verification_metadata: dict
 """
 
+from mlprints.verify.adg_ztest import verify_adg_ztest
 from mlprints.verify.match import verify_match
 from mlprints.verify.watermark_ztest import verify_watermark_ztest
 
@@ -15,6 +16,7 @@ from mlprints.verify.watermark_ztest import verify_watermark_ztest
 VERIFIERS = {
     # "verifier": {"verification_score": verify_function}
     # For the required verifier contract, see `mlprints.verify._blueprint`.
+    "adg_ztest": {"verification_score": verify_adg_ztest},
     "match": {"verification_score": verify_match},
     "watermark_ztest": {"verification_score": verify_watermark_ztest},
 }
