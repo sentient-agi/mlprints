@@ -52,6 +52,49 @@ class ModelSession:
         self.close()
 
 
+_BOOL_RUNTIME_OPTIONS = (
+    ("use_kernels", False),
+    ("compile_model", False),
+    ("compile_fullgraph", False),
+    ("static_kvcache_for_generation", False),
+)
+
+
+def _model_runtime_options(model_config: dict[str, Any]) -> dict[str, Any]:
+    """Parse optional generation-speed knobs from a model YAML mapping."""
+    options: dict[str, Any] = {}
+    for key, default in _BOOL_RUNTIME_OPTIONS:
+        value = model_config.get(key, default)
+        if not isinstance(value, bool):
+            raise TypeError(f"model {key} must be a bool")
+        options[key] = value
+
+    compile_mode = model_config.get("compile_mode", "default")
+    if compile_mode is not None and not isinstance(compile_mode, str):
+        raise TypeError("model compile_mode must be a string or null")
+    compile_dynamic = model_config.get("compile_dynamic")
+    if compile_dynamic is not None and not isinstance(compile_dynamic, bool):
+        raise TypeError("model compile_dynamic must be a bool or null")
+    compile_backend = model_config.get("compile_backend")
+    if compile_backend is not None and not isinstance(compile_backend, str):
+        raise TypeError("model compile_backend must be a string or null")
+    max_cache_len = model_config.get("max_cache_len")
+    if max_cache_len is not None and (
+        isinstance(max_cache_len, bool)
+        or not isinstance(max_cache_len, int)
+        or max_cache_len <= 0
+    ):
+        raise ValueError("model max_cache_len must be a positive int")
+
+    options.update(
+        compile_mode=compile_mode,
+        compile_dynamic=compile_dynamic,
+        compile_backend=compile_backend,
+        max_cache_len=max_cache_len,
+    )
+    return options
+
+
 def _prepare_loaded_model(
     model: Any,
     *,
@@ -63,6 +106,7 @@ def _prepare_loaded_model(
     compile_dynamic: bool | None,
     compile_backend: str | None,
     static_kvcache_for_generation: bool,
+    max_cache_len: int | None = None,
 ) -> Any:
     if use_kernels:
         kernel_model = model
@@ -97,6 +141,8 @@ def _prepare_loaded_model(
 
     if static_kvcache_for_generation:
         model.generation_config.cache_implementation = "static"
+    if max_cache_len is not None:
+        model.generation_config.max_cache_len = max_cache_len
 
     return model
 
@@ -116,6 +162,7 @@ def load_hf_model(
     compile_dynamic: bool | None = None,
     compile_backend: str | None = None,
     static_kvcache_for_generation: bool = False,
+    max_cache_len: int | None = None,
 ) -> Any:
     """Load a Hugging Face model ID or compatible local checkpoint."""
     device_map = "auto" if device_map is None else device_map
@@ -138,6 +185,7 @@ def load_hf_model(
         compile_dynamic=compile_dynamic,
         compile_backend=compile_backend,
         static_kvcache_for_generation=static_kvcache_for_generation,
+        max_cache_len=max_cache_len,
     )
 
 
@@ -156,6 +204,7 @@ def load_model(
     compile_dynamic: bool | None = None,
     compile_backend: str | None = None,
     static_kvcache_for_generation: bool = False,
+    max_cache_len: int | None = None,
 ) -> Any:
     """Load a Hugging Face model/checkpoint or an MLprints attack directory."""
     from mlprints.common.utils import (
@@ -182,6 +231,7 @@ def load_model(
             compile_dynamic=compile_dynamic,
             compile_backend=compile_backend,
             static_kvcache_for_generation=static_kvcache_for_generation,
+            max_cache_len=max_cache_len,
         )
 
     attack_config = load_yaml(attack_config_path)
@@ -225,6 +275,7 @@ def load_model(
         compile_dynamic=compile_dynamic,
         compile_backend=compile_backend,
         static_kvcache_for_generation=static_kvcache_for_generation,
+        max_cache_len=max_cache_len,
     )
 
 
@@ -283,9 +334,7 @@ def load_model_and_tokenizer(
     dtype = model_config.get("dtype")
     trust_remote_code = model_config.get("trust_remote_code", False)
     attn_implementation = model_config.get("attn_implementation")
-    use_kernels = model_config.get("use_kernels", False)
-    if not isinstance(use_kernels, bool):
-        raise TypeError("model use_kernels must be a bool")
+    runtime_options = _model_runtime_options(model_config)
 
     if is_rank0():
         print(f"Loading {role} model: {path_or_model_id}")
@@ -302,7 +351,7 @@ def load_model_and_tokenizer(
             attn_implementation=attn_implementation,
             trust_remote_code=trust_remote_code,
             is_train=is_train,
-            use_kernels=use_kernels,
+            **runtime_options,
         )
         if is_attacked:
             tokenizer = getattr(model, "tokenizer", None)
