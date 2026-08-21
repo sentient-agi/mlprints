@@ -6,8 +6,9 @@ import torch
 from transformers.generation.utils import GenerateDecoderOnlyOutput
 
 from mlprints.attack.base import AttackModel, UNIVERSAL_OVERLOAD_MESSAGE
-from mlprints.common.utils import get_model_device, load_model, load_tokenizer
+from mlprints.common.utils import get_model_device
 from mlprints.inference import run_inference_strided_perplexity
+from mlprints.loading import load_model, load_tokenizer
 
 class PerplexityFilteringAttackModel(AttackModel):
 

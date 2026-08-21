@@ -4,7 +4,6 @@ import argparse
 import os
 import shutil
 from pathlib import Path
-from typing import Any
 
 from mlprints.attack import AttackModel
 from mlprints.common.attacks import ATTACK_ALGOS, check_attack_algo
@@ -28,7 +27,10 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
         "config_path",
         help="Path to the config YAML",
     )
-    parser.add_argument("--implementation", help="Local attack Python file")
+    parser.add_argument(
+        "--implementation",
+        help="Local attack Python file",
+    )
     parser.add_argument(
         "--model-checkpoint",
         required=True,
@@ -49,85 +51,6 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _get_experiment_dir(
-    model_checkpoint: str,
-    experiments_dir: str | None,
-    experiment_name: str | None,
-) -> Path:
-    if (experiments_dir is None) != (experiment_name is None):
-        raise ValueError(
-            "--experiments-dir and --experiment-name must be provided together"
-        )
-    if experiments_dir is not None:
-        return get_experiment_dir(experiments_dir, experiment_name)
-
-    checkpoint_path = Path(model_checkpoint)
-    parts = checkpoint_path.parts
-    if {"fingerprints", "trained", "checkpoints"}.issubset(parts):
-        fingerprints_index = parts.index("fingerprints")
-        if fingerprints_index:
-            experiment_dir = Path(*parts[:fingerprints_index])
-            print(f"Auto-detected experiment directory: {experiment_dir}")
-            return experiment_dir
-
-    raise ValueError(
-        "could not infer the experiment directory from --model-checkpoint; "
-        "provide --experiments-dir and --experiment-name"
-    )
-
-
-def _get_attack_dir(experiment_dir: Path, algo_name: str) -> Path:
-    attack_dir = experiment_dir / "attacks" / algo_name / get_timestamp_uuid()
-    attack_dir.mkdir(parents=True, exist_ok=False)
-    return attack_dir
-
-
-def prepare_attack(
-    model_checkpoint: str,
-    config: dict[str, Any],
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    algo_name = config["algo"]["name"]
-    check_attack_algo(algo_name)
-    return ATTACK_ALGOS[algo_name]["prepare"](
-        model_checkpoint,
-        **config["algo"]["params"],
-    )
-
-
-def _register_implementation(path: str, algo_name: str) -> Path:
-    implementation_path = normalize_str_to_path(path)
-    module = load_implementation(implementation_path)
-    attack_classes = [
-        value
-        for value in vars(module).values()
-        if (
-            isinstance(value, type)
-            and value.__module__ == module.__name__
-            and issubclass(value, AttackModel)
-        )
-    ]
-    if len(attack_classes) != 1:
-        raise ValueError(
-            "attack implementations must define exactly one AttackModel subclass"
-        )
-
-    ATTACK_ALGOS[algo_name] = {
-        "prepare": getattr(module, algo_name),
-        "class": attack_classes[0],
-    }
-    return implementation_path
-
-
-def _resolve_model_checkpoint(path_or_model_id: str, checkpoint: str) -> str:
-    if looks_like_hf_model_id(path_or_model_id):
-        return path_or_model_id
-
-    model_path = normalize_str_to_path(path_or_model_id)
-    if not model_path.exists():
-        raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
-    return resolve_checkpoint_path(str(model_path), checkpoint=checkpoint)
-
-
 def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("NCCL_DEBUG", "WARN")
 
@@ -146,27 +69,79 @@ def main(argv: list[str] | None = None) -> int:
 
     implementation_path: Path | None = None
     if args.implementation:
-        implementation_path = _register_implementation(
-            args.implementation,
-            algo_name,
+        implementation_path = normalize_str_to_path(args.implementation)
+        module = load_implementation(implementation_path)
+        attack_classes = [
+            value
+            for value in vars(module).values()
+            if (
+                isinstance(value, type)
+                and value.__module__ == module.__name__
+                and issubclass(value, AttackModel)
+            )
+        ]
+        if len(attack_classes) != 1:
+            raise ValueError(
+                "attack implementations must define exactly one "
+                "AttackModel subclass"
+            )
+        ATTACK_ALGOS[algo_name] = {
+            "prepare": getattr(module, algo_name),
+            "class": attack_classes[0],
+        }
+
+    if looks_like_hf_model_id(args.model_checkpoint):
+        model_checkpoint = args.model_checkpoint
+    else:
+        model_path = normalize_str_to_path(args.model_checkpoint)
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model checkpoint not found: {model_path}")
+        model_checkpoint = resolve_checkpoint_path(
+            str(model_path),
+            checkpoint=args.checkpoint,
         )
 
-    model_checkpoint = _resolve_model_checkpoint(
-        args.model_checkpoint,
-        args.checkpoint,
-    )
-    experiment_dir = _get_experiment_dir(
-        model_checkpoint,
-        args.experiments_dir,
-        args.experiment_name,
-    )
+    if (args.experiments_dir is None) != (args.experiment_name is None):
+        raise ValueError(
+            "--experiments-dir and --experiment-name must be provided together"
+        )
+    if args.experiments_dir is not None:
+        experiment_dir = get_experiment_dir(
+            args.experiments_dir,
+            args.experiment_name,
+        )
+    else:
+        checkpoint_path = Path(model_checkpoint)
+        parts = checkpoint_path.parts
+        if {"fingerprints", "trained", "checkpoints"}.issubset(parts):
+            fingerprints_index = parts.index("fingerprints")
+        else:
+            fingerprints_index = 0
+        if not fingerprints_index:
+            raise ValueError(
+                "could not infer the experiment directory from "
+                "--model-checkpoint; provide --experiments-dir and "
+                "--experiment-name"
+            )
+        experiment_dir = Path(*parts[:fingerprints_index])
+        print(f"Auto-detected experiment directory: {experiment_dir}")
     set_seeds(config["seed"])
 
-    attack_dir = _get_attack_dir(experiment_dir, algo_name)
+    attack_dir = (
+        experiment_dir
+        / "attacks"
+        / algo_name
+        / get_timestamp_uuid()
+    )
+    attack_dir.mkdir(parents=True, exist_ok=False)
     if implementation_path is not None:
         shutil.copy2(implementation_path, attack_dir / "implementation.py")
 
-    attack_config, metadata = prepare_attack(model_checkpoint, config)
+    check_attack_algo(algo_name)
+    attack_config, metadata = ATTACK_ALGOS[algo_name]["prepare"](
+        model_checkpoint,
+        **config["algo"]["params"],
+    )
     save_yaml(attack_dir / "config.yaml", config)
     save_yaml(attack_dir / "metadata.yaml", metadata)
     save_yaml(attack_dir / "attack.yaml", attack_config)

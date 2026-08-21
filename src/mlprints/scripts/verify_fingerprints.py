@@ -5,7 +5,6 @@ import json
 import os
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
 
 from mlprints.common.cache import resolve_cached_common_asset
 from mlprints.common.utils import (
@@ -17,10 +16,10 @@ from mlprints.common.utils import (
     set_seeds,
 )
 from mlprints.common.verifiers import VERIFIERS
+from mlprints.loading import load_model_and_tokenizer
 from mlprints.measure import measure_verification_score
 from mlprints.scripts.utils import (
     iter_grid_configs,
-    load_model_and_tokenizer,
     resolve_checkpoint_path,
 )
 
@@ -74,12 +73,37 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Reuse matching verification runs",
     )
+def main(argv: list[str] | None = None) -> int:
+    os.environ.setdefault("NCCL_DEBUG", "WARN")
 
+    parser = argparse.ArgumentParser(description=__doc__)
+    _add_args(parser)
+    args = parser.parse_args(argv)
 
-def _resolve_queries(
-    config: Mapping[str, Any],
-    fingerprints: Sequence[Mapping[str, Any]],
-) -> list[str]:
+    config_path = normalize_str_to_path(args.config_path)
+    config = load_yaml(config_path)
+    if not isinstance(config, dict):
+        raise ValueError("verification config must be a mapping")
+    if "verifier" not in config:
+        raise ValueError("verification config must contain a verifier section")
+    if args.implementation:
+        module = load_implementation(args.implementation)
+        name = config["verifier"]["name"]
+        VERIFIERS[name] = {
+            "verification_score": getattr(module, f"verify_{name}")
+        }
+    fingerprints_path = normalize_str_to_path(args.fingerprints)
+    if fingerprints_path.is_dir():
+        fingerprints_path = fingerprints_path / "fingerprints.yaml"
+    if not fingerprints_path.is_file():
+        raise FileNotFoundError(
+            f"Fingerprints file not found: {fingerprints_path}"
+        )
+    fingerprints = load_yaml(fingerprints_path)
+    if not isinstance(fingerprints, list):
+        raise ValueError(
+            "fingerprints YAML must contain a list of fingerprint mappings"
+        )
     queries = config.get("queries")
     if queries is None:
         queries = [
@@ -155,23 +179,8 @@ def _resolve_queries(
         and all(isinstance(query, str) for query in queries)
     ):
         raise ValueError("queries must be a list of strings or a dataset spec")
-    return list(queries)
+    queries = list(queries)
 
-
-def _load_fingerprints(path: str) -> tuple[Path, list[dict[str, Any]]]:
-    fingerprints_path = normalize_str_to_path(path)
-    if fingerprints_path.is_dir():
-        fingerprints_path = fingerprints_path / "fingerprints.yaml"
-    if not fingerprints_path.is_file():
-        raise FileNotFoundError(f"Fingerprints file not found: {fingerprints_path}")
-
-    fingerprints = load_yaml(fingerprints_path)
-    if not isinstance(fingerprints, list):
-        raise ValueError("fingerprints YAML must contain a list of fingerprint mappings")
-    return fingerprints_path, fingerprints
-
-
-def _model_config(config: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     model_config = dict(config.get("model", {}))
     overrides = {
         "model_id": args.model,
@@ -183,7 +192,6 @@ def _model_config(config: dict[str, Any], args: argparse.Namespace) -> dict[str,
     model_config.update(
         {key: value for key, value in overrides.items() if value is not None}
     )
-
     model_id = model_config.get("model_id")
     if not model_id:
         raise ValueError("provide --model or a top-level model.model_id in the config")
@@ -191,54 +199,6 @@ def _model_config(config: dict[str, Any], args: argparse.Namespace) -> dict[str,
         str(model_id),
         checkpoint=args.checkpoint,
     )
-    return model_config
-
-
-def _find_existing_run(
-    output_root: Path,
-    config: dict[str, Any],
-    model_config: dict[str, Any],
-    fingerprints_path: Path,
-) -> Path | None:
-    for run_dir in output_root.iterdir():
-        config_path = run_dir / "config.yaml"
-        result_path = run_dir / "result.yaml"
-        if not config_path.is_file() or not result_path.is_file():
-            continue
-        result = load_yaml(result_path)
-        if (
-            load_yaml(config_path) == config
-            and result.get("model") == model_config
-            and result.get("fingerprints_path") == str(fingerprints_path)
-        ):
-            return run_dir
-    return None
-
-
-def main(argv: list[str] | None = None) -> int:
-    os.environ.setdefault("NCCL_DEBUG", "WARN")
-
-    parser = argparse.ArgumentParser(description=__doc__)
-    _add_args(parser)
-    args = parser.parse_args(argv)
-
-    config_path = normalize_str_to_path(args.config_path)
-    config = load_yaml(config_path)
-    if not isinstance(config, dict):
-        raise ValueError("verification config must be a mapping")
-    if "verifier" not in config:
-        raise ValueError("verification config must contain a verifier section")
-    if args.implementation:
-        module = load_implementation(args.implementation)
-        name = config["verifier"]["name"]
-        VERIFIERS[name] = {
-            "verification_score": getattr(module, f"verify_{name}")
-        }
-    fingerprints_path, fingerprints = _load_fingerprints(args.fingerprints)
-    queries = _resolve_queries(config, fingerprints)
-
-    model_config = _model_config(config, args)
-    loaded = load_model_and_tokenizer(model_config, role="verification")
 
     inference = dict(config.get("inference", {}))
     inference.update(
@@ -264,6 +224,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     output_root.mkdir(parents=True, exist_ok=True)
 
+    loaded = load_model_and_tokenizer(model_config, role="verification")
     for index, total, run_config, _ in iter_grid_configs(
         config,
         include_prefixes=[
@@ -271,7 +232,32 @@ def main(argv: list[str] | None = None) -> int:
             ("inference",),
         ],
     ):
-        inference = dict(run_config["inference"])
+        if args.skip_existing:
+            existing = None
+            for run_dir in output_root.iterdir():
+                saved_config_path = run_dir / "config.yaml"
+                result_path = run_dir / "result.yaml"
+                if (
+                    not saved_config_path.is_file()
+                    or not result_path.is_file()
+                ):
+                    continue
+                result = load_yaml(result_path)
+                if (
+                    load_yaml(saved_config_path) == run_config
+                    and result.get("model") == model_config
+                    and result.get("fingerprints_path") == str(fingerprints_path)
+                ):
+                    existing = run_dir
+                    break
+            if existing is not None:
+                print(f"[{index}/{total}] Reusing verification: {existing}")
+                continue
+
+        seed = run_config.get("seed", 42)
+        set_seeds(seed)
+
+        inference = dict(run_config.get("inference", {}))
         measurement_args = {
             name: inference.pop(name)
             for name in (
@@ -282,20 +268,6 @@ def main(argv: list[str] | None = None) -> int:
             )
             if name in inference
         }
-        if args.skip_existing:
-            existing = _find_existing_run(
-                output_root,
-                run_config,
-                model_config,
-                fingerprints_path,
-            )
-            if existing is not None:
-                print(f"[{index}/{total}] Reusing verification: {existing}")
-                continue
-
-        seed = run_config.get("seed", 42)
-        set_seeds(seed)
-
         score, metadata = measure_verification_score(
             model=loaded["model"],
             tokenizer=loaded["tokenizer"],

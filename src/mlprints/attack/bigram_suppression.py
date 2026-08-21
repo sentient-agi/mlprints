@@ -13,8 +13,8 @@ from transformers import LogitsProcessor, LogitsProcessorList
 
 from mlprints.attack.base import AttackModel
 from mlprints.common.cache import resolve_cached_attack_asset
-from mlprints.common.utils import load_model, load_tokenizer
 from mlprints.inference import run_inference
+from mlprints.loading import load_model, load_tokenizer
 
 
 class BigramSuppressionProcessor(LogitsProcessor):

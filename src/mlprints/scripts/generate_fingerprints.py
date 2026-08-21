@@ -18,6 +18,7 @@ from mlprints.common.fingerprints import (
     check_fingerprint_algo,
     check_fingerprint_train,
 )
+from mlprints.loading import load_model_and_tokenizer
 from mlprints.scripts.utils import (
     find_existing_fingerprint_dir,
     find_existing_trained_dir,
@@ -25,7 +26,6 @@ from mlprints.scripts.utils import (
     get_experiment_dir,
     get_trained_dir,
     iter_grid_configs,
-    load_model_and_tokenizer,
 )
 
 
@@ -60,12 +60,6 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
         help="Reuse matching fingerprint and training runs",
     )
 
-
-def _get_fingerprints_dir(experiment_dir: Path, algo_name: str) -> Path:
-    fingerprints_dir = experiment_dir / "fingerprints" / algo_name / get_timestamp_uuid()
-    fingerprints_dir.mkdir(parents=True, exist_ok=False)
-
-    return fingerprints_dir
 
 def _load_model_kwargs(
     model_configs: dict[str, dict[str, Any]],
@@ -186,7 +180,13 @@ def main(argv: list | None = None) -> int:
             print(f"[{index}/{total}] Reusing fingerprints: {fingerprints_dir}")
         else:
             set_seeds(generation_config["seed"])
-            fingerprints_dir = _get_fingerprints_dir(experiment_dir, algo_name)
+            fingerprints_dir = (
+                experiment_dir
+                / "fingerprints"
+                / algo_name
+                / get_timestamp_uuid()
+            )
+            fingerprints_dir.mkdir(parents=True, exist_ok=False)
             save_yaml(fingerprints_dir / "config.yaml", generation_config)
             print(f"[{index}/{total}] Generating {algo_name} fingerprints...")
             fingerprints, metadata = generate_fingerprints(generation_config)

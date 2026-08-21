@@ -6,8 +6,9 @@ from typing import Any
 
 import torch
 
-from mlprints.common.utils import get_model_device, load_model, load_tokenizer
+from mlprints.common.utils import get_model_device
 from mlprints.inference.formatting import format_input
+from mlprints.loading import load_model, load_tokenizer
 
 
 def parse_adg_bitstream(bitstream: str | Sequence[int]) -> list[int]:

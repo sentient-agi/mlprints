@@ -5,20 +5,13 @@ import os
 from pathlib import Path
 from typing import Any, Iterable
 
-import torch
-
 from mlprints.common.utils import (
-    get_context_length_from_model,
-    get_context_length_from_tokenizer,
     normalize_str_to_path,
     get_timestamp_uuid,
     load_yaml,
-    load_model,
-    load_tokenizer,
 )
 from mlprints.common.distributed import (
     barrier_if_distributed,
-    is_distributed,
     is_rank0,
 )
 
@@ -58,76 +51,6 @@ def get_checkpoints_dir(trained_dir: Path) -> str:
         checkpoints_dir.mkdir(parents=False, exist_ok=False)
     barrier_if_distributed()
     return str(checkpoints_dir)
-
-
-def _resolve_device_map(device_map: Any) -> Any:
-    if not is_distributed() or device_map is None:
-        return device_map
-
-    local_device = int(torch.cuda.current_device()) if torch.cuda.is_available() else 0
-    if isinstance(device_map, str) and device_map.startswith("cuda:"):
-        return f"cuda:{local_device}"
-    if isinstance(device_map, dict):
-        return {
-            key: local_device if isinstance(value, int) and value >= 0 else value
-            for key, value in device_map.items()
-        }
-    return device_map
-
-
-def load_model_and_tokenizer(
-    model_config: dict[str, Any],
-    role: str = "",
-    is_train: bool = False,
-) -> dict[str, Any]:
-    path_or_model_id = model_config.get("model_id")
-    if not path_or_model_id:
-        raise ValueError(f"model_id is required for role {role!r}")
-
-    path_or_tokenizer_id = model_config.get("tokenizer_id", path_or_model_id)
-    device_map = _resolve_device_map(model_config.get("device_map"))
-    dtype = model_config.get("dtype")
-    trust_remote_code = model_config.get("trust_remote_code")
-    attn_implementation = model_config.get("attn_implementation")
-    use_kernels = model_config.get("use_kernels", False)
-    if not isinstance(use_kernels, bool):
-        raise TypeError("model use_kernels must be a bool")
-
-    if is_rank0():
-        print(f"Loading {role} model: {path_or_model_id}")
-
-    model_path = normalize_str_to_path(path_or_model_id)
-    is_attacked = (model_path / "attack.yaml").exists()
-
-    model = load_model(
-        path_or_model_id=path_or_model_id,
-        device_map=device_map,
-        dtype=dtype,
-        attn_implementation=attn_implementation,
-        trust_remote_code=trust_remote_code,
-        is_train=is_train,
-        use_kernels=use_kernels,
-    )
-    if is_attacked:
-        tokenizer = getattr(model, "tokenizer", None)
-        if tokenizer is None:
-            raise AttributeError("Attacked model must have tokenizer attribute")
-    else:
-        tokenizer = load_tokenizer(
-            path_or_tokenizer_id,
-            trust_remote_code=trust_remote_code,
-        )
-
-    if is_train:
-        try:
-            get_context_length_from_tokenizer(tokenizer)
-        except ValueError:
-            tokenizer.model_max_length = get_context_length_from_model(model)
-
-    if is_rank0():
-        print(f"Loaded {role} model: {path_or_model_id} on {device_map}")
-
-    return {"model": model, "tokenizer": tokenizer}
 
 
 def iter_grid_configs(

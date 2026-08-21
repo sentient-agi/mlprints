@@ -13,7 +13,7 @@ import torch
 from transformers import LogitsProcessor, LogitsProcessorList
 
 from mlprints.attack.base import AttackModel
-from mlprints.common.utils import load_model, load_tokenizer
+from mlprints.loading import load_model, load_tokenizer
 
 
 class DetectTopKProcessor(LogitsProcessor):

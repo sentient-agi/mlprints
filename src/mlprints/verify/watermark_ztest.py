@@ -8,8 +8,8 @@ from typing import Any
 import torch
 
 from mlprints.common.constants import MAX_INT64
-from mlprints.common.utils import load_tokenizer
 from mlprints.inference.logits_processors import WatermarkProcessor
+from mlprints.loading import load_tokenizer
 
 
 def verify_watermark_ztest(

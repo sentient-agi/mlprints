@@ -23,7 +23,7 @@ REGISTRY CONTRACT:
 """
 
 from mlprints.attack.base import AttackModel
-from mlprints.common.utils import load_model, load_tokenizer
+from mlprints.loading import load_model, load_tokenizer
 
 # FIXME: INSERT HARDCODED CONSTANTS HERE
 
