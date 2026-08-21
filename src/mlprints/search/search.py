@@ -409,8 +409,8 @@ def run_gcg_search(
             p.requires_grad_(True)
 
     total_time = time.time() - start_time
-    base_sample["input_ids"][0, base_user_positions] = torch.tensor(
-        user_prompt_ids_py, dtype=base_sample["input_ids"].dtype
+    base_sample["input_ids"][0, base_user_positions] = (
+        base_sample["input_ids"].new_tensor(user_prompt_ids_py)
     )
     target_start = (base_sample["labels"][0] == MASK_LOSS_ID).sum().item()
     final_prompt_ids = base_sample["input_ids"][:, :target_start].cpu().tolist()

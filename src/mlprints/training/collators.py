@@ -25,23 +25,43 @@ class CausalLMPadOnlyDataCollator:
         features: list[dict[str, Any]],
         tensor_fields: dict[str, torch.dtype],
     ) -> dict[str, torch.Tensor]:
-        # copy so the pops below don't mutate the caller's (reusable) samples
-        features_for_pad = [feature.copy() for feature in features]
-
         dataset_names = (
-            [f.pop("dataset_name") for f in features_for_pad]
+            [feature["dataset_name"] for feature in features]
             if "dataset_name" in features[0]
             else None
         )
         labels_list = (
-            [f.pop("labels") for f in features_for_pad]
+            [feature["labels"] for feature in features]
             if "labels" in features[0]
             else None
         )
         tensor_values = {
-            key: [torch.as_tensor(f.pop(key), dtype=dtype) for f in features_for_pad]
+            key: [
+                torch.as_tensor(feature[key], dtype=dtype)
+                for feature in features
+            ]
             for key, dtype in tensor_fields.items()
         }
+        model_input_names = set(
+            getattr(
+                self.tokenizer,
+                "model_input_names",
+                ("input_ids", "attention_mask"),
+            )
+            or ("input_ids", "attention_mask")
+        )
+        model_input_names.update(("input_ids", "attention_mask"))
+        model_input_names.difference_update(
+            {"labels", "dataset_name", *tensor_fields}
+        )
+        features_for_pad = [
+            {
+                key: value
+                for key, value in feature.items()
+                if key in model_input_names
+            }
+            for feature in features
+        ]
 
         original_padding_side = self.tokenizer.padding_side
         self.tokenizer.padding_side = "right"
