@@ -89,6 +89,9 @@ def load_model_and_tokenizer(
     dtype = model_config.get("dtype")
     trust_remote_code = model_config.get("trust_remote_code")
     attn_implementation = model_config.get("attn_implementation")
+    use_kernels = model_config.get("use_kernels", False)
+    if not isinstance(use_kernels, bool):
+        raise TypeError("model use_kernels must be a bool")
 
     if is_rank0():
         print(f"Loading {role} model: {path_or_model_id}")
@@ -103,6 +106,7 @@ def load_model_and_tokenizer(
         attn_implementation=attn_implementation,
         trust_remote_code=trust_remote_code,
         is_train=is_train,
+        use_kernels=use_kernels,
     )
     if is_attacked:
         tokenizer = getattr(model, "tokenizer", None)

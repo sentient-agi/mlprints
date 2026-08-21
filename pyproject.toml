@@ -42,6 +42,7 @@ dependencies = [
     "aenum",
     "datasets",
     "deepspeed",
+    "kernels>=0.16,<0.17",
     "lighteval[extended-tasks]>=0.13.0",
     "numpy",
     "pyyaml",

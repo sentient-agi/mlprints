@@ -124,6 +124,7 @@ def _prepare_loaded_model(
     model: Any,
     *,
     is_train: bool,
+    use_kernels: bool,
     compile_model: bool,
     compile_mode: str | None,
     compile_fullgraph: bool,
@@ -131,6 +132,19 @@ def _prepare_loaded_model(
     compile_backend: str | None,
     static_kvcache_for_generation: bool,
 ) -> Any:
+    if use_kernels:
+        kernel_model = model
+        set_use_kernels = getattr(kernel_model, "set_use_kernels", None)
+        if not callable(set_use_kernels):
+            kernel_model = getattr(model, "model", None)
+            set_use_kernels = getattr(kernel_model, "set_use_kernels", None)
+        if not callable(set_use_kernels):
+            raise AttributeError(
+                "use_kernels=True requires the loaded model (or its wrapped "
+                "base model) to implement set_use_kernels()"
+            )
+        set_use_kernels(True)
+
     if is_train:
         model.train()
     else:
@@ -163,6 +177,7 @@ def load_hf_model(
     attn_implementation: str | None = None,
     trust_remote_code: bool = False,
     is_train: bool = False,
+    use_kernels: bool = False,
     compile_model: bool = False,
     compile_mode: str | None = "default",
     compile_fullgraph: bool = False,
@@ -186,6 +201,7 @@ def load_hf_model(
     return _prepare_loaded_model(
         model,
         is_train=is_train,
+        use_kernels=use_kernels,
         compile_model=compile_model,
         compile_mode=compile_mode,
         compile_fullgraph=compile_fullgraph,
@@ -203,6 +219,7 @@ def load_model(
     attn_implementation: str | None = None,
     trust_remote_code: bool = False,
     is_train: bool = False,
+    use_kernels: bool = False,
     compile_model: bool = False,
     compile_mode: str | None = "default",
     compile_fullgraph: bool = False,
@@ -224,6 +241,7 @@ def load_model(
             attn_implementation=attn_implementation,
             trust_remote_code=trust_remote_code,
             is_train=is_train,
+            use_kernels=use_kernels,
             compile_model=compile_model,
             compile_mode=compile_mode,
             compile_fullgraph=compile_fullgraph,
@@ -267,6 +285,7 @@ def load_model(
     return _prepare_loaded_model(
         model,
         is_train=is_train,
+        use_kernels=use_kernels,
         compile_model=compile_model,
         compile_mode=compile_mode,
         compile_fullgraph=compile_fullgraph,

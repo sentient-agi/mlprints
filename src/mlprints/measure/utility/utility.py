@@ -13,6 +13,7 @@ from lighteval.models.abstract_model import LightevalModel, ModelConfig
 from lighteval.models.model_input import GenerationParameters
 from lighteval.models.model_output import ModelResponse
 from lighteval.pipeline import ParallelismManager, Pipeline, PipelineParameters
+from lighteval.tasks.lighteval_task import LightevalTask
 from lighteval.tasks.prompt_manager import PromptManager
 from lighteval.tasks.requests import Doc
 
@@ -490,25 +491,27 @@ def evaluate_model(
         max_samples=config.get("max_samples"),
     )
 
-    pipeline = Pipeline(
-        tasks=resolved_tasks,
-        pipeline_parameters=pipeline_parameters,
-        evaluation_tracker=evaluation_tracker,
-        model=wrapped_model,
-    )
+    gen_size = config.get("generation_size")
+    original_get_docs = LightevalTask.get_docs
+
+    if gen_size is not None:
+        def get_docs_with_generation_size(task, *args, **kwargs):
+            task.generation_size = gen_size
+            return original_get_docs(task, *args, **kwargs)
+
+        LightevalTask.get_docs = get_docs_with_generation_size
+    try:
+        pipeline = Pipeline(
+            tasks=resolved_tasks,
+            pipeline_parameters=pipeline_parameters,
+            evaluation_tracker=evaluation_tracker,
+            model=wrapped_model,
+        )
+    finally:
+        LightevalTask.get_docs = original_get_docs
 
     configure_chat_metric(eval_benchmark_name, config, pipeline)
     configure_triviaqa_metric(pipeline)
-
-    gen_size = config.get("generation_size")
-    if gen_size is not None:
-        for task_name, task in pipeline.tasks_dict.items():
-            old_size = task.generation_size
-            task.generation_size = gen_size
-            print(
-                f"Overrode generation_size for task {task_name}: "
-                f"{old_size} -> {gen_size}"
-            )
 
     pipeline.evaluate()
     pipeline.save_and_push_results()
