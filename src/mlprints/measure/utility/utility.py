@@ -1,8 +1,14 @@
 """LightEval utility benchmarks for a loaded model and tokenizer."""
 
 import json
+import math
 import types
 from collections import defaultdict
+from collections.abc import Iterator, Mapping
+from dataclasses import asdict, is_dataclass
+from datetime import date, datetime
+from enum import Enum
+from os import PathLike
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -30,6 +36,211 @@ from mlprints.measure.utility.custom import (
     gsm8k_postprocess,
     is_gsm8k_task,
 )
+
+def _json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, PathLike):
+        return str(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return _json_safe(value.value)
+    if is_dataclass(value) and not isinstance(value, type):
+        return _json_safe(asdict(value))
+    if isinstance(value, Mapping):
+        return {
+            key if isinstance(key, str) else str(key): _json_safe(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_json_safe(item) for item in sorted(value, key=repr)]
+
+    tolist = getattr(value, "tolist", None)
+    if callable(tolist):
+        converted = tolist()
+        if converted is not value:
+            return _json_safe(converted)
+
+    item = getattr(value, "item", None)
+    if callable(item):
+        converted = item()
+        if converted is not value:
+            return _json_safe(converted)
+
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        return _json_safe(model_dump())
+
+    raise TypeError(
+        f"Utility result contains non-JSON-compatible value "
+        f"{type(value).__name__}"
+    )
+
+
+def _matching_raw_tasks(
+    results: Any,
+    *,
+    task: str,
+    n_shots: int | None = None,
+) -> list[tuple[str, Mapping]]:
+    raw = results.raw if isinstance(results, UtilityResult) else results
+    if not isinstance(raw, Mapping):
+        raise TypeError("utility results must be a mapping")
+    nested = raw.get("results")
+    raw_results = nested if isinstance(nested, Mapping) else raw
+
+    matches = []
+    for lighteval_name, metrics in raw_results.items():
+        task_name = str(lighteval_name)
+        task_id, separator, shots = task_name.rpartition("|")
+        if not (separator and shots.isdigit()):
+            task_id, separator, shots = task_name.rpartition(":")
+        if separator and shots.isdigit():
+            task_shots = int(shots)
+        else:
+            task_id = task_name
+            task_shots = None
+
+        if task_id != task or not isinstance(metrics, Mapping):
+            continue
+        if n_shots is not None and task_shots is not None and task_shots != n_shots:
+            continue
+        matches.append((str(lighteval_name), metrics))
+    return matches
+
+
+class UtilityResult(Mapping[str, Any]):
+    """Raw LightEval output with stable task and metric accessors."""
+
+    def __init__(
+        self,
+        raw: Mapping[str, Any],
+        *,
+        task_details: list[Mapping[str, Any]] | tuple[Mapping[str, Any], ...],
+    ) -> None:
+        self.raw = raw
+        self._task_details = tuple(dict(detail) for detail in task_details)
+
+    def __getitem__(self, key: str) -> Any:
+        return self.raw[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.raw)
+
+    def __len__(self) -> int:
+        return len(self.raw)
+
+    @property
+    def tasks(self) -> list[dict[str, Any]]:
+        canonical_tasks = []
+        for detail in self._task_details:
+            task_id = str(detail["base_name"])
+            n_shots = int(detail["n_shots"])
+            matches = _matching_raw_tasks(
+                self.raw,
+                task=task_id,
+                n_shots=n_shots,
+            )
+            if not matches:
+                raise KeyError(f"LightEval results do not contain task {task_id!r}")
+            if len(matches) > 1:
+                names = [name for name, _ in matches]
+                raise ValueError(
+                    f"LightEval results contain multiple variants for task "
+                    f"{task_id!r}: {names}"
+                )
+            lighteval_name, metrics = matches[0]
+            grouped_metrics: dict[str, list[tuple[str, Any]]] = {}
+            for name, value in metrics.items():
+                full_name = str(name)
+                base_name = full_name.split(",", 1)[0]
+                grouped_metrics.setdefault(base_name, []).append(
+                    (full_name, value)
+                )
+            canonical_metrics = {}
+            for base_name, variants in grouped_metrics.items():
+                if len(variants) == 1:
+                    canonical_metrics[base_name] = _json_safe(variants[0][1])
+                else:
+                    canonical_metrics.update(
+                        (name, _json_safe(value))
+                        for name, value in variants
+                    )
+            canonical_tasks.append(
+                {
+                    "id": task_id,
+                    "lighteval_name": lighteval_name,
+                    "n_shots": n_shots,
+                    "metrics": canonical_metrics,
+                }
+            )
+        return canonical_tasks
+
+    def metric(self, task: str, metric: str) -> Any:
+        return get_metric(self, task=task, metric=metric)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "tasks": self.tasks,
+            "raw_results": _json_safe(self.raw),
+        }
+
+
+def get_metric(results: Any, *, task: str, metric: str) -> Any:
+    """Return one metric, rejecting ambiguous task or metric variants."""
+    if isinstance(results, UtilityResult):
+        task_matches = [
+            task_result
+            for task_result in results.tasks
+            if task_result["id"] == task
+            or task_result["lighteval_name"] == task
+        ]
+        if not task_matches:
+            raise KeyError(f"Utility results do not contain task {task!r}")
+        if len(task_matches) > 1:
+            raise ValueError(f"Utility results contain multiple variants for task {task!r}")
+        metrics = task_matches[0]["metrics"]
+    else:
+        task_matches = _matching_raw_tasks(results, task=task)
+        if not task_matches:
+            raise KeyError(f"Utility results do not contain task {task!r}")
+        if len(task_matches) > 1:
+            names = [name for name, _ in task_matches]
+            raise ValueError(
+                f"Utility results contain multiple variants for task "
+                f"{task!r}: {names}"
+            )
+        metrics = task_matches[0][1]
+
+    metric_matches = [
+        name
+        for name in metrics
+        if name == metric or str(name).startswith(f"{metric},")
+    ]
+    if not metric_matches:
+        raise KeyError(
+            f"Task {task!r} does not contain metric {metric!r}"
+        )
+    if len(metric_matches) > 1:
+        raise ValueError(
+            f"Task {task!r} contains multiple variants of metric "
+            f"{metric!r}: {metric_matches}"
+        )
+    return _json_safe(metrics[metric_matches[0]])
+
+
+def serialize_utility_results(results: Any) -> dict[str, Any]:
+    """Convert utility results into standard JSON-compatible Python types."""
+    serialized = results.to_dict() if isinstance(results, UtilityResult) else _json_safe(results)
+    if not isinstance(serialized, dict):
+        raise TypeError("serialized utility results must be a dictionary")
+    return serialized
+
 
 class SaveDetailsEvaluationTracker(EvaluationTracker):
     """Standard ``EvaluationTracker`` with an optional ``details_path_template``.
@@ -376,8 +587,8 @@ def evaluate_model(
     tracker_output_dir: Path,
     batch_size: Optional[int] = None,
     tasks: Optional[str] = None,
-) -> Tuple[Dict[str, Any], str]:
-    """Run Lighteval; returns ``(final_dict, resolved_tasks)``."""
+) -> Tuple[UtilityResult, str]:
+    """Run LightEval; returns ``(utility_result, resolved_tasks)``."""
     config = benchmark_config.copy()
 
     input_tasks = tasks or eval_benchmark_name
@@ -402,6 +613,7 @@ def evaluate_model(
     if len(execution_plan) > 1:
         all_results = {"results": {}, "groups": []}
         all_tasks = []
+        all_task_details = []
 
         for idx, group in enumerate(execution_plan):
             group_tracker_dir = tracker_output_dir / f"group_{idx:02d}"
@@ -424,13 +636,17 @@ def evaluate_model(
                 tasks=group["tasks"],
             )
 
-            all_results["results"].update(group_results.get("results", {}))
+            all_results["results"].update(group_results.raw.get("results", {}))
             all_results["groups"].append(
-                {"tasks": group["tasks"], "results": group_results}
+                {"tasks": group["tasks"], "results": group_results.raw}
             )
             all_tasks.append(group["tasks"])
+            all_task_details.extend(group["task_details"])
 
-        return all_results, ",".join(all_tasks)
+        return (
+            UtilityResult(all_results, task_details=all_task_details),
+            ",".join(all_tasks),
+        )
 
     group = execution_plan[0]
     resolved_tasks = group["tasks"]
@@ -517,4 +733,7 @@ def evaluate_model(
     pipeline.save_and_push_results()
     final_dict = pipeline.get_results()
 
-    return final_dict, resolved_tasks
+    return UtilityResult(
+        final_dict,
+        task_details=group["task_details"],
+    ), resolved_tasks

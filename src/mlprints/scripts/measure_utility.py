@@ -1,19 +1,22 @@
 """Measure model utility with LightEval from a YAML config."""
 
 import argparse
-import json
 from pathlib import Path
 from typing import Any
 
 from mlprints.common.utils import load_yaml, normalize_str_to_path, save_yaml, set_seeds
-from mlprints.measure.utility import evaluate_model
+from mlprints.measure.utility import (
+    UtilityResult,
+    evaluate_model,
+    serialize_utility_results,
+)
 from mlprints.scripts.utils import get_experiment_dir, load_model_and_tokenizer
 
 
 def measure_from_config(
     config: dict[str, Any],
     output_dir: Path,
-) -> tuple[dict[str, Any], str]:
+) -> tuple[UtilityResult, str]:
     model_config = dict(config.get("model", {}))
     evaluation = dict(config.get("evaluation", {}))
     tasks = evaluation.pop("tasks", None)
@@ -56,16 +59,10 @@ def main(argv: list[str] | None = None) -> int:
     output_dir = get_experiment_dir(args.experiments_dir, args.experiment_name)
     set_seeds(config.get("seed", 42))
     save_yaml(output_dir / "config.yaml", config)
-    results, resolved_tasks = measure_from_config(config, output_dir)
-    # lightEval returns defaultdict + numpy scalars; yaml.safe_dump requires parsing into JSON
+    results, _resolved_tasks = measure_from_config(config, output_dir)
     save_yaml(
         output_dir / "utility.yaml",
-        json.loads(
-            json.dumps(
-                {"tasks": resolved_tasks, "results": results.get("results", results)},
-                default=lambda o: o.item() if hasattr(o, "item") else dict(o),
-            )
-        ),
+        serialize_utility_results(results),
     )
     print(f"Utility results saved to: {output_dir}")
     return 0
