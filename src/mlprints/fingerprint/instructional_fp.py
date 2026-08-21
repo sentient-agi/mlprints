@@ -98,6 +98,7 @@ def train_instructional_fp(
     regularization_user_role, regularization_assistant_role,
     regularization_shuffle_buffer_size,
     dataset_seed, sequence_length, system_prompt,
+    optim, gradient_checkpointing,
 ):
     if not fingerprints:
         raise ValueError("fingerprints must be non-empty")
@@ -196,6 +197,8 @@ def train_instructional_fp(
         learning_rate=learning_rate,
         weight_decay=weight_decay,
         lr_scheduler_type=lr_scheduler_type,
+        optim=optim,
+        gradient_checkpointing=gradient_checkpointing,
         save_strategy=save_strategy,
         save_steps=save_steps if save_strategy == "steps" else None,
         callbacks=callbacks,

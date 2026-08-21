@@ -135,7 +135,7 @@ def load_implementation(path):
 # METADATA AND INSPECTION UTILITIES
 
 def are_tokenizers_equal(tokenizers, raise_on_mismatch=False):
-    """Return True if all tokenizers are the same; optionally raise on first mismatch."""
+    """Return whether tokenizers map the same tokens to the same token IDs."""
     if len(tokenizers) <= 1:
         return True
     first = tokenizers[0]
@@ -143,14 +143,13 @@ def are_tokenizers_equal(tokenizers, raise_on_mismatch=False):
         same = (
             first.get_vocab() == tokenizer.get_vocab()
             and first.get_added_vocab() == tokenizer.get_added_vocab()
-            and first.special_tokens_map == tokenizer.special_tokens_map
-            and getattr(first, "padding_side", None) == getattr(tokenizer, "padding_side", None)
-            and getattr(first, "truncation_side", None) == getattr(tokenizer, "truncation_side", None)
-            and getattr(first, "model_max_length", None) == getattr(tokenizer, "model_max_length", None)
         )
         if not same:
             if raise_on_mismatch:
-                raise ValueError(f"tokenizer differs at index {i} (vs. tokenizer at index 0)")
+                raise ValueError(
+                    f"tokenizer at index {i} has an incompatible token-ID "
+                    "vocabulary (vs. tokenizer at index 0)"
+                )
             return False
     return True
 

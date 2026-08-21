@@ -66,6 +66,7 @@ def train_semcond_watermark(
     learning_rate, batch_size, grad_acc, weight_decay,
     lr_scheduler_type, optim, warmup_steps, max_steps, early_stop_loss,
     save_strategy, save_steps, lambda_watermark, lambda_regularization,
+    gradient_checkpointing,
 ):
     if target_tokenizer.pad_token_id is None:
         target_tokenizer.pad_token = target_tokenizer.eos_token
@@ -273,6 +274,7 @@ def train_semcond_watermark(
         weight_decay=weight_decay,
         lr_scheduler_type=lr_scheduler_type,
         optim=optim,
+        gradient_checkpointing=gradient_checkpointing,
         warmup_steps=warmup_steps,
         max_steps=max_steps,
         save_strategy=save_strategy,

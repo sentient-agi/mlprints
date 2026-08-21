@@ -220,6 +220,8 @@ def train_perinucleus(
     augmentation_prompts_source,
     augmentation_prompts_split,
     augmentation_prompts_column,
+    optim,
+    gradient_checkpointing,
 ):
     fingerprint_pairs = [
         (fingerprint["query"], fingerprint["expected_response"])
@@ -345,6 +347,8 @@ def train_perinucleus(
         learning_rate=learning_rate,
         weight_decay=weight_decay,
         lr_scheduler_type=lr_scheduler_type,
+        optim=optim,
+        gradient_checkpointing=gradient_checkpointing,
         save_strategy=save_strategy,
         save_steps=save_steps if save_strategy == "steps" else None,
         callbacks=callbacks,

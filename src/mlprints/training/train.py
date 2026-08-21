@@ -85,11 +85,8 @@ def run_sft_train(
         raise ValueError("tokenizer must implement save_pretrained to save the final checkpoint.")
     if fp16 and bf16:
         raise ValueError("cannot enable both fp16 and bf16 simultaneously.")
-    if gradient_checkpointing and model.config.use_cache:
-        raise ValueError(
-            "gradient_checkpointing is incompatible with use_cache=True. "
-            "Set model.config.use_cache = False before calling run_sft_train."
-        )
+    if gradient_checkpointing:
+        model.config.use_cache = False
     deepspeed_config = None
     if deepspeed_stage:
         if deepspeed_stage != 3:

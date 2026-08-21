@@ -11,7 +11,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from mlprints.common.constants import MASK_LOSS_ID
 from mlprints.common.distributed import get_distributed_info
-from mlprints.common.utils import are_tokenizers_equal, compute_causal_lm_cross_entropy_loss
+from mlprints.common.utils import (
+    are_tokenizers_equal,
+    compute_causal_lm_cross_entropy_loss,
+)
 
 from .formatting import format_gcg_samples
 
@@ -72,6 +75,8 @@ def run_gcg_search(
 
     NOTE: Each model is treated as living on a single device.
     NOTE: Sharding not currently supported.
+    NOTE: The first tokenizer formats all samples; every tokenizer must share
+        its token-to-ID vocabulary, but other tokenizer metadata may differ.
     """
     if not models:
         raise ValueError("at least one model must be provided")

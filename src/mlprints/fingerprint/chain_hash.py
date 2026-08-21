@@ -189,6 +189,8 @@ def train_chain_hash(
     anchor_confidence_threshold,
     anchor_top_k,
     lambda_anchor,
+    optim,
+    gradient_checkpointing,
 ):
     token_ids = [
         token_id
@@ -358,6 +360,8 @@ def train_chain_hash(
         learning_rate=learning_rate,
         weight_decay=weight_decay,
         lr_scheduler_type=lr_scheduler_type,
+        optim=optim,
+        gradient_checkpointing=gradient_checkpointing,
         save_strategy=save_strategy,
         save_steps=save_steps if save_strategy == "steps" else None,
         callbacks=callbacks,

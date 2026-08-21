@@ -223,6 +223,8 @@ def train_implicit_fp(
     dataset_seed,
     sequence_length,
     system_prompt,
+    optim,
+    gradient_checkpointing,
 ):
     fingerprint_conversations = [
         [
@@ -286,6 +288,8 @@ def train_implicit_fp(
         learning_rate=learning_rate,
         weight_decay=weight_decay,
         lr_scheduler_type=lr_scheduler_type,
+        optim=optim,
+        gradient_checkpointing=gradient_checkpointing,
         save_strategy=save_strategy,
         save_steps=save_steps if save_strategy == "steps" else None,
         callbacks=callbacks,

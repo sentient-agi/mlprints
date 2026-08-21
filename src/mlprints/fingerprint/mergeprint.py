@@ -101,7 +101,7 @@ def mergeprint(
             clean_up_tokenization_spaces=False,
         )
 
-        # 1) optimize the query against the pseudo-merged and base models
+        # 1) optimize one target-tokenizer serialization against both models
         result = run_gcg_search(
             models=[opt_model, base_model],
             tokenizers=[target_tokenizer, base_tokenizer],
@@ -159,6 +159,7 @@ def train_mergeprint(
     alpha_p,
     optp_steps,
     optim,
+    gradient_checkpointing,
 ):
     del base_tokenizer
     conversations = [
@@ -194,6 +195,7 @@ def train_mergeprint(
         weight_decay=weight_decay,
         lr_scheduler_type=lr_scheduler_type,
         optim=optim,
+        gradient_checkpointing=gradient_checkpointing,
         logging_steps=1,
         save_strategy=save_strategy,
         save_steps=save_steps if save_strategy == "steps" else None,

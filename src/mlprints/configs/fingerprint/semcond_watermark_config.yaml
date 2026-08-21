@@ -88,6 +88,7 @@ algo:
     weight_decay: 0.0
     lr_scheduler_type: cosine
     optim: adafactor
+    gradient_checkpointing: false
     warmup_steps: 250
     max_steps: 2500
     early_stop_loss: null

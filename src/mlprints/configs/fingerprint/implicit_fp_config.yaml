@@ -42,6 +42,8 @@ algo:
     grad_acc: 16
     weight_decay: 0.0
     lr_scheduler_type: cosine
+    optim: adamw_torch
+    gradient_checkpointing: false
     early_stop_loss: null
     save_strategy: "no"
     save_steps: null
