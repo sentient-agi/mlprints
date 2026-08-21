@@ -25,6 +25,7 @@ from mlprints.common.utils import (
 from mlprints.inference import run_inference, run_inference_logprobs
 from mlprints.measure.utility.custom import (
     configure_chat_metric,
+    configure_triviaqa_metric,
     gsm8k_postprocess,
     is_gsm8k_task,
 )
@@ -497,6 +498,7 @@ def evaluate_model(
     )
 
     configure_chat_metric(eval_benchmark_name, config, pipeline)
+    configure_triviaqa_metric(pipeline)
 
     gen_size = config.get("generation_size")
     if gen_size is not None:

@@ -6,7 +6,8 @@ from typing import Any, Dict, Iterable, Tuple
 
 from aenum import extend_enum
 from lighteval.metrics.metrics import Metrics
-from lighteval.metrics.metrics_sample import SampleLevelComputation
+from lighteval.metrics.metrics_sample import ExactMatches, SampleLevelComputation
+from lighteval.metrics.normalizations import harness_triviaqa_normalizer
 from lighteval.metrics.utils.metric_utils import SampleLevelMetric
 from lighteval.models.model_output import ModelResponse
 from lighteval.pipeline import Pipeline
@@ -48,6 +49,43 @@ def gsm8k_postprocess(text: str) -> str:
 def is_gsm8k_task(task_name: str) -> bool:
     """Check whether a task name indicates a GSM8K task."""
     return bool(task_name) and "gsm8k" in task_name.lower()
+
+
+def configure_triviaqa_metric(pipeline: Pipeline) -> None:
+    """Normalize TriviaQA predictions the same way as its gold aliases."""
+    triviaqa_metric = SampleLevelMetric(
+        metric_name="em",
+        higher_is_better=True,
+        category=SamplingMethod.GENERATIVE,
+        sample_level_fn=ExactMatches(
+            normalize_gold=harness_triviaqa_normalizer,
+            normalize_pred=harness_triviaqa_normalizer,
+            strip_strings=True,
+        ),
+        corpus_level_fn=lambda values: (
+            float(sum(values) / len(values)) if values else 0.0
+        ),
+    )
+
+    for task_name, task in pipeline.tasks_dict.items():
+        base_name = task_name.split("|", 1)[0]
+        if base_name != "triviaqa":
+            continue
+
+        new_metrics = []
+        replaced = False
+        for metric in task.metrics:
+            if (
+                metric.metric_name == "em"
+                and metric.category == SamplingMethod.GENERATIVE
+            ):
+                new_metrics.append(triviaqa_metric)
+                replaced = True
+            else:
+                new_metrics.append(metric)
+        if replaced:
+            task.metrics = tuple(new_metrics)
+            logger.info("Applied TriviaQA metric normalization to task %s", task_name)
 
 
 def configure_chat_metric(
