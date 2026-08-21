@@ -9,7 +9,10 @@ from mlprints.common.utils import (
     load_yaml,
     normalize_str_to_path,
 )
-from mlprints.scripts.generate_fingerprints import train_fingerprints
+from mlprints.scripts.generate_fingerprints import (
+    target_model_overrides,
+    train_fingerprints,
+)
 from mlprints.scripts.utils import iter_grid_configs
 
 
@@ -18,7 +21,18 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
         "config_path",
         help="Path to the config YAML",
     )
-    parser.add_argument("--implementation", help="Local fingerprint Python file")
+    parser.add_argument(
+        "--implementation",
+        help="Local fingerprint Python file"
+    )
+    parser.add_argument(
+        "--model",
+        help="Target model ID or path; overrides the configured target model",
+    )
+    parser.add_argument(
+        "--tokenizer",
+        help="Target tokenizer ID or path; overrides the configured target tokenizer",
+    )
     parser.add_argument(
         "--fingerprints-dir",
         required=True,
@@ -43,6 +57,11 @@ def main(argv: list | None = None) -> int:
         args.fingerprints_dir,
     )
     config = load_yaml(config_path)
+    config = target_model_overrides(
+        config,
+        model_id=args.model,
+        tokenizer_id=args.tokenizer,
+    )
     if args.implementation:
         module = load_implementation(args.implementation)
         name = config["algo"]["name"]

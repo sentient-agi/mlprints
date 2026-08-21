@@ -1,6 +1,7 @@
 """Generate and optionally train fingerprints from a YAML config."""
 
 import argparse
+import copy
 import os
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,14 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
         help="Path to the config YAML",
     )
     parser.add_argument("--implementation", help="Local fingerprint Python file")
+    parser.add_argument(
+        "--model",
+        help="Target model ID or path; overrides the configured target model",
+    )
+    parser.add_argument(
+        "--tokenizer",
+        help="Target tokenizer ID or path; overrides the configured target tokenizer",
+    )
 
     parser.add_argument(
         "--experiments-dir",
@@ -59,6 +68,35 @@ def _add_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Reuse matching fingerprint and training runs",
     )
+
+
+def target_model_overrides(
+    config: dict[str, Any],
+    *,
+    model_id: str | None = None,
+    tokenizer_id: str | None = None,
+) -> dict[str, Any]:
+    """Return a config with target model overrides applied to every stage."""
+    if model_id is None and tokenizer_id is None:
+        return config
+
+    updated = copy.deepcopy(config)
+    for section in (
+        updated["algo"].get("params"),
+        updated["algo"].get("training"),
+    ):
+        if section is None:
+            continue
+        models = section.get("models")
+        if not models:
+            continue
+        target_role = "target" if "target" in models else next(iter(models))
+        target = models[target_role]
+        if model_id is not None:
+            target["model_id"] = model_id
+        if tokenizer_id is not None:
+            target["tokenizer_id"] = tokenizer_id
+    return updated
 
 
 def _load_model_kwargs(
@@ -88,7 +126,15 @@ def _load_model_kwargs(
 
 def generate_fingerprints(
     config: dict[str, Any],
+    *,
+    model_id: str | None = None,
+    tokenizer_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    config = target_model_overrides(
+        config,
+        model_id=model_id,
+        tokenizer_id=tokenizer_id,
+    )
     algo_config = config["algo"]
     params = dict(algo_config["params"])
     model_configs = dict(params.pop("models"))
@@ -107,7 +153,14 @@ def train_fingerprints(
     index: int,
     total: int,
     skip_existing: bool = False,
+    model_id: str | None = None,
+    tokenizer_id: str | None = None,
 ) -> Path:
+    config = target_model_overrides(
+        config,
+        model_id=model_id,
+        tokenizer_id=tokenizer_id,
+    )
     algo_name = config["algo"]["name"]
     if skip_existing:
         existing = find_existing_trained_dir(fingerprints_dir, config)
@@ -147,6 +200,11 @@ def main(argv: list | None = None) -> int:
 
     config_path = normalize_str_to_path(args.config_path)
     config = load_yaml(config_path)
+    config = target_model_overrides(
+        config,
+        model_id=args.model,
+        tokenizer_id=args.tokenizer,
+    )
     if args.implementation:
         module = load_implementation(args.implementation)
         name = config["algo"]["name"]
