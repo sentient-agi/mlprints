@@ -2,7 +2,6 @@
 Base class for attack models that wrap AutoModelForCausalLM.
 """
 
-import torch
 import torch.nn as nn
 from abc import ABC, abstractmethod
 

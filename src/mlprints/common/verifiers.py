@@ -2,10 +2,15 @@
 Verifier registry.
 
 Each entry maps a verifier name to:
-- verification_score: callable(queries, responses, **kwargs)
+- verification_score: callable(queries, responses, **params)
     -> (verification_score, verification_metadata)
     - verification_score: float in [0, 1]
     - verification_metadata: dict
+
+`measure_verification_score` binds keyword-only verifier parameters as follows:
+- `field` receives one value that must be identical across all fingerprints;
+- `field_values` receives the ordered `field` value from every fingerprint.
+Configured `verifier.params` override fingerprint-derived values.
 """
 
 from mlprints.verify.adg_ztest import verify_adg_ztest

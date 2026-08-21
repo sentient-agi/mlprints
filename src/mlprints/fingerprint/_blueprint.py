@@ -13,6 +13,10 @@ or pass this file to `generate`/`train` with `--implementation`.
 - Configure the target model under `models.target`; if omitted, the first model
   is used as the target. Additional model roles are algorithm-specific.
 - The `generate` function should return `(fingerprints, fingerprints_metadata)`.
+- Each fingerprint is an independently usable unit represented by a `dict`.
+- Verifiers bind a shared field through a same-named argument and collect a
+  per-unit field through an argument named `<field>_values`. Repeat shared
+  evidence identically in every unit that may be distributed independently.
 - The `train` function should return a `dict` with training metadata.
 - All algorithm hyperparameters should be keyword-only.
 - If training is supported, model saving should happen inside the training function.
@@ -32,6 +36,10 @@ import torch
 # - Positional args before `*` should be model/tokenizer pairs only.
 # - All non-model parameters should be keyword-only.
 # - Return `(fingerprints, fingerprints_metadata)`, both of which are `list[dict]`.
+# - Each fingerprint dict may contain arbitrary scheme-specific evidence fields.
+# - Use the same field name in every unit for evidence consumed by a verifier.
+#   A verifier argument `field` receives a shared equal value; `field_values`
+#   receives the ordered value from every unit.
 # - num_fingerprints is an optional int parameter but very likely to be needed
 def fixme_blueprint_fingerprint_name(
     target_model, target_tokenizer,

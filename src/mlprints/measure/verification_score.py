@@ -1,5 +1,6 @@
 """Run inference and score a model's responses using a configured verifier and fingerprints."""
 
+import inspect
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -27,63 +28,69 @@ def measure_verification_score(
     verifier_name = verifier_config["name"]
     check_verifier(verifier_name)
     verifier = VERIFIERS[verifier_name]["verification_score"]
-    verifier_params = dict(verifier_config.get("params", {}))
+    configured_params = dict(verifier_config.get("params", {}))
+    verifier_params = {}
+    for parameter in inspect.signature(verifier).parameters.values():
+        if parameter.kind is not inspect.Parameter.KEYWORD_ONLY:
+            continue
 
-    if verifier_name == "match":
-        expected_responses = [
-            fingerprint["expected_response"]
-            for fingerprint in fingerprints
-        ]
-        verifier_params["expected_responses"] = expected_responses
-        if max_new_tokens is None:
-            max_new_tokens = max(
-                len(tokenizer.encode(response, add_special_tokens=False))
-                for response in expected_responses
-            )
-    elif verifier_name == "watermark_ztest":
-        watermark_fingerprint = fingerprints[0] # assumes only one fingerprint
-        for param_name in (
-            "secret_key",
-            "gamma",
-            "context_width",
-            "tokenizer_id",
-            "vocab_size",
-            "special_token_ids",
-            "exclude_special_tokens",
-            "seeding_scheme",
-            "concatenate_responses",
-        ):
-            if param_name in watermark_fingerprint:
-                verifier_params[param_name] = watermark_fingerprint[param_name]
+        name = parameter.name
+        if name in configured_params:
+            continue
 
-        if max_new_tokens is None:
-            max_new_tokens = watermark_fingerprint.get("response_length")
-    elif verifier_name == "adg_ztest":
-        adg_fingerprint = fingerprints[0]
-        for param_name in (
-            "bitstream",
-            "generation_temp",
-            "stego_model_id",
-            "stego_tokenizer_id",
-        ):
-            if param_name in adg_fingerprint:
-                verifier_params[param_name] = adg_fingerprint[param_name]
-        if any("carrier_prompt" in fingerprint for fingerprint in fingerprints):
-            verifier_params["carrier_prompts"] = [
-                fingerprint.get("carrier_prompt", "")
-                for fingerprint in fingerprints
-            ]
-        if max_new_tokens is None:
-            expected_responses = [
-                fingerprint["expected_response"]
-                for fingerprint in fingerprints
-                if "expected_response" in fingerprint
-            ]
-            if expected_responses:
-                max_new_tokens = max(
-                    len(tokenizer.encode(response, add_special_tokens=False))
-                    for response in expected_responses
+        if name.endswith("_values"):
+            field_name = name.removesuffix("_values")
+            if not any(field_name in fingerprint for fingerprint in fingerprints):
+                continue
+            if not all(field_name in fingerprint for fingerprint in fingerprints):
+                raise ValueError(
+                    f"fingerprint field {field_name!r} must be present in every "
+                    f"fingerprint to populate verifier parameter {name!r}"
                 )
+            verifier_params[name] = [
+                fingerprint[field_name] for fingerprint in fingerprints
+            ]
+            continue
+
+        values = [
+            fingerprint[name]
+            for fingerprint in fingerprints
+            if name in fingerprint
+        ]
+        if not values:
+            continue
+        if len(values) != len(fingerprints):
+            raise ValueError(
+                f"shared fingerprint field {name!r} must be present in every "
+                "fingerprint"
+            )
+        if any(value != values[0] for value in values[1:]):
+            raise ValueError(
+                f"shared fingerprint field {name!r} differs across fingerprints; "
+                f"declare verifier parameter {name + '_values'!r} to collect "
+                "per-fingerprint values"
+            )
+        verifier_params[name] = values[0]
+    verifier_params.update(configured_params)
+
+    if max_new_tokens is None:
+        lengths = []
+        for fingerprint in fingerprints:
+            response_length = fingerprint.get("response_length")
+            if response_length is not None:
+                lengths.append(int(response_length))
+                continue
+            expected_response = fingerprint.get("expected_response")
+            if expected_response is not None:
+                lengths.append(
+                    len(
+                        tokenizer.encode(
+                            expected_response,
+                            add_special_tokens=False,
+                        )
+                    )
+                )
+        max_new_tokens = max(lengths) if lengths else None
 
     generation_params = dict(generation_params or {})
     responses = []

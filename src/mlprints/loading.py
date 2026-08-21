@@ -10,6 +10,13 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from mlprints.common.distributed import is_distributed, is_rank0
+from mlprints.common.utils import (
+    get_context_length_from_model,
+    get_context_length_from_tokenizer,
+    load_implementation,
+    load_yaml,
+    normalize_str_to_path,
+)
 
 
 __all__ = [
@@ -220,12 +227,6 @@ def load_model(
     max_cache_len: int | None = None,
 ) -> Any:
     """Load a Hugging Face model/checkpoint or an MLprints attack directory."""
-    from mlprints.common.utils import (
-        load_implementation,
-        load_yaml,
-        normalize_str_to_path,
-    )
-
     path = normalize_str_to_path(path_or_model_id)
     attack_config_path = path / "attack.yaml"
 
@@ -273,7 +274,7 @@ def load_model(
         )
     else:
         # Keep this lazy to avoid a loading <-> attack registry import cycle.
-        from mlprints.common.attacks import ATTACK_ALGOS
+        from mlprints.common.attacks import ATTACK_ALGOS  # noqa: PLC0415
 
         attack_class = ATTACK_ALGOS[attack_type]["class"]
     model = attack_class.from_config(attack_config)
@@ -319,12 +320,6 @@ def load_model_and_tokenizer(
     is_train: bool = False,
 ) -> dict[str, Any]:
     """Load a configured model and tokenizer."""
-    from mlprints.common.utils import (
-        get_context_length_from_model,
-        get_context_length_from_tokenizer,
-        normalize_str_to_path,
-    )
-
     path_or_model_id = model_config.get("model_id")
     if not path_or_model_id:
         raise ValueError(f"model_id is required for role {role!r}")

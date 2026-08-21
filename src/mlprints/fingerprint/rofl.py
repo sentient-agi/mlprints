@@ -13,7 +13,6 @@ NOTE:
 
 import random
 
-import torch
 from tqdm import tqdm
 
 from mlprints.inference import run_inference, run_inference_continuation

@@ -153,8 +153,7 @@ def verify_adg_ztest(
     responses: Sequence[str],
     *,
     bitstream: str | Sequence[int],
-    carrier_prompts: Sequence[str] | None = None,
-    carrier_prompt: str | None = None,
+    carrier_prompt_values: Sequence[str],
     generation_temp: float = 1.0,
     stego_model_id: str | None = None,
     stego_tokenizer_id: str | None = None,
@@ -175,14 +174,11 @@ def verify_adg_ztest(
             f"(queries={len(queries)}, responses={len(responses)})"
         )
     expected_bits = parse_adg_bitstream(bitstream)
-    if carrier_prompts is None:
-        if carrier_prompt is None:
-            raise ValueError("provide carrier_prompt or carrier_prompts")
-        carrier_prompts = [carrier_prompt] * len(responses)
-    if len(carrier_prompts) != len(responses):
+    if len(carrier_prompt_values) != len(responses):
         raise ValueError(
-            "carrier_prompts must have the same length as responses "
-            f"(carrier_prompts={len(carrier_prompts)}, responses={len(responses)})"
+            "carrier_prompt_values must have the same length as responses "
+            f"(carrier_prompt_values={len(carrier_prompt_values)}, "
+            f"responses={len(responses)})"
         )
 
     if stego_model is None:
@@ -203,7 +199,11 @@ def verify_adg_ztest(
     hits = 0
     n = 0
     per_sample = []
-    for query, response, prompt in zip(queries, responses, carrier_prompts):
+    for query, response, prompt in zip(
+        queries,
+        responses,
+        carrier_prompt_values,
+    ):
         decoded_bits = decode_adg_bitstream(
             stego_model,
             stego_tokenizer,

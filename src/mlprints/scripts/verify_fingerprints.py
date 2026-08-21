@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 
 from mlprints.common.cache import resolve_cached_common_asset
 from mlprints.common.utils import (

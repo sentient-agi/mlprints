@@ -136,7 +136,7 @@ def verify_match(
     queries: Sequence[str],
     responses: Sequence[str],
     *,
-    expected_responses: Sequence[str],
+    expected_response_values: Sequence[str],
     comparator: str | Callable[..., bool] = "exact",
     **comparator_kwargs,
 ) -> tuple[float, dict[str, Any]]:
@@ -159,15 +159,17 @@ def verify_match(
     num_fingerprints = len(queries)
     if num_fingerprints == 0:
         raise ValueError("queries must be non-empty")
-    if not (num_fingerprints == len(responses) == len(expected_responses)):
+    if not (num_fingerprints == len(responses) == len(expected_response_values)):
         raise ValueError(
             "verifier inputs must have the same length "
             f"(num_fingerprints={num_fingerprints}, responses={len(responses)}, "
-            f"expected_responses={len(expected_responses)})"
+            f"expected_response_values={len(expected_response_values)})"
         )
     hits = 0
     per_sample_hits = []
-    for idx, (query, response, expected) in enumerate(zip(queries, responses, expected_responses)):
+    for idx, (query, response, expected) in enumerate(
+        zip(queries, responses, expected_response_values)
+    ):
         is_hit = comparator_fn(expected, response, **comparator_kwargs)
         hits += is_hit
         per_sample_hits.append(
