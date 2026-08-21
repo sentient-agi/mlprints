@@ -16,7 +16,7 @@ from transformers.generation.logits_process import (
     TopPLogitsWarper,
 )
 
-from mlprints.common.utils import get_model_device
+from mlprints.common.utils import get_eos_token_ids, get_model_device
 from mlprints.inference.formatting import CHAT_ROLES, format_input
 from mlprints.inference.logits_processors import (
     BottomKProcessor,
@@ -237,10 +237,7 @@ def _build_logits_processors_and_generation_params(
         processors.append(UniformProcessor())
 
     logits_processor = LogitsProcessorList(processors) if processors else None
-    model_generation_config = getattr(model, "generation_config", None)
-    eos_token_id = getattr(model_generation_config, "eos_token_id", None)
-    if eos_token_id is None:
-        eos_token_id = tokenizer.eos_token_id
+    eos_token_ids = get_eos_token_ids(model, tokenizer)
 
     gen_kwargs = dict(
         max_new_tokens=max_new_tokens,
@@ -251,7 +248,7 @@ def _build_logits_processors_and_generation_params(
         num_beams=num_beams,
         num_return_sequences=num_return_sequences,
         pad_token_id=tokenizer.pad_token_id,
-        eos_token_id=eos_token_id,
+        eos_token_id=eos_token_ids,
         use_cache=True,
         logits_processor=logits_processor,
         renormalize_logits=bool(processors),

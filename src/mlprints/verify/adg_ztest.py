@@ -6,7 +6,7 @@ from typing import Any
 
 import torch
 
-from mlprints.common.utils import get_model_device
+from mlprints.common.utils import get_eos_token_ids, get_model_device
 from mlprints.inference.formatting import format_input
 from mlprints.loading import load_model, load_tokenizer
 
@@ -100,10 +100,11 @@ def decode_adg_bitstream(
 ) -> list[int]:
     """Decode the ADG bitstream hidden in `response` under `prompt`."""
     if excluded_token_ids is None:
+        eos_token_ids = get_eos_token_ids(stego_model, stego_tokenizer)
         excluded_token_ids = [
             token_id
             for token_id in stego_tokenizer.all_special_ids
-            if token_id != stego_tokenizer.eos_token_id
+            if token_id not in eos_token_ids
         ]
     encoded = stego_tokenizer(
         prompt,

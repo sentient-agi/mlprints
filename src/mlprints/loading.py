@@ -59,6 +59,19 @@ _BOOL_RUNTIME_OPTIONS = (
     ("static_kvcache_for_generation", False),
 )
 
+_MODEL_CONFIG_KEYS = frozenset({
+    "model_id",
+    "tokenizer_id",
+    "device_map",
+    "dtype",
+    "trust_remote_code",
+    "attn_implementation",
+    "compile_mode",
+    "compile_dynamic",
+    "compile_backend",
+    "max_cache_len",
+}) | {key for key, _ in _BOOL_RUNTIME_OPTIONS}
+
 
 def _model_runtime_options(model_config: dict[str, Any]) -> dict[str, Any]:
     """Parse optional generation-speed knobs from a model YAML mapping."""
@@ -315,6 +328,13 @@ def load_model_and_tokenizer(
     path_or_model_id = model_config.get("model_id")
     if not path_or_model_id:
         raise ValueError(f"model_id is required for role {role!r}")
+
+    unknown_keys = sorted(set(model_config) - _MODEL_CONFIG_KEYS)
+    if unknown_keys:
+        role_part = f" for role {role!r}" if role else ""
+        raise ValueError(
+            f"unknown model config keys{role_part}: {unknown_keys}"
+        )
 
     path_or_tokenizer_id = model_config.get("tokenizer_id", path_or_model_id)
     device_map = model_config.get("device_map")

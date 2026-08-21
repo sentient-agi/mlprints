@@ -63,6 +63,21 @@ def get_model_device(model: Any) -> torch.device:
         raise ValueError("cannot determine device for model with no parameters") from e
 
 
+def get_eos_token_ids(model: Any, tokenizer: Any) -> list[int]:
+    """
+    Return EOS token IDs from ``model.generation_config``, else the tokenizer.
+    """
+    generation_config = getattr(model, "generation_config", None)
+    eos_token_id = getattr(generation_config, "eos_token_id", None)
+    if eos_token_id is None:
+        eos_token_id = getattr(tokenizer, "eos_token_id", None)
+    if eos_token_id is None:
+        return []
+    if isinstance(eos_token_id, (list, tuple, set)):
+        return [int(token_id) for token_id in eos_token_id]
+    return [int(eos_token_id)]
+
+
 # PATH AND FILE UTILITIES
 
 def normalize_str_to_path(*path_strs: str | Path) -> Path | tuple[Path, ...]:

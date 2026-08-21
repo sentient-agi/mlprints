@@ -13,7 +13,7 @@ import random
 import torch
 from datasets import load_dataset
 
-from mlprints.common.utils import get_model_device
+from mlprints.common.utils import get_eos_token_ids, get_model_device
 from mlprints.inference import format_input, run_inference
 from mlprints.inference.logits_processors import ADGLogitsProcessor
 from mlprints.training import (
@@ -77,13 +77,14 @@ def implicit_fp(
             add_special_tokens=False,
             return_tensors="pt",
         ).to(get_model_device(stego_model))
+        eos_token_ids = get_eos_token_ids(stego_model, stego_tokenizer)
         processor = ADGLogitsProcessor(
             bitstream,
             temperature=generation_temp,
             excluded_token_ids=[
                 token_id
                 for token_id in stego_tokenizer.all_special_ids
-                if token_id != stego_tokenizer.eos_token_id
+                if token_id not in eos_token_ids
             ],
         )
         sequences = stego_model.generate(
@@ -93,7 +94,7 @@ def implicit_fp(
             logits_processor=[processor],
             renormalize_logits=True,
             pad_token_id=stego_tokenizer.pad_token_id,
-            eos_token_id=stego_tokenizer.eos_token_id,
+            eos_token_id=eos_token_ids,
         )
         response_ids = sequences[
             0,
