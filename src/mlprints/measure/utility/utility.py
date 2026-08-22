@@ -5,7 +5,7 @@ import math
 import types
 from collections import defaultdict
 from collections.abc import Iterator, Mapping
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, datetime
 from enum import Enum
 from os import PathLike
@@ -29,7 +29,19 @@ from mlprints.common.utils import (
     get_context_length_from_tokenizer,
     get_model_id,
 )
-from mlprints.inference import run_inference, run_inference_logprobs
+from mlprints.inference import run_inference_from_ids, run_inference_logprobs
+from mlprints.inference.batching import (
+    DEFAULT_CONTINUOUS_COMPILE_LEVEL,
+    DEFAULT_GENERATION_BACKEND,
+    DEFAULT_LENGTH_BUCKETS,
+    DEFAULT_PERSISTENT_MANAGER,
+    DEFAULT_PREFIX_CACHING,
+    DEFAULT_WARMUP_GENERATION,
+    benefits_from_generate_warmup,
+    iter_generate_batches,
+    resolve_generation_backend,
+    warmup_generate_shapes,
+)
 from mlprints.measure.utility.custom import (
     configure_chat_metric,
     configure_triviaqa_metric,
@@ -284,6 +296,18 @@ class SaveDetailsEvaluationTracker(EvaluationTracker):
         return base
 
 
+@dataclass
+class _GenerationRequest:
+    doc: Doc
+    prompt: str
+    input_ids: list[int]
+    gen_config_key: tuple[Any, ...]
+    gen_kwargs: dict[str, Any]
+    do_sample: bool
+    num_return_sequences: int
+    stop_sequences: list[str]
+
+
 class MLprintsLightevalModelConfig(ModelConfig):
     model_name: str
     batch_size: Optional[int] = 1
@@ -295,6 +319,13 @@ class MLprintsLightevalModelConfig(ModelConfig):
     debug_dump_first_n: int = 0
     debug_dump_path: Optional[str] = None
     loglikelihood_microbatch_size: Optional[int] = None
+    generation_backend: str = DEFAULT_GENERATION_BACKEND
+    length_buckets: Optional[Tuple[int, ...]] = DEFAULT_LENGTH_BUCKETS
+    bucket_batch_sizes: Optional[Dict[int, int]] = None
+    prefix_caching: bool = DEFAULT_PREFIX_CACHING
+    warmup_generation: bool = DEFAULT_WARMUP_GENERATION
+    persistent_manager: bool = DEFAULT_PERSISTENT_MANAGER
+    continuous_compile_level: int = DEFAULT_CONTINUOUS_COMPILE_LEVEL
 
 
 class MLprintsLightevalModel(LightevalModel):
@@ -407,106 +438,146 @@ class MLprintsLightevalModel(LightevalModel):
                 ),
             )
 
-            doc_data.append({
-                "doc": doc,
-                "prompt": prompt,
-                "input_ids": input_ids,
-                "gen_config_key": gen_config_key,
-                "gen_kwargs": doc_gen,
-                "do_sample": do_sample,
-                "num_return_sequences": num_return_sequences,
-                "stop_sequences": stop_sequences,
-            })
+            doc_data.append(
+                _GenerationRequest(
+                    doc=doc,
+                    prompt=prompt,
+                    input_ids=list(input_ids),
+                    gen_config_key=gen_config_key,
+                    gen_kwargs=doc_gen,
+                    do_sample=do_sample,
+                    num_return_sequences=num_return_sequences,
+                    stop_sequences=stop_sequences,
+                )
+            )
 
         groups = defaultdict(list)
         for idx, data in enumerate(doc_data):
-            groups[data["gen_config_key"]].append((idx, data))
+            groups[data.gen_config_key].append((idx, data))
+
+        backend = resolve_generation_backend(
+            self.model,
+            self.config.generation_backend,
+        )
+        buckets = None if backend == "continuous" else tuple(
+            self.config.length_buckets or DEFAULT_LENGTH_BUCKETS
+        )
+        batch_size = max(1, int(self.config.batch_size or 1))
+
+        if (
+            backend == "generate"
+            and self.config.warmup_generation
+            and benefits_from_generate_warmup(self.model)
+        ):
+            warmup_shapes = set()
+            for group_items in groups.values():
+                for _indices, datas, pad_to in iter_generate_batches(
+                    group_items,
+                    backend=backend,
+                    batch_size=batch_size,
+                    buckets=buckets,
+                    bucket_batch_sizes=self.config.bucket_batch_sizes,
+                ):
+                    if pad_to is not None:
+                        warmup_shapes.add((len(datas), pad_to))
+            warmup_generate_shapes(
+                self.model,
+                self.tokenizer,
+                sorted(warmup_shapes),
+            )
 
         pbar = tqdm(total=len(docs), disable=self.disable_tqdm, desc="greedy_until")
-
-        for group_items in groups.values():
-            for batch_start in range(0, len(group_items), batch_size):
-                batch_items = group_items[batch_start:batch_start + batch_size]
-                batch_prompts = [d["prompt"] for _, d in batch_items]
-                batch_data = [d for _, d in batch_items]
-                first_data = batch_data[0]
-                # post-trim below is still required because StopStringCriteria
-                # halts *after* the stop string appears in the decoded text, so
-                # the stop substring typically remains in the output.
-                gen_overrides = {}
-                if first_data["stop_sequences"]:
-                    gen_overrides["stop_strings"] = list(first_data["stop_sequences"])
-                gen_overrides.update(
-                    {
-                        key: value
-                        for key, value in first_data["gen_kwargs"].items()
-                        if key
-                        not in {"max_new_tokens", "temperature", "top_p", "top_k"}
-                    }
-                )
-                batch_outputs = run_inference(
-                    model=self.model,
-                    tokenizer=self.tokenizer,
-                    prompt_or_messages=batch_prompts,
-                    apply_chat_template=False,
-                    max_new_tokens=first_data["gen_kwargs"].get("max_new_tokens"),
-                    do_sample=first_data["do_sample"],
-                    temperature=first_data["gen_kwargs"].get("temperature"),
-                    top_p=first_data["gen_kwargs"].get("top_p"),
-                    top_k=first_data["gen_kwargs"].get("top_k"),
-                    num_return_sequences=first_data["num_return_sequences"],
-                    **gen_overrides,
-                )
-
-                num_seqs = first_data["num_return_sequences"]
-                for batch_idx, (doc_idx, data) in enumerate(batch_items):
-                    doc_outputs = [
-                        batch_outputs[batch_idx * num_seqs + seq_idx]
-                        for seq_idx in range(num_seqs)
-                    ]
-                    trimmed = []
-                    for text in doc_outputs:
-                        stop_positions = [
-                            text.find(stop)
-                            for stop in data["stop_sequences"]
-                            if stop and stop in text
-                        ]
-                        trimmed.append(
-                            text[: min(stop_positions)]
-                            if stop_positions
-                            else text
-                        )
-
-                    task_name = data["doc"].task_name
-                    if is_gsm8k_task(task_name):
-                        trimmed = [gsm8k_postprocess(t) for t in trimmed]
-
-                    if debug_path and debug_written < debug_limit:
-                        rec = {
-                            "prompt": data["prompt"],
-                            "stop_sequences": data["stop_sequences"],
-                            "outputs_raw": doc_outputs,
-                            "outputs_after_stop": trimmed,
-                            "choices": data["doc"].choices,
-                            "max_new_tokens_used": data["gen_kwargs"].get("max_new_tokens"),
-                            "task_generation_size": data["doc"].generation_size,
-                            "gold_index": data["doc"].gold_index,
+        try:
+            for group_items in groups.values():
+                for _indices, batch_data, pad_to in iter_generate_batches(
+                    group_items,
+                    backend=backend,
+                    batch_size=batch_size,
+                    buckets=buckets,
+                    bucket_batch_sizes=self.config.bucket_batch_sizes,
+                ):
+                    first_data = batch_data[0]
+                    gen_overrides = {}
+                    if first_data.stop_sequences:
+                        gen_overrides["stop_strings"] = list(first_data.stop_sequences)
+                    gen_overrides.update(
+                        {
+                            key: value
+                            for key, value in first_data.gen_kwargs.items()
+                            if key
+                            not in {"max_new_tokens", "temperature", "top_p", "top_k"}
                         }
-                        with debug_path.open("a", encoding="utf-8") as f:
-                            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-                        debug_written += 1
-
-                    responses[doc_idx] = (
-                        ModelResponse(
-                            input=data["prompt"],
-                            input_tokens=data["input_ids"],
-                            text=trimmed,
-                            output_tokens=[self.tokenizer.encode(t, add_special_tokens=False) for t in trimmed],
-                        )
                     )
-                    pbar.update(1)
+                    batch_outputs = run_inference_from_ids(
+                        self.model,
+                        self.tokenizer,
+                        [data.input_ids for data in batch_data],
+                        pad_to_length=pad_to,
+                        max_new_tokens=first_data.gen_kwargs.get("max_new_tokens"),
+                        do_sample=first_data.do_sample,
+                        temperature=first_data.gen_kwargs.get("temperature"),
+                        top_p=first_data.gen_kwargs.get("top_p"),
+                        top_k=first_data.gen_kwargs.get("top_k"),
+                        num_return_sequences=first_data.num_return_sequences,
+                        backend=backend,
+                        prefix_caching=self.config.prefix_caching,
+                        persistent_manager=self.config.persistent_manager,
+                        warmup=self.config.warmup_generation,
+                        compile_level=self.config.continuous_compile_level,
+                        **gen_overrides,
+                    )
 
-        pbar.close()
+                    num_seqs = first_data.num_return_sequences
+                    for batch_idx, data in enumerate(batch_data):
+                        doc_idx = _indices[batch_idx]
+                        doc_outputs = [
+                            batch_outputs[batch_idx * num_seqs + seq_idx]
+                            for seq_idx in range(num_seqs)
+                        ]
+                        trimmed = []
+                        for text in doc_outputs:
+                            stop_positions = [
+                                text.find(stop)
+                                for stop in data.stop_sequences
+                                if stop and stop in text
+                            ]
+                            trimmed.append(
+                                text[: min(stop_positions)]
+                                if stop_positions
+                                else text
+                            )
+
+                        task_name = data.doc.task_name
+                        if is_gsm8k_task(task_name):
+                            trimmed = [gsm8k_postprocess(t) for t in trimmed]
+
+                        if debug_path and debug_written < debug_limit:
+                            rec = {
+                                "prompt": data.prompt,
+                                "stop_sequences": data.stop_sequences,
+                                "outputs_raw": doc_outputs,
+                                "outputs_after_stop": trimmed,
+                                "choices": data.doc.choices,
+                                "max_new_tokens_used": data.gen_kwargs.get("max_new_tokens"),
+                                "task_generation_size": data.doc.generation_size,
+                                "gold_index": data.doc.gold_index,
+                                "generation_backend": backend,
+                            }
+                            with debug_path.open("a", encoding="utf-8") as f:
+                                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                            debug_written += 1
+
+                        responses[doc_idx] = (
+                            ModelResponse(
+                                input=data.prompt,
+                                input_tokens=data.input_ids,
+                                text=trimmed,
+                                output_tokens=[self.tokenizer.encode(t, add_special_tokens=False) for t in trimmed],
+                            )
+                        )
+                        pbar.update(1)
+        finally:
+            pbar.close()
 
         missing = sum(1 for r in responses if r is None)
         if missing:
@@ -683,6 +754,12 @@ def evaluate_model(
     debug_path = (
         str(tracker_output_dir / "debug_generations.jsonl") if debug_first_n > 0 else None
     )
+    length_buckets = config.get("length_buckets", DEFAULT_LENGTH_BUCKETS)
+    bucket_batch_sizes = config.get("bucket_batch_sizes")
+    if bucket_batch_sizes is not None:
+        bucket_batch_sizes = {
+            int(key): int(value) for key, value in dict(bucket_batch_sizes).items()
+        }
 
     model_config = MLprintsLightevalModelConfig(
         model_name=model_name,
@@ -695,6 +772,30 @@ def evaluate_model(
         loglikelihood_microbatch_size=config.get("loglikelihood_microbatch_size"),
         debug_dump_first_n=debug_first_n,
         debug_dump_path=debug_path,
+        generation_backend=config.get(
+            "generation_backend",
+            DEFAULT_GENERATION_BACKEND,
+        ),
+        length_buckets=tuple(int(bucket) for bucket in length_buckets),
+        bucket_batch_sizes=bucket_batch_sizes,
+        prefix_caching=config.get(
+            "prefix_caching",
+            DEFAULT_PREFIX_CACHING,
+        ),
+        warmup_generation=config.get(
+            "warmup_generation",
+            DEFAULT_WARMUP_GENERATION,
+        ),
+        persistent_manager=config.get(
+            "persistent_manager",
+            DEFAULT_PERSISTENT_MANAGER,
+        ),
+        continuous_compile_level=int(
+            config.get(
+                "continuous_compile_level",
+                DEFAULT_CONTINUOUS_COMPILE_LEVEL,
+            )
+        ),
     )
     wrapped_model = MLprintsLightevalModel(
         model=model,

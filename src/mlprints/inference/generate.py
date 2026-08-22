@@ -17,6 +17,12 @@ from transformers.generation.logits_process import (
 )
 
 from mlprints.common.utils import get_eos_token_ids, get_model_device
+from mlprints.inference.batching import (
+    generate_continuous,
+    left_pad_token_ids,
+    resolve_generation_backend,
+    unpadded_token_id_lists,
+)
 from mlprints.inference.formatting import CHAT_ROLES, format_input
 from mlprints.inference.logits_processors import (
     BottomKProcessor,
@@ -272,7 +278,7 @@ def _generate_and_decode(
     output_scores: bool,
     extract_top_k: int | None,
 ) -> list[str] | dict[str, Any]:
-    """Run model.generate(), decode token output to text, and optionally extract scores."""
+    """Run model.generate(), decode text, and optionally extract scores."""
     encoded_input_len = input_ids.shape[1]
 
     model.eval()
@@ -446,6 +452,97 @@ def run_inference(
         skip_special_tokens=skip_special_tokens,
         output_scores=output_scores, extract_top_k=extract_top_k,
     )
+
+
+def run_inference_from_ids(
+    model: Any,
+    tokenizer: Any,
+    input_ids: torch.Tensor | Sequence[int] | Sequence[Sequence[int]],
+    attention_mask: torch.Tensor | Sequence[int] | Sequence[Sequence[int]] | None = None,
+    *,
+    pad_to_length: int | None = None,
+    max_new_tokens: int | None = None,
+    do_sample: bool = True,
+    temperature: float | None = None,
+    top_p: float | None = None,
+    top_k: int | None = None,
+    bottom_k: int | None = None,
+    perinucleus_p: float | None = None,
+    uniform: bool = False,
+    watermark_config: dict[str, Any] | None = None,
+    num_beams: int = 1,
+    num_return_sequences: int = 1,
+    output_scores: bool = False,
+    extract_top_k: int | None = None,
+    skip_special_tokens: bool = True,
+    backend: str = "generate",
+    prefix_caching: bool = True,
+    persistent_manager: bool = True,
+    warmup: bool = True,
+    compile_level: int = 0,
+    **generate_overrides,
+) -> list[str] | dict[str, Any]:
+    """Generate text from pre-tokenized prompts, skipping a second encode."""
+    _validate_generate_params(
+        model=model, tokenizer=tokenizer,
+        do_sample=do_sample, temperature=temperature, top_p=top_p, top_k=top_k,
+        bottom_k=bottom_k, perinucleus_p=perinucleus_p, uniform=uniform,
+        watermark_config=watermark_config, num_beams=num_beams, num_return_sequences=num_return_sequences,
+        output_scores=output_scores, extract_top_k=extract_top_k,
+        generate_overrides=generate_overrides,
+    )
+
+    gen_kwargs = _build_logits_processors_and_generation_params(
+        model=model, tokenizer=tokenizer,
+        max_new_tokens=max_new_tokens,
+        do_sample=do_sample, temperature=temperature, top_p=top_p, top_k=top_k,
+        bottom_k=bottom_k, perinucleus_p=perinucleus_p, uniform=uniform,
+        watermark_config=watermark_config,
+        num_beams=num_beams, num_return_sequences=num_return_sequences,
+        output_scores=output_scores,
+    )
+
+    sequences = unpadded_token_id_lists(input_ids, attention_mask)
+    backend = resolve_generation_backend(model, backend)
+    if backend == "continuous":
+        if output_scores or extract_top_k is not None:
+            raise ValueError("continuous backend does not support output_scores")
+        return generate_continuous(
+            model,
+            tokenizer,
+            sequences,
+            gen_kwargs=gen_kwargs,
+            generate_overrides=generate_overrides,
+            prefix_caching=prefix_caching,
+            persistent_manager=persistent_manager,
+            warmup=warmup,
+            compile_level=compile_level,
+            skip_special_tokens=skip_special_tokens,
+        )
+
+    pad_token_id = tokenizer.pad_token_id
+    if pad_token_id is None:
+        pad_token_id = tokenizer.eos_token_id
+    if pad_token_id is None:
+        raise ValueError("tokenizer must have pad_token_id or eos_token_id set")
+    padded_ids, padded_mask = left_pad_token_ids(
+        sequences,
+        pad_token_id=int(pad_token_id),
+        length=pad_to_length,
+    )
+    input_device = get_model_device(model)
+    padded_ids = padded_ids.to(input_device)
+    padded_mask = padded_mask.to(input_device)
+
+    return _generate_and_decode(
+        model=model, tokenizer=tokenizer,
+        input_ids=padded_ids, attention_mask=padded_mask,
+        gen_kwargs=gen_kwargs, generate_overrides=generate_overrides,
+        num_return_sequences=num_return_sequences,
+        skip_special_tokens=skip_special_tokens,
+        output_scores=output_scores, extract_top_k=extract_top_k,
+    )
+
 
 def run_inference_continuation(
     model: Any,
