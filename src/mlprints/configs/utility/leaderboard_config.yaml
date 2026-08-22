@@ -7,10 +7,11 @@ model:
   dtype: auto
 
 evaluation:
-  # NOTE: gpqa:diamond is gated on HF; requires a valid HF token with dataset access
   tasks: ifeval|0,gsm8k|0,gpqa:diamond|0,triviaqa|5
   batch_size: 16
   generation_size: 512
+  continuous_use_cuda_graph: false
+  persistent_manager: false
   task_overrides:
     triviaqa:
       generation_size: 20

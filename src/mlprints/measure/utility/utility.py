@@ -32,6 +32,7 @@ from mlprints.common.utils import (
 from mlprints.inference import run_inference_from_ids, run_inference_logprobs
 from mlprints.inference.batching import (
     DEFAULT_CONTINUOUS_COMPILE_LEVEL,
+    DEFAULT_CONTINUOUS_USE_CUDA_GRAPH,
     DEFAULT_GENERATION_BACKEND,
     DEFAULT_LENGTH_BUCKETS,
     DEFAULT_PERSISTENT_MANAGER,
@@ -326,6 +327,9 @@ class MLprintsLightevalModelConfig(ModelConfig):
     warmup_generation: bool = DEFAULT_WARMUP_GENERATION
     persistent_manager: bool = DEFAULT_PERSISTENT_MANAGER
     continuous_compile_level: int = DEFAULT_CONTINUOUS_COMPILE_LEVEL
+    continuous_use_cuda_graph: Optional[bool] = (
+        DEFAULT_CONTINUOUS_USE_CUDA_GRAPH
+    )
 
 
 class MLprintsLightevalModel(LightevalModel):
@@ -524,6 +528,9 @@ class MLprintsLightevalModel(LightevalModel):
                         persistent_manager=self.config.persistent_manager,
                         warmup=self.config.warmup_generation,
                         compile_level=self.config.continuous_compile_level,
+                        continuous_use_cuda_graph=(
+                            self.config.continuous_use_cuda_graph
+                        ),
                         **gen_overrides,
                     )
 
@@ -795,6 +802,10 @@ def evaluate_model(
                 "continuous_compile_level",
                 DEFAULT_CONTINUOUS_COMPILE_LEVEL,
             )
+        ),
+        continuous_use_cuda_graph=config.get(
+            "continuous_use_cuda_graph",
+            DEFAULT_CONTINUOUS_USE_CUDA_GRAPH,
         ),
     )
     wrapped_model = MLprintsLightevalModel(

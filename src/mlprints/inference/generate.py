@@ -18,6 +18,7 @@ from transformers.generation.logits_process import (
 
 from mlprints.common.utils import get_eos_token_ids, get_model_device
 from mlprints.inference.batching import (
+    DEFAULT_CONTINUOUS_USE_CUDA_GRAPH,
     generate_continuous,
     left_pad_token_ids,
     resolve_generation_backend,
@@ -480,6 +481,9 @@ def run_inference_from_ids(
     persistent_manager: bool = True,
     warmup: bool = True,
     compile_level: int = 0,
+    continuous_use_cuda_graph: bool | tuple[bool, bool] | None = (
+        DEFAULT_CONTINUOUS_USE_CUDA_GRAPH
+    ),
     **generate_overrides,
 ) -> list[str] | dict[str, Any]:
     """Generate text from pre-tokenized prompts, skipping a second encode."""
@@ -517,6 +521,7 @@ def run_inference_from_ids(
             persistent_manager=persistent_manager,
             warmup=warmup,
             compile_level=compile_level,
+            use_cuda_graph=continuous_use_cuda_graph,
             skip_special_tokens=skip_special_tokens,
         )
 

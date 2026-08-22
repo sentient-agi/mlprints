@@ -19,6 +19,7 @@ DEFAULT_PREFIX_CACHING = True
 DEFAULT_WARMUP_GENERATION = True
 DEFAULT_PERSISTENT_MANAGER = True
 DEFAULT_CONTINUOUS_COMPILE_LEVEL = 0
+DEFAULT_CONTINUOUS_USE_CUDA_GRAPH = None
 
 _WARMUP_KEYS: set[tuple[int, int, int]] = set()
 
@@ -41,6 +42,21 @@ def benefits_from_generate_warmup(model: Any) -> bool:
     return uses_static_kv_cache(model) or hasattr(model, "_orig_mod")
 
 
+def normalize_continuous_batching_model_config(model: Any) -> None:
+    """Disable a sliding window that cannot truncate the valid context."""
+    config = getattr(model, "config", None)
+    if config is None:
+        return
+    sliding_window = getattr(config, "sliding_window", None)
+    max_positions = getattr(config, "max_position_embeddings", None)
+    if (
+        sliding_window is not None
+        and max_positions is not None
+        and sliding_window >= max_positions
+    ):
+        config.sliding_window = None
+
+
 def resolve_generation_backend(
     model: Any,
     requested: str | None = DEFAULT_GENERATION_BACKEND,
@@ -59,12 +75,21 @@ def resolve_generation_backend(
                 "static KV cache and paged continuous batching cannot be "
                 "enabled together"
             )
+        if hasattr(model, "_orig_mod"):
+            raise ValueError(
+                "whole-model torch.compile and continuous batching cannot be "
+                "enabled together"
+            )
         if not callable(getattr(model, "generate_batch", None)):
             raise TypeError("continuous backend requires model.generate_batch()")
         return "continuous"
     if requested == "generate":
         return "generate"
-    if static_kv or not callable(getattr(model, "generate_batch", None)):
+    if (
+        static_kv
+        or hasattr(model, "_orig_mod")
+        or not callable(getattr(model, "generate_batch", None))
+    ):
         return "generate"
     device = get_model_device(model)
     if device.type == "cuda":
@@ -262,6 +287,9 @@ def generate_continuous(
     persistent_manager: bool = True,
     warmup: bool = True,
     compile_level: int = 0,
+    use_cuda_graph: bool | tuple[bool, bool] | None = (
+        DEFAULT_CONTINUOUS_USE_CUDA_GRAPH
+    ),
     skip_special_tokens: bool = True,
 ) -> list[str]:
     """Generate with Transformers continuous batching and paged KV."""
@@ -272,12 +300,18 @@ def generate_continuous(
             "static KV cache and paged continuous batching cannot be "
             "enabled together"
         )
+    if hasattr(model, "_orig_mod"):
+        raise ValueError(
+            "whole-model torch.compile and continuous batching cannot be "
+            "enabled together"
+        )
 
     from transformers import ContinuousBatchingConfig, GenerationConfig
 
     token_lists = [[int(token) for token in sequence] for sequence in sequences]
     if not token_lists:
         return []
+    normalize_continuous_batching_model_config(model)
 
     config_kwargs: dict[str, Any] = {}
     for key in (
@@ -306,6 +340,7 @@ def generate_continuous(
     continuous_config = ContinuousBatchingConfig(
         allow_block_sharing=bool(prefix_caching),
         default_compile_level=int(compile_level),
+        use_cuda_graph=use_cuda_graph,
     )
     outputs = model.generate_batch(
         token_lists,
@@ -316,6 +351,14 @@ def generate_continuous(
         progress_bar=False,
         max_new_tokens=gen_kwargs.get("max_new_tokens"),
     )
+    expected_outputs = len(token_lists) * int(
+        gen_kwargs.get("num_return_sequences") or 1
+    )
+    if len(outputs) != expected_outputs:
+        raise RuntimeError(
+            f"continuous batching returned {len(outputs)} outputs "
+            f"for {expected_outputs} requests"
+        )
 
     texts = []
     for output in outputs.values():
