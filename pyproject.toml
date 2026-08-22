@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mlprints"
-version = "0.1.0b4"
+version = "0.1.0b5"
 requires-python = ">=3.12"
 authors = [
     { name = "Edoardo Contente", email = "edoardo@sentient.xyz" },
@@ -50,6 +50,7 @@ dependencies = [
     "torch",
     "tqdm",
     "transformers>=5",
+    "xxhash<4",
 ]
 
 [project.scripts]
@@ -63,6 +64,11 @@ Issues = "https://github.com/sentient-agi/mlprints/issues"
 
 [tool.uv]
 exclude-newer = "14 days" # ignore newest releases for safety
+# LightEval 0.13 pins nltk==3.9.1; override to a patched release until upstream
+# loosens that pin
+override-dependencies = [
+    "nltk>=3.10.0"
+]
 
 [tool.setuptools]
 package-dir = { "" = "src" }
