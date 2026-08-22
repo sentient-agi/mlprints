@@ -51,6 +51,12 @@ def is_gsm8k_task(task_name: str) -> bool:
     return bool(task_name) and "gsm8k" in task_name.lower()
 
 
+def mean_or_zero(values: Iterable[float]) -> float:
+    """Arithmetic mean of ``values`` (empty → 0.0)."""
+    values = list(values)
+    return float(sum(values) / len(values)) if values else 0.0
+
+
 def configure_triviaqa_metric(pipeline: Pipeline) -> None:
     """Normalize TriviaQA predictions the same way as its gold aliases."""
     triviaqa_metric = SampleLevelMetric(
@@ -62,9 +68,7 @@ def configure_triviaqa_metric(pipeline: Pipeline) -> None:
             normalize_pred=harness_triviaqa_normalizer,
             strip_strings=True,
         ),
-        corpus_level_fn=lambda values: (
-            float(sum(values) / len(values)) if values else 0.0
-        ),
+        corpus_level_fn=mean_or_zero,
     )
 
     for task_name, task in pipeline.tasks_dict.items():
@@ -165,21 +169,12 @@ def configure_chat_metric(
                 predicted = extract_chat_answer(doc, model_response)
                 return 1.0 if any(predicted == gold for gold in golds) else 0.0
 
-        def flatten_mean(values: Iterable[float]) -> float:
-            """Arithmetic mean of ``values`` (empty → 0.0)."""
-            values_list = list(values)
-            return (
-                float(sum(values_list) / len(values_list))
-                if values_list
-                else 0.0
-            )
-
         chat_metric = SampleLevelMetric(
             metric_name="chat_exact_match",
             higher_is_better=True,
             category=SamplingMethod.GENERATIVE,
             sample_level_fn=ChatExactMatchComputation(),
-            corpus_level_fn=flatten_mean,
+            corpus_level_fn=mean_or_zero,
         )
         extend_enum(Metrics, CHAT_METRIC_ENUM_NAME, chat_metric)
         return getattr(Metrics, CHAT_METRIC_ENUM_NAME)
