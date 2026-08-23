@@ -30,8 +30,54 @@ Some assets are downloaded on demand and cached locally (no large bundled data t
 
 Registered fingerprints are `chain_hash`, `implicit_fp`, `instructional_fp`,
 `mergeprint`, `perinucleus`, `proflingo`, `rofl`, and `semcond_watermark`.
-All except `proflingo` and `rofl` support training. The registered attack is
-`perplexity_filtering`; available verifiers are `match`, `watermark_ztest`, and `adg_ztest`.
+All except `proflingo` and `rofl` support training. Registered attacks are
+`perplexity_filtering`, `suppress_{topk,neighbor,lookahead}`,
+`detect_{topk,neighbor,lookahead}`, and `bigram_suppression`. Available
+verifiers are `match`, `watermark_ztest`, and `adg_ztest`.
+
+## Taxonomy
+
+Fingerprints and attacks, named after the files in `src/mlprints/fingerprint/` and `src/mlprints/attack/`.
+
+```mermaid
+flowchart TB
+  FP[Fingerprints]
+
+  FP --> INV[Invasive]
+  FP --> INT[Intrinsic]
+
+  INV --> MEM[Memorization-based]
+  INV --> STAT[Statistical]
+
+  MEM --> instructional_fp
+  MEM --> chain_hash
+  MEM --> perinucleus
+  MEM --> implicit_fp
+
+  STAT --> semcond_watermark
+
+  INT --> rofl
+  INT --> proflingo
+  INT --> mergeprint
+```
+
+```mermaid
+flowchart TB
+  ATK[Attacks]
+
+  ATK --> perplexity_filtering
+  ATK --> response_suppression
+  ATK --> response_detection
+  ATK --> bigram_suppression
+
+  response_suppression --> suppress_topk
+  response_suppression --> suppress_neighbor
+  response_suppression --> suppress_lookahead
+
+  response_detection --> detect_topk
+  response_detection --> detect_neighbor
+  response_detection --> detect_lookahead
+```
 
 ## CLI
 
