@@ -317,6 +317,7 @@ def disable_thinking(tokenizer: Any) -> Any:
     """Force non-thinking chat templates on a loaded tokenizer.
     NOTE: Temporary global library implementation to avoid thinking in models.
     """
+    original_apply_chat_template = tokenizer.apply_chat_template
 
     def apply_without_thinking(*args, **kwargs):
         kwargs["enable_thinking"] = False
@@ -332,7 +333,7 @@ def disable_thinking(tokenizer: Any) -> Any:
             for message in messages
         ):
             raise ValueError("thinking mode is globally disabled by MLprints")
-        return tokenizer.apply_chat_template(*args, **kwargs)
+        return original_apply_chat_template(*args, **kwargs)
 
     tokenizer.apply_chat_template = apply_without_thinking
     return tokenizer
