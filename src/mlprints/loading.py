@@ -313,6 +313,31 @@ def load_model(
     )
 
 
+def disable_thinking(tokenizer: Any) -> Any:
+    """Force non-thinking chat templates on a loaded tokenizer.
+    NOTE: Temporary global library implementation to avoid thinking in models.
+    """
+
+    def apply_without_thinking(*args, **kwargs):
+        kwargs["enable_thinking"] = False
+        conversation = args[0] if args else kwargs.get("conversation") or ()
+        messages = (
+            conversation
+            if conversation and isinstance(conversation[0], dict)
+            else (message for turn in conversation for message in turn)
+        )
+        if any(
+            message.get("role") == "system"
+            and "/think" in (message.get("content") or "")
+            for message in messages
+        ):
+            raise ValueError("thinking mode is globally disabled by MLprints")
+        return tokenizer.apply_chat_template(*args, **kwargs)
+
+    tokenizer.apply_chat_template = apply_without_thinking
+    return tokenizer
+
+
 def load_tokenizer(
     path_or_model_id: str,
     *,
@@ -331,7 +356,7 @@ def load_tokenizer(
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    return tokenizer
+    return disable_thinking(tokenizer)
 
 
 def load_model_and_tokenizer(
@@ -392,6 +417,8 @@ def load_model_and_tokenizer(
             tokenizer = getattr(model, "tokenizer", None)
             if tokenizer is None:
                 raise AttributeError("Attacked model must have tokenizer attribute")
+            if hasattr(tokenizer, "apply_chat_template"):
+                disable_thinking(tokenizer)
         else:
             tokenizer = load_tokenizer(
                 path_or_tokenizer_id,
