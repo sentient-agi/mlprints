@@ -7,6 +7,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from typing import Any, Protocol, TypeVar
 
 import torch
+from transformers import ContinuousBatchingConfig, GenerationConfig
 
 from mlprints.common.utils import get_model_device
 
@@ -290,6 +291,7 @@ def generate_continuous(
     use_cuda_graph: bool | tuple[bool, bool] | None = (
         DEFAULT_CONTINUOUS_USE_CUDA_GRAPH
     ),
+    continuous_batching_config: dict[str, Any] | None = None,
     skip_special_tokens: bool = True,
 ) -> list[str]:
     """Generate with Transformers continuous batching and paged KV."""
@@ -306,12 +308,16 @@ def generate_continuous(
             "enabled together"
         )
 
-    from transformers import ContinuousBatchingConfig, GenerationConfig
-
     token_lists = [[int(token) for token in sequence] for sequence in sequences]
     if not token_lists:
         return []
     normalize_continuous_batching_model_config(model)
+    options = dict(continuous_batching_config or {})
+    options.setdefault("allow_block_sharing", prefix_caching)
+    options.setdefault("default_compile_level", compile_level)
+    options.setdefault("use_cuda_graph", use_cuda_graph)
+    if isinstance(options.get("use_cuda_graph"), list):
+        options["use_cuda_graph"] = tuple(options["use_cuda_graph"])
 
     config_kwargs: dict[str, Any] = {}
     for key in (
@@ -337,11 +343,7 @@ def generate_continuous(
             config_kwargs[key] = value
 
     generation_config = GenerationConfig(**config_kwargs)
-    continuous_config = ContinuousBatchingConfig(
-        allow_block_sharing=bool(prefix_caching),
-        default_compile_level=int(compile_level),
-        use_cuda_graph=use_cuda_graph,
-    )
+    continuous_config = ContinuousBatchingConfig(**options)
     outputs = model.generate_batch(
         token_lists,
         generation_config=generation_config,

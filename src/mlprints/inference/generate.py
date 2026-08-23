@@ -484,6 +484,7 @@ def run_inference_from_ids(
     continuous_use_cuda_graph: bool | tuple[bool, bool] | None = (
         DEFAULT_CONTINUOUS_USE_CUDA_GRAPH
     ),
+    continuous_batching_config: dict[str, Any] | None = None,
     **generate_overrides,
 ) -> list[str] | dict[str, Any]:
     """Generate text from pre-tokenized prompts, skipping a second encode."""
@@ -522,6 +523,7 @@ def run_inference_from_ids(
             warmup=warmup,
             compile_level=compile_level,
             use_cuda_graph=continuous_use_cuda_graph,
+            continuous_batching_config=continuous_batching_config,
             skip_special_tokens=skip_special_tokens,
         )
 

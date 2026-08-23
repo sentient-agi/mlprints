@@ -64,6 +64,7 @@ _BOOL_RUNTIME_OPTIONS = (
     ("compile_model", False),
     ("compile_fullgraph", False),
     ("static_kvcache_for_generation", False),
+    ("disable_nonbinding_sliding_window", False),
 )
 
 _MODEL_CONFIG_KEYS = frozenset({
@@ -127,7 +128,21 @@ def _prepare_loaded_model(
     compile_backend: str | None,
     static_kvcache_for_generation: bool,
     max_cache_len: int | None = None,
+    disable_nonbinding_sliding_window: bool = False,
 ) -> Any:
+    if disable_nonbinding_sliding_window:
+        sliding_window = getattr(model.config, "sliding_window", None)
+        max_positions = getattr(model.config, "max_position_embeddings", None)
+        if not isinstance(sliding_window, int):
+            raise ValueError("model has no integer sliding_window")
+        if not isinstance(max_positions, int):
+            raise ValueError("model has no integer max_position_embeddings")
+        if sliding_window < max_positions:
+            raise ValueError(
+                "sliding window is binding and cannot be disabled safely"
+            )
+        model.config.sliding_window = None
+
     if use_kernels:
         kernel_model = model
         set_use_kernels = getattr(kernel_model, "set_use_kernels", None)
@@ -183,6 +198,7 @@ def load_hf_model(
     compile_backend: str | None = None,
     static_kvcache_for_generation: bool = False,
     max_cache_len: int | None = None,
+    disable_nonbinding_sliding_window: bool = False,
 ) -> Any:
     """Load a Hugging Face model ID or compatible local checkpoint."""
     device_map = "auto" if device_map is None else device_map
@@ -206,6 +222,7 @@ def load_hf_model(
         compile_backend=compile_backend,
         static_kvcache_for_generation=static_kvcache_for_generation,
         max_cache_len=max_cache_len,
+        disable_nonbinding_sliding_window=disable_nonbinding_sliding_window,
     )
 
 
@@ -225,6 +242,7 @@ def load_model(
     compile_backend: str | None = None,
     static_kvcache_for_generation: bool = False,
     max_cache_len: int | None = None,
+    disable_nonbinding_sliding_window: bool = False,
 ) -> Any:
     """Load a Hugging Face model/checkpoint or an MLprints attack directory."""
     path = normalize_str_to_path(path_or_model_id)
@@ -246,6 +264,7 @@ def load_model(
             compile_backend=compile_backend,
             static_kvcache_for_generation=static_kvcache_for_generation,
             max_cache_len=max_cache_len,
+            disable_nonbinding_sliding_window=disable_nonbinding_sliding_window,
         )
 
     attack_config = load_yaml(attack_config_path)
@@ -290,6 +309,7 @@ def load_model(
         compile_backend=compile_backend,
         static_kvcache_for_generation=static_kvcache_for_generation,
         max_cache_len=max_cache_len,
+        disable_nonbinding_sliding_window=disable_nonbinding_sliding_window,
     )
 
 

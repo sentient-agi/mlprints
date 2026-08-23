@@ -330,6 +330,7 @@ class MLprintsLightevalModelConfig(ModelConfig):
     continuous_use_cuda_graph: Optional[bool] = (
         DEFAULT_CONTINUOUS_USE_CUDA_GRAPH
     )
+    continuous_batching: Optional[Dict[str, Any]] = None
 
 
 class MLprintsLightevalModel(LightevalModel):
@@ -530,6 +531,9 @@ class MLprintsLightevalModel(LightevalModel):
                         compile_level=self.config.continuous_compile_level,
                         continuous_use_cuda_graph=(
                             self.config.continuous_use_cuda_graph
+                        ),
+                        continuous_batching_config=(
+                            self.config.continuous_batching
                         ),
                         **gen_overrides,
                     )
@@ -807,6 +811,7 @@ def evaluate_model(
             "continuous_use_cuda_graph",
             DEFAULT_CONTINUOUS_USE_CUDA_GRAPH,
         ),
+        continuous_batching=config.get("continuous_batching"),
     )
     wrapped_model = MLprintsLightevalModel(
         model=model,
