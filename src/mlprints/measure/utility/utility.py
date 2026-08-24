@@ -54,6 +54,7 @@ def _json_safe(value: Any) -> Any:
     if value is None or isinstance(value, (str, bool, int)):
         return value
     if isinstance(value, float):
+        value = float(value)
         return value if math.isfinite(value) else None
     if isinstance(value, PathLike):
         return str(value)
