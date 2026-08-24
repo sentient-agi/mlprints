@@ -89,6 +89,19 @@ def _json_safe(value: Any) -> Any:
     if callable(model_dump):
         return _json_safe(model_dump())
 
+    if callable(value):
+        module = getattr(value, "__module__", None)
+        name = getattr(
+            value,
+            "__qualname__",
+            getattr(value, "__name__", value.__class__.__qualname__),
+        )
+        return f"{module}.{name}" if module else name
+
+    namespace = getattr(value, "__dict__", None)
+    if isinstance(namespace, dict):
+        return _json_safe(namespace)
+
     raise TypeError(
         f"Utility result contains non-JSON-compatible value "
         f"{type(value).__name__}"
