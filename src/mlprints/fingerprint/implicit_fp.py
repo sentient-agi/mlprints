@@ -21,7 +21,7 @@ from mlprints.training import (
     format_training_data,
     run_sft_train,
 )
-from mlprints.verify.adg_ztest import decode_adg_bitstream, parse_adg_bitstream
+from mlprints.verify.adg_ztest import decode_adg_bitstreams, parse_adg_bitstream
 
 
 _QUERY_PROMPT = """Create a natural user query that would plausibly elicit the target response below.
@@ -46,6 +46,24 @@ Current model response:
 {model_response}"""
 
 
+def _batch_texts(texts: list[str]) -> str | list[str]:
+    return texts[0] if len(texts) == 1 else texts
+
+
+def _left_pad_encode(tokenizer, texts: list[str], device: torch.device):
+    original_padding_side = getattr(tokenizer, "padding_side", "right")
+    tokenizer.padding_side = "left"
+    try:
+        return tokenizer(
+            texts,
+            add_special_tokens=False,
+            return_tensors="pt",
+            padding=True,
+        ).to(device)
+    finally:
+        tokenizer.padding_side = original_padding_side
+
+
 @torch.inference_mode()
 def implicit_fp(
     target_model, target_tokenizer,
@@ -65,118 +83,149 @@ def implicit_fp(
     bitstream_spec = bitstream
     bitstream = parse_adg_bitstream(bitstream)
 
-    fingerprints, metadata = [], []
-    for fingerprint_id in range(num_fingerprints):
-        # 1) encode ownership bits in a natural assistant response
-        carrier_prompt = carrier_prompt_template.format(
-            fingerprint_id=fingerprint_id
-        )
-        formatted_prompt = format_input(stego_tokenizer, carrier_prompt)
-        encoded = stego_tokenizer(
-            formatted_prompt,
-            add_special_tokens=False,
-            return_tensors="pt",
-        ).to(get_model_device(stego_model))
-        eos_token_ids = get_eos_token_ids(stego_model, stego_tokenizer)
-        processor = ADGLogitsProcessor(
-            bitstream,
-            temperature=generation_temp,
-            excluded_token_ids=[
-                token_id
-                for token_id in stego_tokenizer.all_special_ids
-                if token_id not in eos_token_ids
-            ],
-        )
-        sequences = stego_model.generate(
-            **encoded,
-            max_new_tokens=response_length,
-            do_sample=True,
-            logits_processor=[processor],
-            renormalize_logits=True,
-            pad_token_id=stego_tokenizer.pad_token_id,
-            eos_token_id=eos_token_ids,
-        )
-        response_ids = sequences[
-            0,
-            encoded["input_ids"].shape[1]:,
-        ]
-        response = stego_tokenizer.decode(
-            response_ids,
+    carrier_prompts = [
+        carrier_prompt_template.format(fingerprint_id=fingerprint_id)
+        for fingerprint_id in range(num_fingerprints)
+    ]
+    formatted_prompts = [
+        format_input(stego_tokenizer, carrier_prompt)
+        for carrier_prompt in carrier_prompts
+    ]
+    encoded = _left_pad_encode(
+        stego_tokenizer,
+        formatted_prompts,
+        get_model_device(stego_model),
+    )
+    eos_token_ids = get_eos_token_ids(stego_model, stego_tokenizer)
+    excluded_token_ids = [
+        token_id
+        for token_id in stego_tokenizer.all_special_ids
+        if token_id not in eos_token_ids
+    ]
+    processor = ADGLogitsProcessor(
+        bitstream,
+        temperature=generation_temp,
+        excluded_token_ids=excluded_token_ids,
+    )
+    sequences = stego_model.generate(
+        **encoded,
+        max_new_tokens=response_length,
+        do_sample=True,
+        logits_processor=[processor],
+        renormalize_logits=True,
+        pad_token_id=stego_tokenizer.pad_token_id,
+        eos_token_id=eos_token_ids,
+    )
+    prompt_width = encoded["input_ids"].shape[1]
+    responses = [
+        stego_tokenizer.decode(
+            sequence[prompt_width:],
             skip_special_tokens=True,
         ).strip()
-        embedded_bits = None
+        for sequence in sequences
+    ]
 
-        # 2) generate a CoT-augmented, semantically aligned query
-        query = run_inference(
+    queries = [
+        query.strip()
+        for query in run_inference(
             model=key_gen_model,
             tokenizer=key_gen_tokenizer,
-            prompt_or_messages=query_prompt_template.format(response=response),
+            prompt_or_messages=_batch_texts([
+                query_prompt_template.format(response=response)
+                for response in responses
+            ]),
             max_new_tokens=key_length,
             do_sample=False,
-        )[0].strip()
+        )
+    ]
 
-        # 3) refine the query toward the steganographic response
-        for refinement_step in range(max_refinement_steps + 1):
-            model_response = run_inference(
-                model=target_model,
-                tokenizer=target_tokenizer,
-                prompt_or_messages=query,
-                max_new_tokens=response_length,
-                do_sample=False,
-            )[0]
-            responses_to_decode = (
-                [response, model_response]
-                if embedded_bits is None
-                else [model_response]
-            )
-            decoded_bitstreams = [
-                decode_adg_bitstream(
-                    stego_model,
-                    stego_tokenizer,
-                    formatted_prompt,
-                    candidate_response,
-                    temperature=generation_temp,
-                    excluded_token_ids=processor.excluded_token_ids,
-                )
-                for candidate_response in responses_to_decode
-            ]
+    embedded_bitstreams = decode_adg_bitstreams(
+        stego_model,
+        stego_tokenizer,
+        formatted_prompts,
+        responses,
+        temperature=generation_temp,
+        excluded_token_ids=processor.excluded_token_ids,
+    )
+    model_responses = [""] * num_fingerprints
+    verified_flags = [False] * num_fingerprints
+    refinement_steps = [0] * num_fingerprints
+    active = list(range(num_fingerprints))
 
-            if embedded_bits is None:
-                embedded_bits, decoded_bits = decoded_bitstreams
-            else:
-                decoded_bits = decoded_bitstreams[0]
+    for refinement_step in range(max_refinement_steps + 1):
+        if not active:
+            break
+        batch_model_responses = run_inference(
+            model=target_model,
+            tokenizer=target_tokenizer,
+            prompt_or_messages=_batch_texts([queries[index] for index in active]),
+            max_new_tokens=response_length,
+            do_sample=False,
+        )
+        for index, model_response in zip(active, batch_model_responses):
+            model_responses[index] = model_response
+            refinement_steps[index] = refinement_step
+
+        decoded_bitstreams = decode_adg_bitstreams(
+            stego_model,
+            stego_tokenizer,
+            [formatted_prompts[index] for index in active],
+            [model_responses[index] for index in active],
+            temperature=generation_temp,
+            excluded_token_ids=processor.excluded_token_ids,
+            max_bits=[
+                len(embedded_bitstreams[index])
+                for index in active
+            ],
+        )
+        still_active = []
+        for index, decoded_bits in zip(active, decoded_bitstreams):
+            embedded_bits = embedded_bitstreams[index]
             verified = (
                 bool(embedded_bits)
                 and decoded_bits[:len(embedded_bits)] == embedded_bits
             )
-            if verified or refinement_step == max_refinement_steps:
-                break
-            query = run_inference(
-                model=key_gen_model,
-                tokenizer=key_gen_tokenizer,
-                prompt_or_messages=refine_prompt_template.format(
-                    query=query,
-                    response=response,
-                    model_response=model_response,
-                ),
-                max_new_tokens=key_length,
-                do_sample=False,
-            )[0].strip()
+            verified_flags[index] = verified
+            if not verified:
+                still_active.append(index)
 
+        active = still_active
+        if not active or refinement_step == max_refinement_steps:
+            break
+        refined_queries = run_inference(
+            model=key_gen_model,
+            tokenizer=key_gen_tokenizer,
+            prompt_or_messages=_batch_texts([
+                refine_prompt_template.format(
+                    query=queries[index],
+                    response=responses[index],
+                    model_response=model_responses[index],
+                )
+                for index in active
+            ]),
+            max_new_tokens=key_length,
+            do_sample=False,
+        )
+        for index, query in zip(active, refined_queries):
+            queries[index] = query.strip()
+
+    fingerprints, metadata = [], []
+    stego_model_id = getattr(
+        getattr(stego_model, "config", None),
+        "_name_or_path",
+        None,
+    )
+    stego_tokenizer_id = getattr(stego_tokenizer, "name_or_path", None)
+    for fingerprint_id in range(num_fingerprints):
         fingerprint = {
             "id": fingerprint_id,
-            "query": query,
-            "expected_response": response,
+            "query": queries[fingerprint_id],
+            "expected_response": responses[fingerprint_id],
             "bitstream": bitstream_spec,
-            "carrier_prompt": carrier_prompt,
+            "carrier_prompt": carrier_prompts[fingerprint_id],
             "generation_temp": generation_temp,
+            "num_embedded_bits": len(embedded_bitstreams[fingerprint_id]),
         }
-        stego_model_id = getattr(
-            getattr(stego_model, "config", None),
-            "_name_or_path",
-            None,
-        )
-        stego_tokenizer_id = getattr(stego_tokenizer, "name_or_path", None)
         if stego_model_id:
             fingerprint["stego_model_id"] = stego_model_id
         if stego_tokenizer_id:
@@ -184,14 +233,20 @@ def implicit_fp(
         fingerprints.append(fingerprint)
         metadata.append({
             "id": fingerprint_id,
-            "num_embedded_bits": len(embedded_bits),
-            "num_refinement_steps": refinement_step,
-            "verified": verified,
+            "num_embedded_bits": len(embedded_bitstreams[fingerprint_id]),
+            "num_refinement_steps": refinement_steps[fingerprint_id],
+            "verified": verified_flags[fingerprint_id],
             "query_length": len(
-                target_tokenizer.encode(query, add_special_tokens=False)
+                target_tokenizer.encode(
+                    queries[fingerprint_id],
+                    add_special_tokens=False,
+                )
             ),
             "response_length": len(
-                target_tokenizer.encode(response, add_special_tokens=False)
+                target_tokenizer.encode(
+                    responses[fingerprint_id],
+                    add_special_tokens=False,
+                )
             ),
         })
 

@@ -31,45 +31,54 @@ class ADGLogitsProcessor(LogitsProcessor):
         if self.bit_indices is None:
             self.bit_indices = [0] * len(scores)
 
-        for row, row_scores in enumerate(scores):
-            row_scores = row_scores.float()
-            row_scores[self.excluded_token_ids] = -torch.inf
-            probs, token_ids = torch.softmax(
-                row_scores / self.temperature,
-                dim=-1,
-            ).sort(descending=True)
+        logits = scores.float()
+        if self.excluded_token_ids:
+            logits = logits.clone()
+            logits[:, self.excluded_token_ids] = -torch.inf
+        probs = torch.softmax(logits / self.temperature, dim=-1)
+        needs_grouping = probs.max(dim=-1).values <= 0.5
+        if not needs_grouping.all():
+            output[~needs_grouping] = probs[~needs_grouping].log().to(
+                output.dtype
+            )
+        grouping_rows = needs_grouping.nonzero(as_tuple=False).view(-1)
+        if grouping_rows.numel() == 0:
+            return output
 
-            while probs[0] <= 0.5:
+        grouped_probs, grouped_ids = probs[grouping_rows].sort(descending=True)
+        for local, row in enumerate(grouping_rows.tolist()):
+            row_probs, token_ids = grouped_probs[local], grouped_ids[local]
+            while row_probs[0] <= 0.5:
                 num_groups = 2
-                while 1 / (num_groups * 2) > probs[0]:
+                while 1 / (num_groups * 2) > row_probs[0]:
                     num_groups *= 2
 
                 groups = []
-                mean = probs.new_tensor(1 / num_groups)
+                mean = row_probs.new_tensor(1 / num_groups)
                 for group_index in range(num_groups - 1):
-                    group_probs, group_ids = probs[:1], token_ids[:1]
-                    probs, token_ids = probs[1:], token_ids[1:]
+                    group_probs, group_ids = row_probs[:1], token_ids[:1]
+                    row_probs, token_ids = row_probs[1:], token_ids[1:]
                     while group_probs.sum() < mean:
                         delta = mean - group_probs.sum()
-                        index = (probs - delta).abs().argmin()
-                        if probs[index] - delta >= delta:
+                        index = (row_probs - delta).abs().argmin()
+                        if row_probs[index] - delta >= delta:
                             break
                         group_probs = torch.cat(
-                            (group_probs, probs[index:index + 1])
+                            (group_probs, row_probs[index:index + 1])
                         )
                         group_ids = torch.cat(
                             (group_ids, token_ids[index:index + 1])
                         )
                         keep = (
-                            torch.arange(len(probs), device=probs.device)
+                            torch.arange(len(row_probs), device=row_probs.device)
                             != index
                         )
-                        probs, token_ids = probs[keep], token_ids[keep]
+                        row_probs, token_ids = row_probs[keep], token_ids[keep]
                     groups.append((group_probs, group_ids))
-                    mean = probs.sum() / (
+                    mean = row_probs.sum() / (
                         num_groups - group_index - 1
                     )
-                groups.append((probs, token_ids))
+                groups.append((row_probs, token_ids))
 
                 num_bits = (len(groups) - 1).bit_length()
                 bits = [
@@ -80,13 +89,13 @@ class ADGLogitsProcessor(LogitsProcessor):
                     bit * 2 ** index
                     for index, bit in enumerate(bits)
                 )
-                probs, token_ids = groups[group_index]
-                probs = probs / probs.sum()
-                probs, order = probs.sort(descending=True)
+                row_probs, token_ids = groups[group_index]
+                row_probs = row_probs / row_probs.sum()
+                row_probs, order = row_probs.sort(descending=True)
                 token_ids = token_ids[order]
                 self.bit_indices[row] += num_bits
 
-            output[row, token_ids] = probs.log().to(output.dtype)
+            output[row, token_ids] = row_probs.log().to(output.dtype)
         return output
 
 class BottomKProcessor(LogitsProcessor):

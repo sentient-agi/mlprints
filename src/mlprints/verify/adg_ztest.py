@@ -27,22 +27,58 @@ def parse_adg_bitstream(bitstream: str | Sequence[int]) -> list[int]:
     return bits
 
 
-def decode_adg_token_bits(
+def _normalize_max_bits(
+    max_bits: int | Sequence[int | None] | None,
+    batch_size: int,
+) -> list[int | None]:
+    if max_bits is None:
+        return [None] * batch_size
+    if isinstance(max_bits, int):
+        if max_bits < 0:
+            raise ValueError("max_bits must be non-negative")
+        return [max_bits] * batch_size
+    if len(max_bits) != batch_size:
+        raise ValueError(
+            "max_bits must have the same length as responses "
+            f"(max_bits={len(max_bits)}, responses={batch_size})"
+        )
+    normalized = []
+    for value in max_bits:
+        if value is None:
+            normalized.append(None)
+            continue
+        value = int(value)
+        if value < 0:
+            raise ValueError("max_bits must be non-negative")
+        normalized.append(value)
+    return normalized
+
+
+def _mask_adg_logits(
     scores: torch.Tensor,
+    *,
+    temperature: float,
+    excluded_token_ids: Sequence[int] | None,
+) -> torch.Tensor:
+    logits = scores.float() / temperature
+    if excluded_token_ids:
+        logits = logits.clone()
+        logits[..., list(excluded_token_ids)] = -torch.inf
+    return logits
+
+
+def _decode_adg_grouped_token_bits(
+    probs: torch.Tensor,
+    token_ids: torch.Tensor,
     token_id: int,
     *,
-    temperature: float = 1.0,
-    excluded_token_ids: Sequence[int] | None = None,
+    max_bits: int | None = None,
 ) -> list[int]:
-    """Recover the ADG bits implied by one sampled token."""
-    scores = scores.float()
-    if excluded_token_ids:
-        scores[list(excluded_token_ids)] = -torch.inf
-    probs, token_ids = torch.softmax(scores / temperature, dim=-1).sort(
-        descending=True
-    )
+    """Recover ADG bits from a token's sorted group probabilities."""
     decoded_bits = []
     while probs[0] <= 0.5:
+        if max_bits is not None and len(decoded_bits) >= max_bits:
+            break
         num_groups = 2
         while 1 / (num_groups * 2) > probs[0]:
             num_groups *= 2
@@ -86,7 +122,208 @@ def decode_adg_token_bits(
         probs = probs / probs.sum()
         probs, order = probs.sort(descending=True)
         token_ids = token_ids[order]
+    if max_bits is not None:
+        return decoded_bits[:max_bits]
     return decoded_bits
+
+
+def _decode_adg_response_bits(
+    scores: torch.Tensor,
+    response_ids: Sequence[int],
+    *,
+    temperature: float,
+    excluded_token_ids: Sequence[int] | None,
+    max_bits: int | None = None,
+) -> list[int]:
+    """Decode ADG bits from one response's per-token scores."""
+    if max_bits == 0 or scores.numel() == 0:
+        return []
+
+    logits = _mask_adg_logits(
+        scores,
+        temperature=temperature,
+        excluded_token_ids=excluded_token_ids,
+    )
+    probs = torch.softmax(logits, dim=-1)
+    grouping_positions = (probs.max(dim=-1).values <= 0.5).nonzero(
+        as_tuple=False
+    ).view(-1)
+    if grouping_positions.numel() == 0:
+        return []
+
+    decoded_bits = []
+    if max_bits is None:
+        sorted_probs, sorted_ids = probs[grouping_positions].sort(
+            descending=True
+        )
+        for local, position in enumerate(grouping_positions.tolist()):
+            decoded_bits.extend(
+                _decode_adg_grouped_token_bits(
+                    sorted_probs[local],
+                    sorted_ids[local],
+                    response_ids[position],
+                )
+            )
+        return decoded_bits
+
+    for position in grouping_positions.tolist():
+        if len(decoded_bits) >= max_bits:
+            break
+        token_probs, token_ids = probs[position].sort(descending=True)
+        decoded_bits.extend(
+            _decode_adg_grouped_token_bits(
+                token_probs,
+                token_ids,
+                response_ids[position],
+                max_bits=max_bits - len(decoded_bits),
+            )
+        )
+    return decoded_bits[:max_bits]
+
+
+def decode_adg_token_bits(
+    scores: torch.Tensor,
+    token_id: int,
+    *,
+    temperature: float = 1.0,
+    excluded_token_ids: Sequence[int] | None = None,
+    max_bits: int | None = None,
+) -> list[int]:
+    """Recover the ADG bits implied by one sampled token."""
+    if max_bits is not None and max_bits < 0:
+        raise ValueError("max_bits must be non-negative")
+    return _decode_adg_response_bits(
+        scores.unsqueeze(0),
+        [token_id],
+        temperature=temperature,
+        excluded_token_ids=excluded_token_ids,
+        max_bits=max_bits,
+    )
+
+
+def _excluded_special_token_ids(stego_model, stego_tokenizer) -> list[int]:
+    eos_token_ids = get_eos_token_ids(stego_model, stego_tokenizer)
+    return [
+        token_id
+        for token_id in stego_tokenizer.all_special_ids
+        if token_id not in eos_token_ids
+    ]
+
+
+def _pad_token_id(tokenizer) -> int:
+    pad_token_id = getattr(tokenizer, "pad_token_id", None)
+    if pad_token_id is None:
+        pad_token_id = getattr(tokenizer, "eos_token_id", None)
+    if pad_token_id is None:
+        raise ValueError("tokenizer must have pad_token_id or eos_token_id set")
+    return int(pad_token_id)
+
+
+@torch.inference_mode()
+def decode_adg_bitstreams(
+    stego_model,
+    stego_tokenizer,
+    prompts: Sequence[str],
+    responses: Sequence[str],
+    *,
+    temperature: float = 1.0,
+    excluded_token_ids: Sequence[int] | None = None,
+    max_bits: int | Sequence[int | None] | None = None,
+) -> list[list[int]]:
+    """Decode ADG bitstreams hidden in each `responses` under `prompts`."""
+    if len(prompts) != len(responses):
+        raise ValueError(
+            "prompts and responses must have the same length "
+            f"(prompts={len(prompts)}, responses={len(responses)})"
+        )
+    max_bits_list = _normalize_max_bits(max_bits, len(responses))
+    if excluded_token_ids is None:
+        excluded_token_ids = _excluded_special_token_ids(
+            stego_model,
+            stego_tokenizer,
+        )
+
+    decoded = [[] for _ in responses]
+    encode_indices = []
+    prompt_id_lists = []
+    response_id_lists = []
+    for index, (prompt, response, sample_max_bits) in enumerate(
+        zip(prompts, responses, max_bits_list)
+    ):
+        if sample_max_bits == 0:
+            continue
+        prompt_ids = stego_tokenizer(
+            prompt,
+            add_special_tokens=False,
+            return_tensors="pt",
+        )["input_ids"][0].tolist()
+        response_ids = stego_tokenizer.encode(
+            response,
+            add_special_tokens=False,
+        )
+        if not response_ids:
+            continue
+        encode_indices.append(index)
+        prompt_id_lists.append(prompt_ids)
+        response_id_lists.append(list(response_ids))
+
+    if not encode_indices:
+        return decoded
+
+    device = get_model_device(stego_model)
+    full_id_lists = [
+        prompt_ids + response_ids
+        for prompt_ids, response_ids in zip(prompt_id_lists, response_id_lists)
+    ]
+    max_length = max(len(ids) for ids in full_id_lists)
+    if all(len(ids) == max_length for ids in full_id_lists):
+        input_ids = torch.tensor(
+            full_id_lists,
+            dtype=torch.long,
+            device=device,
+        )
+        attention_mask = torch.ones_like(input_ids)
+    else:
+        pad_token_id = _pad_token_id(stego_tokenizer)
+        input_ids = torch.full(
+            (len(full_id_lists), max_length),
+            pad_token_id,
+            dtype=torch.long,
+            device=device,
+        )
+        attention_mask = torch.zeros(
+            (len(full_id_lists), max_length),
+            dtype=torch.long,
+            device=device,
+        )
+        for row, ids in enumerate(full_id_lists):
+            input_ids[row, :len(ids)] = torch.tensor(
+                ids,
+                dtype=torch.long,
+                device=device,
+            )
+            attention_mask[row, :len(ids)] = 1
+
+    logits = stego_model(
+        input_ids=input_ids,
+        attention_mask=attention_mask,
+    ).logits
+
+    for row, index in enumerate(encode_indices):
+        prompt_length = len(prompt_id_lists[row])
+        response_ids = response_id_lists[row]
+        sample_scores = logits[
+            row,
+            prompt_length - 1:prompt_length - 1 + len(response_ids),
+        ]
+        decoded[index] = _decode_adg_response_bits(
+            sample_scores,
+            response_ids,
+            temperature=temperature,
+            excluded_token_ids=excluded_token_ids,
+            max_bits=max_bits_list[index],
+        )
+    return decoded
 
 
 def decode_adg_bitstream(
@@ -97,55 +334,18 @@ def decode_adg_bitstream(
     *,
     temperature: float = 1.0,
     excluded_token_ids: Sequence[int] | None = None,
+    max_bits: int | None = None,
 ) -> list[int]:
     """Decode the ADG bitstream hidden in `response` under `prompt`."""
-    if excluded_token_ids is None:
-        eos_token_ids = get_eos_token_ids(stego_model, stego_tokenizer)
-        excluded_token_ids = [
-            token_id
-            for token_id in stego_tokenizer.all_special_ids
-            if token_id not in eos_token_ids
-        ]
-    encoded = stego_tokenizer(
-        prompt,
-        add_special_tokens=False,
-        return_tensors="pt",
-    ).to(get_model_device(stego_model))
-    response_ids = stego_tokenizer.encode(response, add_special_tokens=False)
-    if not response_ids:
-        return []
-    candidate_ids = torch.tensor(
-        response_ids,
-        device=encoded["input_ids"].device,
-    )
-    decoder_scores = stego_model(
-        input_ids=torch.cat(
-            (encoded["input_ids"], candidate_ids.unsqueeze(0)),
-            dim=1,
-        ),
-        attention_mask=torch.cat(
-            (
-                encoded["attention_mask"],
-                torch.ones_like(candidate_ids).unsqueeze(0),
-            ),
-            dim=1,
-        ),
-    ).logits[
-        0,
-        encoded["input_ids"].shape[1] - 1:
-        encoded["input_ids"].shape[1] - 1 + len(response_ids),
-    ]
-    decoded_bits = []
-    for scores, token_id in zip(decoder_scores, response_ids):
-        decoded_bits.extend(
-            decode_adg_token_bits(
-                scores,
-                token_id,
-                temperature=temperature,
-                excluded_token_ids=excluded_token_ids,
-            )
-        )
-    return decoded_bits
+    return decode_adg_bitstreams(
+        stego_model,
+        stego_tokenizer,
+        [prompt],
+        [response],
+        temperature=temperature,
+        excluded_token_ids=excluded_token_ids,
+        max_bits=max_bits,
+    )[0]
 
 
 def verify_adg_ztest(
@@ -164,6 +364,7 @@ def verify_adg_ztest(
     alpha: float | None = 1e-3,
     trust_remote_code: bool = False,
     generation_params_used: dict[str, Any] | None = None,
+    num_embedded_bits_values: Sequence[int] | None = None,
 ) -> tuple[float, dict[str, Any]]:
     """Score responses by ADG bit agreement against an owner bitstream."""
     if len(queries) == 0:
@@ -178,6 +379,15 @@ def verify_adg_ztest(
         raise ValueError(
             "carrier_prompt_values must have the same length as responses "
             f"(carrier_prompt_values={len(carrier_prompt_values)}, "
+            f"responses={len(responses)})"
+        )
+    if (
+        num_embedded_bits_values is not None
+        and len(num_embedded_bits_values) != len(responses)
+    ):
+        raise ValueError(
+            "num_embedded_bits_values must have the same length as responses "
+            f"(num_embedded_bits_values={len(num_embedded_bits_values)}, "
             f"responses={len(responses)})"
         )
 
@@ -196,22 +406,33 @@ def verify_adg_ztest(
             trust_remote_code=trust_remote_code,
         )
 
+    formatted_prompts = [
+        format_input(stego_tokenizer, prompt)
+        for prompt in carrier_prompt_values
+    ]
+    decoded_bitstreams = decode_adg_bitstreams(
+        stego_model,
+        stego_tokenizer,
+        formatted_prompts,
+        responses,
+        temperature=generation_temp,
+        max_bits=num_embedded_bits_values,
+    )
+
     hits = 0
     n = 0
     per_sample = []
-    for query, response, prompt in zip(
+    for query, response, prompt, decoded_bits, num_embedded_bits in zip(
         queries,
         responses,
         carrier_prompt_values,
+        decoded_bitstreams,
+        num_embedded_bits_values or [None] * len(responses),
     ):
-        decoded_bits = decode_adg_bitstream(
-            stego_model,
-            stego_tokenizer,
-            format_input(stego_tokenizer, prompt),
-            response,
-            temperature=generation_temp,
-        )
-        compared = min(len(decoded_bits), len(expected_bits))
+        compared_limit = len(expected_bits)
+        if num_embedded_bits is not None:
+            compared_limit = min(compared_limit, int(num_embedded_bits))
+        compared = min(len(decoded_bits), compared_limit)
         sample_hits = sum(
             decoded_bits[index] == expected_bits[index]
             for index in range(compared)
