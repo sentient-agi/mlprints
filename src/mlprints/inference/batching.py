@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from typing import Any, Protocol, TypeVar
 
 import torch
-from transformers import ContinuousBatchingConfig, GenerationConfig
+from transformers import ContinuousBatchingConfig, GenerationConfig, LogitsProcessorList
 
 from mlprints.common.utils import get_model_device
 
@@ -30,6 +31,11 @@ class HasInputIds(Protocol):
 
 
 BatchItem = TypeVar("BatchItem", bound=HasInputIds)
+
+
+def implements_generate_batch(model: Any) -> bool:
+    """True if ``generate_batch`` is defined on the class, not forwarded."""
+    return any(callable(vars(cls).get("generate_batch")) for cls in type(model).__mro__)
 
 
 def uses_static_kv_cache(model: Any) -> bool:
@@ -81,7 +87,7 @@ def resolve_generation_backend(
                 "whole-model torch.compile and continuous batching cannot be "
                 "enabled together"
             )
-        if not callable(getattr(model, "generate_batch", None)):
+        if not implements_generate_batch(model):
             raise TypeError("continuous backend requires model.generate_batch()")
         return "continuous"
     if requested == "generate":
@@ -89,7 +95,7 @@ def resolve_generation_backend(
     if (
         static_kv
         or hasattr(model, "_orig_mod")
-        or not callable(getattr(model, "generate_batch", None))
+        or not implements_generate_batch(model)
     ):
         return "generate"
     device = get_model_device(model)
@@ -277,6 +283,40 @@ def warmup_generate_shapes(
             _WARMUP_KEYS.add(key)
 
 
+@contextmanager
+def injected_logits_processors(model, processors):
+    """Prepend processors via ``_get_logits_processor`` for continuous batching."""
+    if not processors or not callable(getattr(type(model), "_get_logits_processor", None)):
+        yield
+        return
+
+    original = model._get_logits_processor
+    model._get_logits_processor = lambda generation_config, *args, **kwargs: (
+        LogitsProcessorList([*processors, *original(generation_config, *args, **kwargs)])
+    )
+
+    from transformers.generation.continuous_batching.cb_logits_processors import (
+        ContinuousBatchingLogitsProcessor,
+        ContinuousBatchingLogitsProcessorList,
+    )
+
+    orig_init = ContinuousBatchingLogitsProcessorList.__init__
+
+    def patched_init(self, logits_processor, *args, **kwargs):
+        orig_init(self, logits_processor, *args, **kwargs)
+        self.tensors_required = sum(
+            isinstance(p, ContinuousBatchingLogitsProcessor)
+            for p in self.logits_processor
+        )
+
+    ContinuousBatchingLogitsProcessorList.__init__ = patched_init
+    try:
+        yield
+    finally:
+        model._get_logits_processor = original
+        ContinuousBatchingLogitsProcessorList.__init__ = orig_init
+
+
 def generate_continuous(
     model: Any,
     tokenizer: Any,
@@ -295,7 +335,7 @@ def generate_continuous(
     skip_special_tokens: bool = True,
 ) -> list[str]:
     """Generate with Transformers continuous batching and paged KV."""
-    if not callable(getattr(model, "generate_batch", None)):
+    if not implements_generate_batch(model):
         raise TypeError("continuous backend requires model.generate_batch()")
     if uses_static_kv_cache(model):
         raise ValueError(
@@ -342,17 +382,25 @@ def generate_continuous(
         if value is not None:
             config_kwargs[key] = value
 
+    processors = [
+        *(gen_kwargs.get("logits_processor") or ()),
+        *(generate_overrides.get("logits_processor") or ()),
+    ]
+    if processors:
+        config_kwargs["renormalize_logits"] = True
     generation_config = GenerationConfig(**config_kwargs)
     continuous_config = ContinuousBatchingConfig(**options)
-    outputs = model.generate_batch(
-        token_lists,
-        generation_config=generation_config,
-        continuous_batching_config=continuous_config,
-        persistent_manager=bool(persistent_manager),
-        warmup=bool(warmup),
-        progress_bar=False,
-        max_new_tokens=gen_kwargs.get("max_new_tokens"),
-    )
+    with injected_logits_processors(model, processors):
+        outputs = model.generate_batch(
+            token_lists,
+            generation_config=generation_config,
+            continuous_batching_config=continuous_config,
+            persistent_manager=persistent_manager,
+            warmup=warmup,
+            progress_bar=False,
+            max_new_tokens=gen_kwargs.get("max_new_tokens"),
+            **({"logits_processor": processors} if processors else {}),
+        )
     expected_outputs = len(token_lists) * int(
         gen_kwargs.get("num_return_sequences") or 1
     )

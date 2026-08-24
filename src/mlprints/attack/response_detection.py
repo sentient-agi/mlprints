@@ -10,9 +10,13 @@ NOTE:
 """
 
 import torch
-from transformers import LogitsProcessor, LogitsProcessorList
+from transformers import ContinuousBatchingConfig, LogitsProcessor, LogitsProcessorList
+from transformers.generation.continuous_batching.cb_logits_processors import (
+    ContinuousBatchingLogitsProcessor,
+)
 
 from mlprints.attack.base import AttackModel
+from mlprints.inference.batching import injected_logits_processors
 from mlprints.loading import load_model, load_tokenizer
 
 
@@ -33,6 +37,22 @@ class DetectTopKProcessor(LogitsProcessor):
         mask = torch.zeros_like(scores, dtype=torch.bool)
         mask.scatter_(1, token_ids, detected[:, None].expand_as(token_ids))
         return scores.masked_fill(mask, -torch.inf)
+
+
+def _neighbor_token_ids(normalized_tokens, candidate_ids):
+    candidates = {
+        normalized_tokens[token_id]
+        for token_id in candidate_ids
+        if normalized_tokens[token_id]
+    }
+    return [
+        token_id
+        for token_id, token in enumerate(normalized_tokens)
+        if token and any(
+            token.startswith(candidate) or candidate.startswith(token)
+            for candidate in candidates
+        )
+    ]
 
 
 class DetectNeighborProcessor(LogitsProcessor):
@@ -63,22 +83,13 @@ class DetectNeighborProcessor(LogitsProcessor):
             top_probs, top_ids = probs.topk(self.candidate_set_size, dim=-1)
             self.neighbor_ids = []
             for row_probs, ids in zip(top_probs, top_ids):
-                candidates = {
-                    self.normalized_tokens[token_id]
-                    for token_id in ids[
-                        row_probs > self.add_threshold
-                    ].tolist()
-                    if self.normalized_tokens[token_id]
-                }
-                self.neighbor_ids.append(torch.tensor([
-                    token_id
-                    for token_id, token in enumerate(self.normalized_tokens)
-                    if token and any(
-                        token.startswith(candidate)
-                        or candidate.startswith(token)
-                        for candidate in candidates
-                    )
-                ], dtype=torch.long))
+                self.neighbor_ids.append(torch.tensor(
+                    _neighbor_token_ids(
+                        self.normalized_tokens,
+                        ids[row_probs > self.add_threshold].tolist(),
+                    ),
+                    dtype=torch.long,
+                ))
 
         output = scores.clone()
         for row, token_ids in enumerate(self.neighbor_ids):
@@ -86,6 +97,59 @@ class DetectNeighborProcessor(LogitsProcessor):
             token_ids = token_ids[
                 probs[row, token_ids] > self.generation_threshold
             ]
+            output[row, token_ids] = -torch.inf
+        return output
+
+
+class DetectNeighborContinuousProcessor(ContinuousBatchingLogitsProcessor):
+    supported_kwargs = {}
+    ignored_kwargs = ()
+
+    def __init__(
+        self,
+        normalized_tokens,
+        candidate_set_size,
+        num_tokens,
+        add_threshold,
+        generation_threshold,
+    ):
+        self.normalized_tokens = normalized_tokens
+        self.candidate_set_size = candidate_set_size
+        self.num_tokens = num_tokens
+        self.add_threshold = add_threshold
+        self.generation_threshold = generation_threshold
+        self._neighbor_ids = {}
+        self._active_requests = []
+
+    def fill_defaults(self, int32_tensor):
+        int32_tensor.fill_(0)
+
+    def prepare_tensor_args(self, requests_with_new_token):
+        self._active_requests = [
+            (request.state.request_id, request.state.generated_len())
+            for request in requests_with_new_token
+        ]
+        return torch.zeros(len(self._active_requests), dtype=torch.int32)
+
+    def __call__(self, scores, _tensor_arg):
+        probs = scores.float().softmax(dim=-1)
+        output = scores.clone()
+        for row, (request_id, generated_len) in enumerate(self._active_requests):
+            if generated_len >= self.num_tokens:
+                continue
+            token_ids = self._neighbor_ids.get(request_id)
+            if token_ids is None:
+                top_probs, top_ids = probs[row].topk(self.candidate_set_size)
+                token_ids = scores.new_tensor(
+                    _neighbor_token_ids(
+                        self.normalized_tokens,
+                        top_ids[top_probs > self.add_threshold].tolist(),
+                    ),
+                    dtype=torch.long,
+                )
+                self._neighbor_ids[request_id] = token_ids
+            token_ids = token_ids.to(scores.device)
+            token_ids = token_ids[probs[row, token_ids] > self.generation_threshold]
             output[row, token_ids] = -torch.inf
         return output
 
@@ -231,6 +295,27 @@ class DetectNeighborAttackModel(DetectAttackModel):
             input_ids.shape[1],
         )
         return self._generate(input_ids, processor, kwargs)
+
+    def generate_batch(self, inputs, generation_config=None, **kwargs):
+        processors = [
+            DetectNeighborContinuousProcessor(
+                self.normalized_tokens,
+                self.candidate_set_size,
+                self.num_tokens,
+                self.add_threshold,
+                self.generation_threshold,
+            ),
+            *kwargs.pop("logits_processor", []),
+        ]
+        if generation_config is not None:
+            generation_config.renormalize_logits = True
+        kwargs.setdefault(
+            "continuous_batching_config", ContinuousBatchingConfig()
+        ).use_cuda_graph = False
+        with injected_logits_processors(self.model, processors):
+            return self.model.generate_batch(
+                inputs, generation_config=generation_config, **kwargs
+            )
 
     @classmethod
     def from_config(cls, config):

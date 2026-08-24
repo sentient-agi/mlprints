@@ -42,7 +42,14 @@ class AttackModel(nn.Module, ABC):
         """
         Proxy unknown attributes to the model.
         This allows the attack model to behave like the model for most operations.
+
+        ``generate_batch`` is not forwarded so continuous batching cannot skip ``generate()``.
         """
+        if name == "generate_batch":
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute "
+                "'generate_batch'"
+            )
         try:
             return super().__getattr__(name)
         except AttributeError:
