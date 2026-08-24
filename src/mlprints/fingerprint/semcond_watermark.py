@@ -30,6 +30,7 @@ def semcond_watermark(
         "domain": domain,
         "verification_dataset": verification_dataset,
         **verification_config,
+        "tokenizer_id": target_tokenizer.name_or_path,
     }
     metadata = [{
         "id": 0,

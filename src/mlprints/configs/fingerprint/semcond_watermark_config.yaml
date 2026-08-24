@@ -24,7 +24,6 @@ algo:
       gamma: 0.25
       context_width: 1
       seeding_scheme: simple_1
-      tokenizer_id: Qwen/Qwen2.5-3B-Instruct
       response_length: 200
       exclude_special_tokens: true
       concatenate_responses: true
