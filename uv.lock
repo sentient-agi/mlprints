@@ -1837,7 +1837,7 @@ wheels = [
 
 [[package]]
 name = "mlprints"
-version = "0.1.0b8"
+version = "0.1.0b9"
 source = { editable = "." }
 dependencies = [
     { name = "aenum" },
