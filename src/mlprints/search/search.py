@@ -351,6 +351,14 @@ def run_gcg_search(
                     return cand_loss, cand_pos, cand_tok
                 return None
 
+            def _skip_update():
+                # no legal improving swap this update; spend the step and keep searching
+                nonlocal current_loss_val
+                current_loss_val = pre_loss_val
+                if rank == 0:
+                    pbar.update(1)
+                    pbar.set_postfix({"loss": f"{current_loss_val:.4f}"})
+
             if distributed:
                 if rank == 0:
                     selected = _select_best_candidate()
@@ -367,15 +375,15 @@ def run_gcg_search(
                 best_tok = selection_tensor[1].item()
 
                 if best_pos == -1:
-                    stop_early = True
-                    break
+                    _skip_update()
+                    continue
 
                 best_loss = selected[0] if rank == 0 else pre_loss_val
             else:
                 selected = _select_best_candidate()
                 if selected is None:
-                    stop_early = True
-                    break
+                    _skip_update()
+                    continue
                 best_loss, best_pos, best_tok = selected
 
             user_prompt_ids[best_pos] = best_tok
@@ -423,7 +431,7 @@ def run_gcg_search(
     final_user_ids = base_sample["input_ids"][0, base_user_positions].cpu().tolist()
     final_user_str = tokenizer.decode(base_sample["input_ids"][0, base_user_positions], skip_special_tokens=False)
 
-    final_loss = history[-1]["loss"] if history else current_loss_val if step_count > 0 else None
+    final_loss = None if current_loss_val == float("inf") else current_loss_val
 
     search_results = {
         "final_prompt_ids": final_prompt_ids,

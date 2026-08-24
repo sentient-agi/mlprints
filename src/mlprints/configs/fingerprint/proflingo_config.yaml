@@ -14,9 +14,11 @@ algo:
         dtype: auto
 
     num_fingerprints: 50
+    num_gcg_trials: 50
     questions_source: "https://raw.githubusercontent.com/hengvt/ProFLingo/1a0d70a8fa68237e11b6d67823c311b8960ed843/questions.csv"
     prefix_length: 32
     max_gcg_steps: 256
     top_k: 128
     candidates_per_token: 16
     mini_batch_size: 64
+    early_stop_gcg_loss: null

@@ -6,6 +6,7 @@ NOTE:
 - Multi-template optimization is intentionally omitted: we assume the suspect uses the same chat template
 - Prefixes must preserve their token span through canonical chat-template serialization
 - The repository GCG optimizer replaces the paper's bespoke multi-token update loop
+- Extra GCG trials are ranked by final loss; only the best num_fingerprints are kept
 """
 
 import random
@@ -27,7 +28,13 @@ def proflingo(
     top_k,
     candidates_per_token,
     mini_batch_size,
+    num_gcg_trials=None,
+    early_stop_gcg_loss=None,
 ):
+    trial_count = num_fingerprints if num_gcg_trials is None else num_gcg_trials
+    if trial_count < num_fingerprints:
+        raise ValueError("num_gcg_trials must be >= num_fingerprints")
+
     p = resolve_cached_fingerprint_asset(
         questions_source,
         algo_name="proflingo",
@@ -37,7 +44,7 @@ def proflingo(
     )
     questions = random.sample(
         load_csv(p),
-        num_fingerprints,
+        trial_count,
     )
 
     token_ids = range(len(target_tokenizer))
@@ -128,6 +135,7 @@ def proflingo(
             max_modifiable_tokens=prefix_length,
             enforce_improvement=True,
             candidate_filter=_valid_prefix,
+            early_stop_loss_threshold=early_stop_gcg_loss,
             return_history=False,
         )
         prefix = target_tokenizer.decode(
@@ -152,4 +160,14 @@ def proflingo(
             "gcg_loss": result["final_loss"],
         })
 
+    kept = sorted(
+        zip(fingerprints, metadata),
+        key=lambda item: item[1]["gcg_loss"] if item[1]["gcg_loss"] is not None else float("inf"),
+    )
+    fingerprints, metadata = [], []
+    for fingerprint_id, (fingerprint, meta) in enumerate(kept[:num_fingerprints]):
+        fingerprint["id"] = fingerprint_id
+        meta["id"] = fingerprint_id
+        fingerprints.append(fingerprint)
+        metadata.append(meta)
     return fingerprints, metadata
