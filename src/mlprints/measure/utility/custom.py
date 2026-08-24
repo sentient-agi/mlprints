@@ -70,14 +70,6 @@ _GSM_EXPLICIT_PATTERNS = (
     ),
     re.compile(r"\\boxed\{\s*(" + _NUMBER + r")\s*\}"),
 )
-_GSM_CONCLUSION_CUE = re.compile(
-    r"\b(?:"
-    r"therefore|thus|hence|accordingly|finally|"
-    r"in\s+(?:total|conclusion|summary)|"
-    r"the\s+(?:final\s+)?(?:answer|result|total)\s+is"
-    r")\b",
-    re.IGNORECASE,
-)
 GPQA_DIAMOND_METRIC_NAME = "gpqa_pass@k:k=1"
 GSM8K_METRIC_NAME = "extractive_match"
 
@@ -300,8 +292,6 @@ def extract_gsm8k_answer(text: str) -> Decimal | None:
     final_line = lines[-1]
     final_numbers = re.findall(_NUMBER, final_line)
     if not final_numbers:
-        return None
-    if len(final_numbers) > 1 and not _GSM_CONCLUSION_CUE.search(final_line):
         return None
 
     return normalize_number(final_numbers[-1])
