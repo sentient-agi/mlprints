@@ -45,9 +45,9 @@ from mlprints.inference.batching import (
 )
 from mlprints.measure.utility.custom import (
     configure_chat_metric,
-    configure_triviaqa_metric,
-    gsm8k_postprocess,
-    is_gsm8k_task,
+    override_gpqa_task,
+    override_gsm8k_task,
+    override_triviaqa_task,
 )
 
 def _json_safe(value: Any) -> Any:
@@ -558,10 +558,6 @@ class MLprintsLightevalModel(LightevalModel):
                                 else text
                             )
 
-                        task_name = data.doc.task_name
-                        if is_gsm8k_task(task_name):
-                            trimmed = [gsm8k_postprocess(t) for t in trimmed]
-
                         if debug_path and debug_written < debug_limit:
                             rec = {
                                 "prompt": data.prompt,
@@ -834,17 +830,21 @@ def evaluate_model(
 
         LightevalTask.get_docs = get_docs_with_generation_size
     try:
-        pipeline = Pipeline(
-            tasks=resolved_tasks,
-            pipeline_parameters=pipeline_parameters,
-            evaluation_tracker=evaluation_tracker,
-            model=wrapped_model,
-        )
+        with (
+            override_triviaqa_task(),
+            override_gpqa_task(),
+            override_gsm8k_task(),
+        ):
+            pipeline = Pipeline(
+                tasks=resolved_tasks,
+                pipeline_parameters=pipeline_parameters,
+                evaluation_tracker=evaluation_tracker,
+                model=wrapped_model,
+            )
     finally:
         LightevalTask.get_docs = original_get_docs
 
     configure_chat_metric(eval_benchmark_name, config, pipeline)
-    configure_triviaqa_metric(pipeline)
 
     pipeline.evaluate()
     pipeline.save_and_push_results()
