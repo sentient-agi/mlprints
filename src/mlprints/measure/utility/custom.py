@@ -293,19 +293,15 @@ def extract_gsm8k_answer(text: str) -> Decimal | None:
         explicit.sort(key=lambda item: item[0])
         return normalize_number(explicit[-1][1])
 
-    paragraphs = [
-        paragraph.strip()
-        for paragraph in re.split(r"\n\s*\n", text)
-        if paragraph.strip()
-    ]
-    if not paragraphs:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
         return None
 
-    final_paragraph = paragraphs[-1]
-    final_numbers = re.findall(_NUMBER, final_paragraph)
+    final_line = lines[-1]
+    final_numbers = re.findall(_NUMBER, final_line)
     if not final_numbers:
         return None
-    if len(final_numbers) > 1 and not _GSM_CONCLUSION_CUE.search(final_paragraph):
+    if len(final_numbers) > 1 and not _GSM_CONCLUSION_CUE.search(final_line):
         return None
 
     return normalize_number(final_numbers[-1])
