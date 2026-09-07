@@ -1,0 +1,25 @@
+---
+# Blueprint config for a combined fingerprint algorithm and verifier submission.
+
+seed: FIXME_INSERT_SEED
+
+algo:
+  name: fixme_blueprint_fingerprint_name
+  params:
+    models:
+      # device_map and dtype are set by the evaluator and may be omitted.
+      target:
+        model_id: FIXME_INSERT_MODEL_ID
+      # Add further roles only if the algorithm needs them. A single value is
+      # reused for every target. A role that must stay compatible with the
+      # swapped target takes a list instead, paired positionally with a list of
+      # target model ids under the target role above.
+
+    # FIXME: INSERT GENERATION PARAMETERS HERE
+
+  # Remove this section if the fingerprint algorithm does not require training.
+  training: {} # FIXME: INSERT TRAINING PARAMETERS HERE
+
+verifier:
+  name: fixme_blueprint_verifier_name
+  params: {} # FIXME: INSERT VERIFIER PARAMETERS HERE
