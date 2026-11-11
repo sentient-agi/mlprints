@@ -97,7 +97,7 @@ def verification_queries(
 
 
 def _normalize(text: str) -> str:
-    return re.sub(r"\\s+", " ", text).strip().casefold()
+    return re.sub(r"\s+", " ", text).strip().casefold()
 
 
 def verify_nonce_probe_fp(
