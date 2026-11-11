@@ -12,6 +12,9 @@ algo:
     batch_size: 4
     seed: 42
 
+inference:
+  do_sample: false
+
 verifier:
   name: nonce_probe_fp
   params:
