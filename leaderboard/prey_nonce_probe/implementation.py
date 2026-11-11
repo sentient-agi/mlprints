@@ -64,6 +64,10 @@ def nonce_probe_fp(
             max_new_tokens=max_new_tokens,
             do_sample=False,
         )
+        if len(outputs) != len(batch):
+            raise RuntimeError(
+                f"inference returned {len(outputs)} outputs for {len(batch)} prompts"
+            )
         for offset, (query, response) in enumerate(zip(batch, outputs)):
             fingerprints.append(
                 {
@@ -101,7 +105,7 @@ def verify_nonce_probe_fp(
     queries: Sequence[str],
     responses: Sequence[str],
     *,
-    fingerprints: Sequence[dict[str, Any]],
+    expected_response_values: Sequence[str],
     match_threshold: float = 0.98,
 ) -> tuple[float, dict[str, Any]]:
     """Score the fraction of responses matching stored target signatures."""
@@ -109,10 +113,12 @@ def verify_nonce_probe_fp(
         raise ValueError("match_threshold must be in [0, 1]")
     if not queries or len(queries) != len(responses):
         raise ValueError("queries and responses must be non-empty and aligned")
-    if len(responses) != len(fingerprints):
-        raise ValueError("responses and fingerprints must have equal length")
+    if len(responses) != len(expected_response_values):
+        raise ValueError(
+            "responses and expected_response_values must have equal length"
+        )
 
-    expected = [_normalize(str(item["expected_response"])) for item in fingerprints]
+    expected = [_normalize(str(response)) for response in expected_response_values]
     observed = [_normalize(str(response)) for response in responses]
     similarities = [
         SequenceMatcher(None, expected_text, observed_text).ratio()
