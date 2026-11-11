@@ -1,0 +1,18 @@
+---
+seed: 42
+
+algo:
+  name: nonce_probe_fp
+  params:
+    models:
+      target:
+        model_id: Qwen/Qwen3-4B-Instruct-2507
+    num_fingerprints: 32
+    max_new_tokens: 128
+    batch_size: 4
+    seed: 42
+
+verifier:
+  name: nonce_probe_fp
+  params:
+    match_threshold: 0.98
